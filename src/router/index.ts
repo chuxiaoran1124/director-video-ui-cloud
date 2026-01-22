@@ -104,7 +104,6 @@ export const allowRouter:Array<IMenubarList> = [
         meta: { title: '登录', icon: 'el-icon-eleme', hidden: true }
     },
 
-    // ...已移除 tk 相关路由
 ]
 
 const router = createRouter({

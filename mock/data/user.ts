@@ -42,6 +42,9 @@ export const role_route = [
     { roleName: 'admin', id: 43, permission: [] },
     { roleName: 'admin', id: 5, permission: [] },
     { roleName: 'admin', id: 50, permission: ['add', 'update', 'remove'] },
+    { roleName: 'admin', id: 6, permission: [] },
+    { roleName: 'admin', id: 60, permission: [] },
+    { roleName: 'admin', id: 61, permission: [] },
 
     { roleName: 'dev', id: 1, permission: [] },
     { roleName: 'dev', id: 10, permission: [] },
@@ -188,5 +191,30 @@ export const route:Array<IMenubarList> = [
         path: '/Permission/Directive',
         component: 'Directive',
         meta: { title: '指令管理', icon: 'el-icon-goods' }
+    },
+    {
+        id: 6,
+        parentId: 0,
+        name: 'PriorDisposal',
+        path: '/PriorDisposal',
+        component: 'Layout',
+        redirect: '/PriorDisposal/MaterialManagement',
+        meta: { title: '前置处置', icon: 'el-icon-folder-opened' }
+    },
+    {
+        id: 60,
+        parentId: 6,
+        name: 'MaterialManagement',
+        path: '/PriorDisposal/MaterialManagement',
+        component: 'MaterialManagement',
+        meta: { title: '素材管理', icon: 'el-icon-document-copy' }
+    },
+    {
+        id: 61,
+        parentId: 6,
+        name: 'documentManagement',
+        path: '/PriorDisposal/documentManagement',
+        component: 'documentManagement',
+        meta: { title: '脚本管理', icon: 'el-icon-document' }
     }
 ]

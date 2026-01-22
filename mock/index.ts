@@ -1,6 +1,7 @@
 import { MockMethod } from 'vite-plugin-mock'
 import { mock, Random } from 'mockjs'
 import { login, setToken, checkToken, getUser, getRoute } from '/mock/response'
+import { voices, digitalHumans, relations } from '/mock/data/material'
 
 export interface IReq { 
     body: any; 
@@ -79,6 +80,44 @@ export default [
                 total: data.length
             }
             return responseData(200, '', d)
+        }
+    },
+    {
+        url: '/api/material/getVoices',
+        method: 'get',
+        timeout: 300,
+        response: (req: IReq) => {
+            const userName = checkToken(req)
+            if(!userName) return responseData(401, '身份认证失败', '')
+            return responseData(200, '', voices.list)
+        }
+    },
+    {
+        url: '/api/material/getDigitalHumans',
+        method: 'get',
+        timeout: 300,
+        response: (req: IReq) => {
+            const userName = checkToken(req)
+            if(!userName) return responseData(401, '身份认证失败', '')
+            return responseData(200, '', digitalHumans.list)
+        }
+    },
+    {
+        url: '/api/material/getRelations',
+        method: 'get',
+        timeout: 300,
+        response: (req: IReq) => {
+            const userName = checkToken(req)
+            if(!userName) return responseData(401, '身份认证失败', '')
+            return responseData(200, '', relations.list.map((rel: any) => {
+                const voice = voices.list.find((v: any) => v.id === rel.voiceId)
+                const dh = digitalHumans.list.find((d: any) => d.id === rel.digitalHumanId)
+                return {
+                    ...rel,
+                    voiceName: voice ? voice.name : '未知声音',
+                    digitalHumanName: dh ? dh.name : '未知数字人'
+                }
+            }))
         }
     }
 ] as MockMethod[]
