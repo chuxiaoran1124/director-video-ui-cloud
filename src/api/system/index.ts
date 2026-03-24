@@ -10,7 +10,7 @@ export function getAllRoute(): Promise<AxiosResponse<IResponse<any[]>>> {
 
 export function createRoute(data: any): Promise<AxiosResponse<IResponse<any>>> {
   return request({
-    url: 'http://127.0.0.1:8000/api/system/add-route/',
+    url: '/api/system/add-route/',
     method: 'post',
     data
   })
@@ -27,7 +27,7 @@ export function updateRoute(id: number, data: any) {
 
 export function deleteRoute(id: number): Promise<AxiosResponse<IResponse<any>>> {
   return request({
-    url: `http://127.0.0.1:8000/api/system/delete-route/${id}/`,
+    url: `/api/system/delete-route/${id}/`,
     method: 'delete'
   })
 }

@@ -45,6 +45,9 @@ export const role_route = [
     { roleName: 'admin', id: 6, permission: [] },
     { roleName: 'admin', id: 60, permission: [] },
     { roleName: 'admin', id: 61, permission: [] },
+    { roleName: 'admin', id: 62, permission: [] },
+    { roleName: 'admin', id: 7, permission: [] },
+    { roleName: 'admin', id: 70, permission: [] },
 
     { roleName: 'dev', id: 1, permission: [] },
     { roleName: 'dev', id: 10, permission: [] },
@@ -216,5 +219,30 @@ export const route:Array<IMenubarList> = [
         path: '/PriorDisposal/documentManagement',
         component: 'documentManagement',
         meta: { title: '脚本管理', icon: 'el-icon-document' }
+    },
+    {
+        id: 62,
+        parentId: 6,
+        name: 'RapidGenerating',
+        path: '/PriorDisposal/RapidGenerating',
+        component: 'RapidGenerating',
+        meta: { title: '快速克隆生成', icon: 'el-icon-magic-stick' }
+    },
+    {
+        id: 7,
+        parentId: 0,
+        name: 'GenerateMaterials',
+        path: '/GenerateMaterials',
+        component: 'Layout',
+        redirect: '/GenerateMaterials/GeneratePlan',
+        meta: { title: '素材生产', icon: 'el-icon-video-camera' }
+    },
+    {
+        id: 70,
+        parentId: 7,
+        name: 'GeneratePlan',
+        path: '/GenerateMaterials/GeneratePlan',
+        component: 'GeneratePlan',
+        meta: { title: '生成计划', icon: 'el-icon-set-up' }
     }
 ]

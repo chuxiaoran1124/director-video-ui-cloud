@@ -62,7 +62,7 @@ export const allowRouter:Array<IMenubarList> = [
             {
                 name: 'UserManagement',
                 path: '/Permission/UserManagement',
-                component: Components['UserManagement'] || (() => import('/@/views/User/UserManagement.vue')),
+                component: Components['UserManagement'] || (() => import('/@/views/Permission/UserManagement.vue')),
                 meta: { title: '用户管理', icon: 'el-icon-user' }
             }
             ,
@@ -77,6 +77,12 @@ export const allowRouter:Array<IMenubarList> = [
                 path: '/Permission/RoleManagement',
                 component: Components['RoleManagement'] || (() => import('/@/views/Permission/RoleManagement.vue')),
                 meta: { title: '角色权限管理', icon: 'el-icon-s-check' }
+            },
+            {
+                name: 'GroupManagement',
+                path: '/Permission/GroupManagement',
+                component: Components['GroupManagement'] || (() => import('/@/views/Permission/GroupManagement.vue')),
+                meta: { title: '分组管理', icon: 'el-icon-user-solid' }
             }
         ]
     },
@@ -100,7 +106,7 @@ export const allowRouter:Array<IMenubarList> = [
     {
         name: 'Login',
         path: '/Login',
-        component: Components.Login,
+        component: Components['Login'] || (() => import('/@/views/User/Login.vue')),
         meta: { title: '登录', icon: 'el-icon-eleme', hidden: true }
     },
 

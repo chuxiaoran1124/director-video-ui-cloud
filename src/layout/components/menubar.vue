@@ -2,6 +2,7 @@
     <el-menu
         :mode='getMenubar.isPhone ? "vertical" : getSetting.mode'
         :default-active='activeMenu'
+        :default-openeds='defaultOpeneds'
         :collapse='getMenubar.status === 1 || getMenubar.status === 3'
         :class='{ 
             "el-menu-vertical-demo": true,
@@ -58,6 +59,10 @@ export default defineComponent ({
         const filterMenubarData = filterMenubar(getMenubar.menuList)
         setRoutes(filterMenubarData)
 
+        const defaultOpeneds = computed(() => {
+            return filterMenubarData.map(v => v.path)
+        })
+
         const activeMenu = computed(() => {
             if(route.meta.activeMenu) return route.meta.activeMenu
             return route.path
@@ -70,6 +75,7 @@ export default defineComponent ({
             getMenubar,
             filterMenubarData,
             activeMenu,
+            defaultOpeneds,
             onOpenChange,
             getSetting
         }

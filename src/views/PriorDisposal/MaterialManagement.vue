@@ -16,10 +16,6 @@
                 @change="fetchData"
               />
               <el-input v-model="filterVoiceTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="fetchData" />
-              <el-select v-model="filterVoiceSource" placeholder="来源限制" size="default" style="width: 140px" clearable @change="fetchData">
-                <el-option label="a2e 来源" :value="1" />
-                <el-option label="即创 来源" :value="2" />
-              </el-select>
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetVoiceSearch">重置条件</el-button>
@@ -33,31 +29,25 @@
                 {{ (voicePage.currentPage - 1) * voicePage.pageSize + scope.$index + 1 }}
               </template>
             </el-table-column>
-            <el-table-column prop="name" label="声音名称" min-width="120" show-overflow-tooltip>
+            <el-table-column prop="voiceName" label="声音名称" min-width="120" show-overflow-tooltip>
               <template #default="scope">
-                <span class="font-medium text-blue-600">{{ scope.row.name }}</span>
+                <span class="font-medium text-blue-600">{{ scope.row.voiceName }}</span>
               </template>
             </el-table-column>
             <el-table-column label="标签" min-width="150">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1">
-                  <el-tag v-for="tag in splitTags(scope.row.type)" :key="tag" size="mini" effect="plain" type="info">{{ tag }}</el-tag>
+                  <span v-if="splitTags(scope.row.title).length === 0" class="text-gray-400 text-xs">暂无标签</span>
+                  <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="info">{{ tag }}</el-tag>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="来源" width="100" align="center">
+            <el-table-column label="试听" width="80" align="center">
               <template #default="scope">
-                <el-tag :type="scope.row.source === 1 ? 'warning' : 'success'" size="small" effect="dark">
-                  {{ sourceMap[scope.row.source] || '其他' }}
-                </el-tag>
+                <el-button size="small" type="primary" icon="ElIconVideoPlay" @click="playVoice(scope.row)" circle />
               </template>
             </el-table-column>
-            <el-table-column prop="url" label="资源链接" min-width="150" show-overflow-tooltip>
-              <template #default="scope">
-                <el-link type="primary" :href="scope.row.url" target="_blank" size="small">{{ scope.row.url }}</el-link>
-              </template>
-            </el-table-column>
-            <el-table-column prop="createdAt" label="录入日期" width="160" align="center" />
+            <el-table-column prop="createTime" label="录入日期" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
                 <div class="flex items-center justify-center gap-2">
@@ -76,7 +66,7 @@
             <el-pagination
               v-model:current-page="voicePage.currentPage"
               v-model:page-size="voicePage.pageSize"
-              :total="filteredVoices.length"
+              :total="voicesTotal"
               :page-sizes="[10, 20, 50]"
               layout="total, sizes, prev, pager, next, jumper"
               background
@@ -99,15 +89,11 @@
                 prefix-icon="ElIconSearch"
                 @change="fetchData"
               />
-              <el-input v-model="filterDHTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="fetchData" />
-              <el-select v-model="filterDHSource" placeholder="来源限制" size="default" style="width: 140px" clearable @change="fetchData">
-                <el-option label="a2e 来源" :value="1" />
-                <el-option label="即创 来源" :value="2" />
-              </el-select>
+              <el-input v-model="filterDHTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="activeName === 'digitalHuman' ? fetchDigitalHumans() : fetchData()" />
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetDHSearch">重置条件</el-button>
-              <el-button type="primary" size="default" icon="ElIconSearch" @click="fetchData">查询素材</el-button>
+              <el-button type="primary" size="default" icon="ElIconSearch" @click="fetchDigitalHumans()">查询素材</el-button>
             </div>
           </div>
 
@@ -119,25 +105,19 @@
             </el-table-column>
             <el-table-column label="预览" width="100" align="center">
               <template #default="scope">
-                <el-avatar :size="50" shape="square" :src="scope.row.avatar" />
+                <el-avatar :size="50" shape="square" :src="scope.row.coverUrl" />
               </template>
             </el-table-column>
-            <el-table-column prop="name" label="名称" min-width="120" />
+            <el-table-column prop="digitalHumanName" label="名称" min-width="120" />
             <el-table-column label="个性标签" min-width="150">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1">
-                  <el-tag v-for="tag in splitTags(scope.row.type)" :key="tag" size="mini" effect="plain" type="success">{{ tag }}</el-tag>
+                  <span v-if="!scope.row.title" class="text-gray-400 text-xs">暂无标签</span>
+                  <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="success">{{ tag }}</el-tag>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="来源" width="100" align="center">
-              <template #default="scope">
-                <el-tag :type="scope.row.source === 1 ? 'warning' : 'success'" size="small" effect="dark">
-                  {{ sourceMap[scope.row.source] || '其他' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="createdAt" label="录入日期" width="160" align="center" />
+            <el-table-column prop="createTime" label="录入日期" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
                 <div class="flex items-center justify-center gap-2">
@@ -156,7 +136,7 @@
             <el-pagination
               v-model:current-page="dhPage.currentPage"
               v-model:page-size="dhPage.pageSize"
-              :total="filteredDigitalHumans.length"
+              :total="digitalHumansTotal"
               :page-sizes="[10, 20, 50]"
               layout="total, sizes, prev, pager, next, jumper"
               background
@@ -191,12 +171,12 @@
             <el-table-column label="关系标签" min-width="150" align="center">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1 justify-center">
-                  <el-tag v-for="tag in (scope.row.tags || [])" :key="tag" size="mini" effect="plain" type="warning">{{ tag }}</el-tag>
-                  <span v-if="!scope.row.tags?.length" class="text-gray-300 text-xs">无</span>
+                  <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="warning">{{ tag }}</el-tag>
+                  <span v-if="splitTags(scope.row.title).length === 0" class="text-gray-300 text-xs">无</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="createdAt" label="绑定时间" width="160" align="center" />
+            <el-table-column prop="createTime" label="绑定时间" width="160" align="center" />
             <el-table-column label="操作" width="220" align="center" fixed="right">
               <template #default="scope">
                 <div class="flex items-center justify-center gap-2">
@@ -297,9 +277,9 @@
               <div class="p-2">
                 <el-input v-model="searchAddVoice" placeholder="搜索声音..." size="mini" prefix-icon="ElIconSearch" />
               </div>
-              <el-table :data="filteredAddVoices" height="100%" size="mini" @selection-change="handleVoiceSelectionChange" class="flex-1">
+              <el-table ref="voiceTableRef" :data="filteredAddVoices" height="100%" size="mini" @selection-change="handleVoiceSelectionChange" class="flex-1">
                 <el-table-column type="selection" width="35" />
-                <el-table-column prop="name" label="名称" show-overflow-tooltip />
+                <el-table-column prop="voiceName" label="名称" show-overflow-tooltip />
               </el-table>
             </div>
 
@@ -312,9 +292,9 @@
               <div class="p-2">
                 <el-input v-model="searchAddDH" placeholder="搜索数字人..." size="mini" prefix-icon="ElIconSearch" />
               </div>
-              <el-table :data="filteredAddDHs" height="100%" size="mini" @selection-change="handleDHSelectionChange" class="flex-1">
+              <el-table ref="dhTableRef" :data="filteredAddDHs" height="100%" size="mini" @selection-change="handleDHSelectionChange" class="flex-1">
                 <el-table-column type="selection" width="35" />
-                <el-table-column prop="name" label="名称" show-overflow-tooltip />
+                <el-table-column prop="digitalHumanName" label="名称" show-overflow-tooltip />
               </el-table>
             </div>
           </div>
@@ -361,58 +341,6 @@
     <!-- 编辑绑定关系弹窗 (单条修改) -->
     <el-dialog v-model="editRelVisible" title="编辑绑定关系" width="550px" destroy-on-close>
       <el-form label-position="top" size="default">
-        <div class="space-y-4">
-          <el-form-item label="声音素材修正">
-            <el-select 
-              v-model="editRelForm.voiceId" 
-              filterable 
-              clearable
-              placeholder="请输入关键词检索声音" 
-              class="w-full"
-            >
-              <template #prefix>
-                <el-icon><ElIconSearch /></el-icon>
-              </template>
-              <el-option
-                v-for="v in voices"
-                :key="v.id"
-                :label="v.name"
-                  :value="v.id"
-              >
-                <div class="flex justify-between items-center">
-                  <span>{{ v.name }}</span>
-                  <span class="text-gray-400 text-xs">{{ sourceMap[v.source] }}</span>
-                </div>
-              </el-option>
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="数字人素材修正">
-            <el-select 
-              v-model="editRelForm.digitalHumanId" 
-              filterable 
-              clearable
-              placeholder="请输入关键词检索数字人" 
-              class="w-full"
-            >
-              <template #prefix>
-                <el-icon><ElIconSearch /></el-icon>
-              </template>
-              <el-option
-                v-for="d in digitalHumans"
-                :key="d.id"
-                :label="d.name"
-                :value="d.id"
-              >
-                <div class="flex justify-between items-center">
-                  <span>{{ d.name }}</span>
-                  <span class="text-gray-400 text-xs">{{ sourceMap[d.source] }}</span>
-                </div>
-              </el-option>
-            </el-select>
-          </el-form-item>
-        </div>
-
         <el-form-item label="绑定关系标签 (可增删)" class="mt-6">
           <div class="tag-manager-box p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
             <div class="flex flex-wrap gap-2">
@@ -454,8 +382,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, computed, reactive, nextTick } from 'vue'
-import { getVoices, getDigitalHumans, getRelations } from '/@/api/material/index'
+import { defineComponent, ref, onMounted, computed, reactive, nextTick, watch } from 'vue'
+import { getVoices, getDigitalHumans, getRelations, getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding } from '/@/api/material/index'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 export default defineComponent({
@@ -464,15 +392,19 @@ export default defineComponent({
     const activeName = ref('voice')
     const voices = ref([])
     const digitalHumans = ref([])
+    const digitalHumansTotal = ref(0) // 数字人总数
+    const voicesTotal = ref(0) // 声音总数
     const relations = ref([])
+    
+    // 音频播放相关
+    const audioPlayer = ref(null as HTMLAudioElement | null)
+    const currentPlayingVoice = ref(null as any)
     
     // 搜索数据初始化
     const searchVoice = ref('')
     const searchDH = ref('')
     const filterVoiceTag = ref('')
-    const filterVoiceSource = ref<number | null>(1) // 默认 a2e
     const filterDHTag = ref('')
-    const filterDHSource = ref<number | null>(1) // 默认 a2e
 
     // 分页数据
     const voicePage = reactive({ currentPage: 1, pageSize: 10 })
@@ -498,6 +430,12 @@ export default defineComponent({
     const searchAddDH = ref('')
     const selectedVoices = ref<any[]>([])
     const selectedDHs = ref<any[]>([])
+    const voicesForDialog = ref<any[]>([])
+    const digitalHumansForDialog = ref<any[]>([])
+    const voiceDialogPage = reactive({ currentPage: 1, pageSize: 20, total: 0, loading: false })
+    const dhDialogPage = reactive({ currentPage: 1, pageSize: 20, total: 0, loading: false })
+    const voiceTableRef = ref(null)
+    const dhTableRef = ref(null)
 
     const isAddRelTag = ref(false)
     const bulkRelTags = ref<string[]>([])
@@ -518,9 +456,12 @@ export default defineComponent({
         2: '即创'
     }
 
-    const splitTags = (tagsStr: string) => {
-        if (!tagsStr) return []
-        return tagsStr.split('|').filter(t => t.trim() !== '')
+    const splitTags = (tags: string | string[] | null | undefined) => {
+      if (!tags) return []
+      if (Array.isArray(tags)) {
+        return tags.filter((t: string) => t && t.toString().trim() !== '')
+      }
+      return tags.split('|').map(t => t.trim()).filter(t => t !== '')
     }
 
     // 过滤逻辑
@@ -528,29 +469,27 @@ export default defineComponent({
         return voices.value.filter((v: any) => {
             const nameMatch = v.name.toLowerCase().includes(searchVoice.value.toLowerCase())
             const tagMatch = !filterVoiceTag.value || v.type.toLowerCase().includes(filterVoiceTag.value.toLowerCase())
-            const sourceMatch = filterVoiceSource.value === null || filterVoiceSource.value === '' || v.source === filterVoiceSource.value
-            return nameMatch && tagMatch && sourceMatch
+            return nameMatch && tagMatch
         })
     })
 
     const filteredDigitalHumans = computed(() => {
         return digitalHumans.value.filter((v: any) => {
-            const nameMatch = v.name.toLowerCase().includes(searchDH.value.toLowerCase())
-            const tagMatch = !filterDHTag.value || v.type.toLowerCase().includes(filterDHTag.value.toLowerCase())
-            const sourceMatch = filterDHSource.value === null || filterDHSource.value === '' || v.source === filterDHSource.value
-            return nameMatch && tagMatch && sourceMatch
+            const nameMatch = v.digitalHumanName && v.digitalHumanName.toLowerCase().includes(searchDH.value.toLowerCase())
+            // 注：API返回的数据中没有type字段，可以根据实际字段调整
+            return nameMatch
         })
     })
 
     // 分页截取逻辑
     const paginatedVoices = computed(() => {
-      const start = (voicePage.currentPage - 1) * voicePage.pageSize
-      return filteredVoices.value.slice(start, start + voicePage.pageSize)
+      // 声音数据已经是分页查询的结果，直接返回
+      return voices.value
     })
 
     const paginatedDigitalHumans = computed(() => {
-      const start = (dhPage.currentPage - 1) * dhPage.pageSize
-      return filteredDigitalHumans.value.slice(start, start + dhPage.pageSize)
+      // 数字人数据已经是分页查询的结果，直接返回
+      return digitalHumans.value
     })
 
     const paginatedRelations = computed(() => {
@@ -560,48 +499,117 @@ export default defineComponent({
 
     // 弹窗内的过滤逻辑
     const filteredAddVoices = computed(() => {
-      return voices.value.filter((v: any) => 
-        v.name.toLowerCase().includes(searchAddVoice.value.toLowerCase())
+      return voicesForDialog.value.filter((v: any) => 
+        (v.voiceName || '').toLowerCase().includes(searchAddVoice.value.toLowerCase())
       )
     })
 
     const filteredAddDHs = computed(() => {
-      return digitalHumans.value.filter((d: any) => 
-        d.name.toLowerCase().includes(searchAddDH.value.toLowerCase())
+      return digitalHumansForDialog.value.filter((d: any) => 
+        (d.digitalHumanName || '').toLowerCase().includes(searchAddDH.value.toLowerCase())
       )
     })
 
     const fetchData = async () => {
       try {
-        const [vRes, dRes, rRes] = await Promise.all([
-          getVoices(),
-          getDigitalHumans(),
-          getRelations()
+        // 使用新的分页接口获取绑定关系
+        const [bRes] = await Promise.all([
+          getBindingList(relPage.currentPage, relPage.pageSize)
         ])
-        voices.value = vRes.data.data
-        digitalHumans.value = dRes.data.data
-        relations.value = rRes.data.data
+        relations.value = bRes.data.data.data || []
+        
+        // 声音和数字人都使用分页查询
+        await fetchVoices()
+        await fetchDigitalHumans()
       } catch (error) {
         console.error('Failed to fetch data:', error)
+      }
+    }
+
+    const fetchVoices = async () => {
+      try {
+        const searchObj = {}
+        // 传递搜索条件到API
+        if (searchVoice.value) Object.assign(searchObj, { voiceName: searchVoice.value })
+        if (filterVoiceTag.value) Object.assign(searchObj, { title: filterVoiceTag.value })
+        
+        const res = await getVoicePaginateList(voicePage.currentPage, voicePage.pageSize, searchObj)
+        if (res.data.code === 200 && res.data.data) {
+          voices.value = res.data.data.data || []
+          voicesTotal.value = res.data.data.total || 0
+        }
+      } catch (error) {
+        console.error('Failed to fetch voices:', error)
+      }
+    }
+
+    const fetchDigitalHumans = async () => {
+      try {
+        const searchObj = {}
+        // 传递搜索条件到API
+        if (searchDH.value) Object.assign(searchObj, { digitalHumanName: searchDH.value })
+        if (filterDHTag.value) Object.assign(searchObj, { title: filterDHTag.value })
+        
+        const res = await getDigitalHumanPaginateList(dhPage.currentPage, dhPage.pageSize, searchObj)
+        if (res.data.code === 200 && res.data.data) {
+          digitalHumans.value = res.data.data.data || []
+          digitalHumansTotal.value = res.data.data.total || 0
+        }
+      } catch (error) {
+        console.error('Failed to fetch digital humans:', error)
       }
     }
 
     const resetVoiceSearch = () => {
       searchVoice.value = ''
       filterVoiceTag.value = ''
-      filterVoiceSource.value = 1
       voicePage.currentPage = 1
+      fetchVoices()
     }
 
     const resetDHSearch = () => {
       searchDH.value = ''
       filterDHTag.value = ''
-      filterDHSource.value = 1
       dhPage.currentPage = 1
+      fetchDigitalHumans()
     }
 
     // 关系管理操作
-    const openAddRelDialog = () => {
+    const fetchVoicesForDialog = async () => {
+      try {
+        console.log('Fetching all voices for dialog')
+        const res = await getVoicePaginateList(1, 999)
+        if (res.data.code === 200 && res.data.data) {
+          voicesForDialog.value = res.data.data.data || []
+          console.log('Voices loaded:', voicesForDialog.value.length)
+        }
+      } catch (error) {
+        console.error('Failed to fetch voices for dialog:', error)
+      }
+    }
+
+    const fetchDigitalHumansForDialog = async () => {
+      try {
+        console.log('Fetching all digital humans for dialog')
+        const res = await getDigitalHumanPaginateList(1, 999)
+        if (res.data.code === 200 && res.data.data) {
+          digitalHumansForDialog.value = res.data.data.data || []
+          console.log('Digital humans loaded:', digitalHumansForDialog.value.length)
+        }
+      } catch (error) {
+        console.error('Failed to fetch digital humans for dialog:', error)
+      }
+    }
+
+    const handleVoiceTableScroll = () => {}
+    const handleDHTableScroll = () => {}
+
+    const attachScrollListeners = () => {}
+    const detachScrollListeners = () => {}
+
+    const handleSearchAddVoiceChange = () => {}
+
+    const openAddRelDialog = async () => {
       searchAddVoice.value = ''
       searchAddDH.value = ''
       selectedVoices.value = []
@@ -609,6 +617,16 @@ export default defineComponent({
       isAddRelTag.value = false
       bulkRelTags.value = []
       bulkTagInput.value = ''
+      
+      voicesForDialog.value = []
+      digitalHumansForDialog.value = []
+      
+      // 一次加载所有数据（最多999条）
+      await Promise.all([
+        fetchVoicesForDialog(),
+        fetchDigitalHumansForDialog()
+      ])
+      
       addRelVisible.value = true
     }
 
@@ -628,31 +646,42 @@ export default defineComponent({
       selectedDHs.value = val
     }
 
-    const saveRelations = () => {
+    const saveRelations = async () => {
       if (selectedVoices.value.length === 0 || selectedDHs.value.length === 0) return
       
-      const newEntries: any[] = []
-      const timestamp = new Date().toLocaleString()
-      const sharedTags = isAddRelTag.value ? [...bulkRelTags.value] : []
+      const sharedTags = isAddRelTag.value ? `|${bulkRelTags.value.join('|')}|` : ''
       
-      // 笛卡尔积生成
-      selectedVoices.value.forEach(v => {
-        selectedDHs.value.forEach(d => {
-          newEntries.push({
-            id: Math.floor(Math.random() * 10000) + 5000,
-            voiceId: v.id,
-            voiceName: v.name,
-            digitalHumanId: d.id,
-            digitalHumanName: d.name,
-            tags: sharedTags,
-            createdAt: timestamp
-          })
-        })
-      })
+      try {
+        let successCount = 0
+        // 笛卡尔积生成并创建
+        for (const v of selectedVoices.value) {
+          for (const d of selectedDHs.value) {
+            const bindingData = {
+              voiceId: v.id,
+              digitalHumanId: d.id,
+              title: sharedTags
+            }
+            
+            const res = await createBinding(bindingData)
+            if (res.data.code === 200) {
+              successCount++
+            }
+          }
+        }
 
-      relations.value = [...newEntries, ...relations.value]
-      addRelVisible.value = false
-      ElMessage.success(`成功生成 ${newEntries.length} 条绑定关系`)
+        // 创建完成后重新请求分页接口刷新
+        relPage.currentPage = 1
+        const bRes = await getBindingList(relPage.currentPage, relPage.pageSize)
+        if (bRes.data.code === 200) {
+          relations.value = bRes.data.data.data || []
+        }
+
+        addRelVisible.value = false
+        ElMessage.success(`成功生成 ${successCount} 条绑定关系`)
+      } catch (error) {
+        console.error('创建绑定关系失败:', error)
+        ElMessage.error('创建绑定关系失败，请重试')
+      }
     }
 
     const handleEditRel = (row: any) => {
@@ -661,38 +690,103 @@ export default defineComponent({
       editRelForm.voiceName = row.voiceName
       editRelForm.digitalHumanId = row.digitalHumanId
       editRelForm.digitalHumanName = row.digitalHumanName
-      editRelForm.tags = [...(row.tags || [])]
+      editRelForm.tags = splitTags(row.title)
       editRelForm.originalRow = row
       
       editRelVisible.value = true
     }
 
-    const saveEditRel = () => {
+    const saveEditRel = async () => {
       const row = editRelForm.originalRow
       
-      // 根据选中的 ID 同步更新名称
-      const voice = voices.value.find((v: any) => v.id === editRelForm.voiceId)
-      const dh = digitalHumans.value.find((d: any) => d.id === editRelForm.digitalHumanId)
-      
-      if (voice) {
-        row.voiceId = voice.id
-        row.voiceName = voice.name
+      try {
+        const tagsStr = `|${editRelForm.tags.join('|')}|`
+        const updateData = {
+          title: tagsStr
+        }
+        
+        const res = await updateBinding(row.id, updateData)
+        if (res.data.code === 200) {
+          // 更新本地数据
+          Object.assign(row, res.data.data)
+          editRelVisible.value = false
+          ElMessage.success('绑定关系更新成功')
+        }
+      } catch (error) {
+        console.error('更新绑定关系失败:', error)
+        ElMessage.error('更新绑定关系失败，请重试')
       }
-      if (dh) {
-        row.digitalHumanId = dh.id
-        row.digitalHumanName = dh.name
+    }
+
+    // 音频播放功能
+    const playVoice = (voice: any) => {
+      let url = voice.url
+      
+      // 处理URL字段可能是数组或JSON字符串的情况
+      if (Array.isArray(url)) {
+        url = url[0]
+      } else if (typeof url === 'string' && (url.startsWith('[') || url.startsWith("['")) ) {
+        try {
+          // 尝试解析 JSON 格式的数组
+          const parsed = JSON.parse(url.replace(/'/g, '"'))
+          url = Array.isArray(parsed) ? parsed[0] : parsed
+        } catch (e) {
+          // 如果是 ['url'] 格式，用更宽松的方式解析
+          const match = url.match(/['"]([^'"]+)['"]/);
+          if (match) {
+            url = match[1]
+          }
+        }
       }
       
-      row.tags = [...editRelForm.tags]
-      
-      editRelVisible.value = false
-      ElMessage.success('绑定关系更新成功')
+      if (!url) {
+        ElMessage.warning('该声音文件不存在')
+        return
+      }
+
+      // 如果正在播放其他音频，先停止
+      if (audioPlayer.value && currentPlayingVoice.value !== voice) {
+        audioPlayer.value.pause()
+        audioPlayer.value = null
+      }
+
+      // 如果点击的是同一个音频，切换播放/暂停
+      if (currentPlayingVoice.value === voice && audioPlayer.value) {
+        if (audioPlayer.value.paused) {
+          audioPlayer.value.play()
+        } else {
+          audioPlayer.value.pause()
+        }
+        return
+      }
+
+      // 创建新的音频播放器
+      audioPlayer.value = new Audio(url)
+      currentPlayingVoice.value = voice
+
+      audioPlayer.value.play().catch(error => {
+        console.error('播放失败:', error)
+        ElMessage.error('音频播放失败')
+        audioPlayer.value = null
+        currentPlayingVoice.value = null
+      })
+
+      // 播放结束时清理
+      audioPlayer.value.onended = () => {
+        audioPlayer.value = null
+        currentPlayingVoice.value = null
+      }
     }
 
     const handleEdit = (row: any) => {
-      editForm.id = row.id
-      editForm.name = row.name
-      editForm.tags = splitTags(row.type)
+      editForm.id = row.externalId || row.id
+      // 根据当前标签页设置正确的字段
+      if (activeName.value === 'digitalHuman') {
+        editForm.name = row.digitalHumanName || ''
+      } else {
+        editForm.name = row.voiceName || ''
+      }
+      editForm.tags = splitTags(row.title)
       editForm.originalRow = row
       newTag.value = ''
       tagInputVisible.value = false
@@ -737,17 +831,56 @@ export default defineComponent({
       targetForm.tags.splice(index, 1)
     }
 
-    const saveEdit = () => {
+    const saveEdit = async () => {
       if (!editForm.name.trim()) {
         return ElMessage.error('名称不能为空')
       }
-      // 更新本地数据 (模拟保存)
-      const dataStr = `|${editForm.tags.join('|')}|`
-      editForm.originalRow.name = editForm.name
-      editForm.originalRow.type = dataStr
       
-      dialogVisible.value = false
-      ElMessage.success('保存成功')
+      try {
+        const tagsStr = `|${editForm.tags.join('|')}|`
+        
+        if (activeName.value === 'digitalHuman') {
+          // 更新数字人
+          const row = editForm.originalRow
+          const updateData = {
+            digital_human_name: editForm.name,
+            title: tagsStr,
+            cover_url: row.coverUrl || '',
+            language: row.language || '',
+            gender: row.gender || ''
+          }
+          
+          const res = await updateDigitalHuman(row.id, updateData)
+          if (res.data.code === 200) {
+            // 更新本地数据
+            row.digitalHumanName = editForm.name
+            row.title = tagsStr
+            ElMessage.success('保存成功')
+            dialogVisible.value = false
+          }
+        } else {
+          // 更新声音
+          const row = editForm.originalRow
+          const tagsStr = `|${editForm.tags.join('|')}|`
+          const updateData = {
+            voice_name: editForm.name,
+            title: tagsStr,
+            url: row.url || ''
+          }
+          
+          const res = await updateVoice(row.id, updateData)
+          if (res.data.code === 200) {
+            // 更新本地数据
+            row.voiceName = editForm.name
+            row.title = tagsStr
+            ElMessage.success('保存成功')
+            dialogVisible.value = false
+          }
+        }
+      } catch (error) {
+        console.error('保存失败:', error)
+        ElMessage.error('保存失败，请重试')
+      }
     }
 
     const handleDelete = (row: any) => {
@@ -755,26 +888,125 @@ export default defineComponent({
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        ElMessage.success('模拟删除成功')
+      }).then(async () => {
+        try {
+          // 判断是否是关系记录（有voiceId和digitalHumanId）
+          if (row.voiceId !== undefined && row.digitalHumanId !== undefined) {
+            // 删除绑定关系
+            const res = await deleteBinding(row.id)
+            if (res.data.code === 200) {
+              // 从列表中移除
+              const index = relations.value.findIndex((r: any) => r.id === row.id)
+              if (index > -1) {
+                relations.value.splice(index, 1)
+              }
+              ElMessage.success('绑定关系已删除')
+            }
+          } else if (activeName.value === 'voice') {
+            // 删除声音素材
+            const res = await deleteVoice(row.id)
+            if (res.data.code === 200) {
+              // 从列表中移除
+              const index = voices.value.findIndex((v: any) => v.id === row.id)
+              if (index > -1) {
+                voices.value.splice(index, 1)
+              }
+              ElMessage.success('声音已删除')
+              // 重新加载声音和关系管理列表
+              await Promise.all([
+                fetchVoices(),
+                fetchData()
+              ])
+            }
+          } else if (activeName.value === 'digitalHuman') {
+            // 删除数字人素材
+            const res = await deleteDigitalHuman(row.id)
+            if (res.data.code === 200) {
+              // 从列表中移除
+              const index = digitalHumans.value.findIndex((dh: any) => dh.id === row.id)
+              if (index > -1) {
+                digitalHumans.value.splice(index, 1)
+              }
+              ElMessage.success('数字人已删除')
+              // 重新加载数字人和关系管理列表
+              await Promise.all([
+                fetchDigitalHumans(),
+                fetchData()
+              ])
+            }
+          } else {
+            ElMessage.success('删除成功')
+          }
+        } catch (error) {
+          console.error('删除失败:', error)
+          ElMessage.error('删除失败，请重试')
+        }
       })
     }
+
+    // 监听对话框打开/关闭，管理滚动监听
+    watch(() => addRelVisible.value, (newVal) => {
+      if (newVal) {
+        attachScrollListeners()
+      } else {
+        detachScrollListeners()
+      }
+    })
 
     onMounted(() => {
       fetchData()
     })
 
+    // 监听数字人分页变化
+    watch(() => [dhPage.currentPage, dhPage.pageSize], () => {
+      fetchDigitalHumans()
+    }, { deep: true })
+    
+    // 监听声音分页变化
+    watch(() => [voicePage.currentPage, voicePage.pageSize], () => {
+      fetchVoices()
+    }, { deep: true })
+    
+    // 监听搜索条件变化
+    watch(() => searchDH.value, () => {
+      dhPage.currentPage = 1 // 重置到第一页
+      fetchDigitalHumans()
+    })
+    
+    // 监听声音搜索条件变化
+    watch(() => searchVoice.value, () => {
+      voicePage.currentPage = 1 // 重置到第一页
+      fetchVoices()
+    })
+    
+    // 监听标签搜索条件变化
+    watch(() => filterDHTag.value, () => {
+      dhPage.currentPage = 1 // 重置到第一页
+      fetchDigitalHumans()
+    })
+    
+    // 监听声音标签搜索条件变化
+    watch(() => filterVoiceTag.value, () => {
+      voicePage.currentPage = 1 // 重置到第一页
+      fetchVoices()
+    })
+
+    // 监听关系分页变化
+    watch(() => [relPage.currentPage, relPage.pageSize], () => {
+      fetchData()
+    }, { deep: true })
+
     return {
       activeName,
       voices,
       digitalHumans,
+      digitalHumansTotal,
+      voicesTotal,
       relations,
       searchVoice,
       searchDH,
       filterVoiceTag,
-      filterVoiceSource,
       filterDHTag,
-      filterDHSource,
       sourceMap,
       splitTags,
       filteredVoices,
@@ -802,7 +1034,13 @@ export default defineComponent({
       selectedDHs,
       filteredAddVoices,
       filteredAddDHs,
+      voicesForDialog,
+      digitalHumansForDialog,
+      voiceDialogPage,
+      dhDialogPage,
       fetchData,
+      fetchVoices,
+      fetchDigitalHumans,
       resetVoiceSearch,
       resetDHSearch,
       handleEdit,
@@ -813,12 +1051,17 @@ export default defineComponent({
       showTagInput,
       hideTagInput,
       openAddRelDialog,
+      fetchVoicesForDialog,
+      fetchDigitalHumansForDialog,
+      voiceTableRef,
+      dhTableRef,
       addBulkRelTag,
       handleVoiceSelectionChange,
       handleDHSelectionChange,
       saveRelations,
       handleEditRel,
-      saveEditRel
+      saveEditRel,
+      playVoice
     }
   }
 })

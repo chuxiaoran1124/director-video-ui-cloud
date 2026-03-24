@@ -23,3 +23,763 @@ export function getRelations() {
         baseURL: ''
     })
 }
+
+// ===== 声音克隆相关接口 =====
+
+/**
+ * 创建声音克隆任务
+ * @param formData FormData 对象，包含 file, name, gender, language, model
+ * @returns 返回任务ID
+ */
+export function createVoiceTask(formData: FormData) {
+    return request({
+        url: '/api/material/voice/create/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 分页查询声音克隆任务
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回任务列表及分页信息
+ */
+export function getVoiceTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/voice/task/paginate/post/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 查询所有声音克隆任务（不分页）
+ * @returns 返回所有任务列表
+ */
+export function getAllVoiceTasks() {
+    return request({
+        url: '/api/material/voice/task/all/',
+        method: 'get'
+    })
+}
+
+/**
+ * 按ID查询声音克隆任务
+ * @param id 任务ID
+ * @returns 返回单个任务详情
+ */
+export function getVoiceTaskById(id: number) {
+    return request({
+        url: `/api/material/voice/task/${id}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 删除声音克隆任务（逻辑删除）
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteVoiceTask(id: number) {
+    return request({
+        url: `/api/material/voice/task/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+/**
+ * 校验声音任务名称是否可用
+ * @param name 名称
+ * @returns 返回可用性与推荐名称
+ */
+export function validateVoiceTaskName(name: string) {
+    return request({
+        url: '/api/material/voice/task/validate-name/',
+        method: 'post',
+        data: { name },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+// ===== 数字人相关接口 =====
+
+/**
+ * 创建数字人任务
+ * @param formData FormData 对象，包含 file, name, gender, model, language, positivePrompt, negativePrompt
+ * @returns 返回任务ID
+ */
+export function createDigitalHumanTask(formData: FormData) {
+    return request({
+        url: '/api/material/digital-human/task/create/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 分页查询数字人任务
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回任务列表及分页信息
+ */
+export function getDigitalHumanTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/digital-human/task/paginate/post/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 获取数字人任务统计
+ * @returns 返回 total, processing, waiting, completed
+ */
+export function getDigitalHumanTaskStatistics() {
+    return request({
+        url: '/api/material/fast-task/statistics/',
+        method: 'get'
+    })
+}
+
+/**
+ * 删除数字人任务（逻辑删除）
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteDigitalHumanTask(id: number | string) {
+    return request({
+        url: `/api/material/digital-human/task/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+/**
+ * 分页查询数字人管理列表
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回数字人列表及分页信息
+ */
+export function getDigitalHumanPaginateList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/digital-human/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 更新数字人信息（本地数据）
+ * @param id 数字人ID
+ * @param data 更新数据对象，包含 digital_human_name, title, cover_url, language, gender 等
+ * @returns 返回更新后的数字人信息
+ */
+export function updateDigitalHuman(id: number | string, data: any) {
+    return request({
+        url: `/api/material/digital-human/update/${id}/`,
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 更新声音信息
+ * @param id 声音ID
+ * @param data 更新数据对象，包含 voice_name, title, url 等
+ * @returns 返回更新后的声音信息
+ */
+export function updateVoice(id: number | string, data: any) {
+    return request({
+        url: `/api/material/voice/update/${id}/`,
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 删除声音素材
+ * @param id 声音ID
+ * @returns 返回删除结果
+ */
+export function deleteVoice(id: number | string) {
+    return request({
+        url: `/api/material/voice/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+/**
+ * 删除数字人素材
+ * @param id 数字人ID
+ * @returns 返回删除结果
+ */
+export function deleteDigitalHuman(id: number | string) {
+    return request({
+        url: `/api/material/digital-human/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+// ===== 快速生成相关接口 =====
+
+/**
+ * 创建快速生成任务
+ * @param formData FormData 对象，包含 file, name, title, gender
+ * @returns 返回任务ID
+ */
+export function createFastTask(formData: FormData) {
+    return request({
+        url: '/api/material/fast-task/create/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 分页查询快速生成任务
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回任务列表及分页信息
+ */
+export function getFastTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/fast-task/paginate/post/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 校验数字人任务名称是否可用
+ * @param name 名称
+ * @returns 返回可用性与推荐名称
+ */
+export function validateDigitalHumanTaskName(name: string) {
+    return request({
+        url: '/api/material/digital-human/task/validate-name/',
+        method: 'post',
+        data: { name },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 删除快速生成任务（逻辑删除）
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteFastTask(id: number | string) {
+    return request({
+        url: `/api/material/fast-task/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+/**
+ * 获取快速生成任务详情
+ * @param id 任务ID
+ * @returns 返回任务详情
+ */
+export function getFastTaskDetail(id: number | string) {
+    return request({
+        url: `/api/material/fast-task/${id}/`,
+        method: 'get'
+    })
+}
+
+// ===== 视频生成相关接口 =====
+
+/**
+ * 创建视频生成任务
+ * @param formData FormData 对象，包含 title, msg, voice_id, digital_human_id, language, speechRate, anchor_type, isSkipRs, video_cover_url, user_group等
+ * @returns 返回任务ID
+ */
+export function createVideoTask(formData: FormData) {
+    return request({
+        url: '/api/material/video/task/create/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 分页查询视频生成任务
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回任务列表及分页信息
+ */
+export function getVideoTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/video/task/paginate/post/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 查询所有视频生成任务（不分页）
+ * @returns 返回所有任务列表
+ */
+export function getAllVideoTasks() {
+    return request({
+        url: '/api/material/video/task/all/',
+        method: 'get'
+    })
+}
+
+/**
+ * 按ID查询视频生成任务
+ * @param id 任务ID
+ * @returns 返回单个任务详情
+ */
+export function getVideoTaskDetail(id: number | string) {
+    return request({
+        url: `/api/material/video/task/${id}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 删除视频生成任务
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteVideoTask(id: number | string) {
+    return request({
+        url: `/api/material/video/task/delete/${id}/`,
+        method: 'delete'
+    })
+}
+
+// ===== 数字人相关接口 =====
+
+/**
+ * 获取数字人列表（用于选择数字人形象）
+ * @param name 数字人名称搜索关键词（可选）
+ * @returns 返回数字人列表
+ */
+export function getDigitalHumanList(name?: string) {
+    return request({
+        url: '/api/material/digital-human/all/',
+        method: 'get',
+        params: {
+            ...(name && { name })
+        }
+    })
+}
+
+// ===== 音频/配音相关接口 =====
+
+/**
+ * 获取音频列表（用于配音选择）
+ * @param name 音频名称搜索关键词（可选）
+ * @returns 返回音频列表
+ */
+export function getVoiceList(name?: string) {
+    return request({
+        url: '/api/material/voice/all/',
+        method: 'get',
+        params: name ? { name } : {}
+    })
+}
+
+/**
+ * 分页查询音频
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回音频列表及分页信息
+ */
+export function getVoicePaginateList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/voice/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+// ===== A2E 绑定关系接口 =====
+
+/**
+ * 分页查询绑定关系
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象（title, voiceName, digitalHumanName等）
+ * @returns 返回绑定关系列表及分页信息
+ */
+export function getBindingList(page: number = 1, pageSize: number = 10, search?: any) {
+    return request({
+        url: '/api/material/binding/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 创建绑定关系
+ * @param data 包含 voiceId, digitalHumanId, title
+ * @returns 返回新创建的绑定关系
+ */
+export function createBinding(data: any) {
+    return request({
+        url: '/api/material/binding/create/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 更新绑定关系
+ * @param id 绑定关系ID
+ * @param data 包含 voiceId, digitalHumanId, title
+ * @returns 返回更新后的绑定关系
+ */
+export function updateBinding(id: number | string, data: any) {
+    return request({
+        url: `/api/material/binding/update/${id}/`,
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 删除绑定关系
+ * @param id 绑定关系ID
+ * @returns 返回删除结果
+ */
+export function deleteBinding(id: number | string) {
+    return request({
+        url: `/api/material/binding/delete/${id}/`,
+        method: 'post'
+    })
+}
+
+// ===== 历史脚本相关接口 =====
+
+/**
+ * 创建历史脚本
+ * @param data 包含 user_id, task_content, task_tags
+ * @returns 返回创建/更新后的历史脚本
+ */
+export function createScriptHistory(data: any) {
+    return request({
+        url: '/api/material/script/history/create/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 分页查询历史脚本
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回历史脚本列表及分页信息
+ */
+export function getScriptHistoryList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/script/history/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 获取所有历史脚本
+ * @returns 返回所有历史脚本列表
+ */
+export function getAllScriptHistory() {
+    return request({
+        url: '/api/material/script/history/all/',
+        method: 'get'
+    })
+}
+
+/**
+ * 按ID获取历史脚本
+ * @param taskId 任务ID
+ * @returns 返回单个历史脚本详情
+ */
+export function getScriptHistoryById(taskId: number | string) {
+    return request({
+        url: `/api/material/script/history/${taskId}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 更新历史脚本
+ * @param taskId 任务ID
+ * @param data 包含 task_tags, is_in_library
+ * @returns 返回更新后的历史脚本
+ */
+export function updateScriptHistory(taskId: number | string, data: any) {
+    return request({
+        url: `/api/material/script/history/update/${taskId}/`,
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+// ===== 脚本库相关接口 =====
+
+/**
+ * 创建脚本库
+ * @param data 包含 script_title, script_content, script_tags, create_user_id, user_id_group
+ * @returns 返回创建/更新后的脚本
+ */
+export function createScript(data: any) {
+    return request({
+        url: '/api/material/script/library/create/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 更新脚本库
+ * @param scriptId 脚本ID
+ * @param data 包含 script_title, script_content, script_tags
+ * @returns 返回更新后的脚本
+ */
+export function updateScript(scriptId: number | string, data: any) {
+    return request({
+        url: `/api/material/script/library/update/${scriptId}/`,
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 删除脚本库
+ * @param scriptId 脚本ID
+ * @returns 返回删除结果
+ */
+export function deleteScript(scriptId: number | string) {
+    return request({
+        url: `/api/material/script/library/delete/${scriptId}/`,
+        method: 'post'
+    })
+}
+
+/**
+ * 将脚本设置为组内公开
+ * @param scriptIds 脚本ID数组
+ * @param groupCode 组代码
+ * @returns 返回操作结果
+ */
+export function makeScriptGroupPublic(scriptIds: (number | string)[], groupCode: string) {
+    return request({
+        url: '/api/material/script/library/make-group-public/',
+        method: 'post',
+        data: {
+            scriptIds,
+            groupCode
+        }
+    })
+}
+
+// ===== 配音/文案生成相关接口 =====
+
+/**
+ * 创建配音任务（文案生成音频）
+ * @param data 请求数据对象，包含 dubbing_name, msg, voice_external_id, country, speechRate
+ * @returns 返回任务ID
+ */
+export function createDubbingTask(data: any) {
+    return request({
+        url: '/api/material/dubbing/create/',
+        method: 'post',
+        data: data
+    })
+}
+
+/**
+ * 分页查询配音任务
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回任务列表及分页信息
+ */
+export function getDubbingTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/dubbing/paginate/post/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 删除配音任务
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteDubbingTask(id: number | string) {
+    return request({
+        url: `/api/material/dubbing/${id}/`,
+        method: 'delete'
+    })
+}
+/**
+ * 获取单个配音任务的详细信息及状态
+ * @param id 任务ID
+ * @returns 返回任务详情
+ */
+export function getDubbingTaskDetail(id: number | string) {
+    return request({
+        url: `/api/material/dubbing/${id}`,
+        method: 'get'
+    })
+}
+/**
+ * 检查配音名称是否有效（是否重复）
+ * @param dubbingName 配音名称
+ * @returns 返回检查结果，is_valid: true表示有效，false表示重复
+ */
+export function checkDubbingName(dubbingName: string) {
+    return request({
+        url: '/api/material/dubbing/check-name/',
+        method: 'post',
+        data: {
+            dubbing_name: dubbingName
+        }
+    })
+}
+
+/**
+ * 获取所有脚本库
+ * @returns 返回所有脚本列表
+ */
+export function getAllScripts() {
+    return request({
+        url: '/api/material/script/library/all/',
+        method: 'get'
+    })
+}
+
+/**
+ * 按ID获取脚本库
+ * @param scriptId 脚本ID
+ * @returns 返回单个脚本详情
+ */
+export function getScriptById(scriptId: number | string) {
+    return request({
+        url: `/api/material/script/library/${scriptId}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 按标签查询脚本库（POST方式）
+ * @param tags 标签列表
+ * @returns 返回匹配标签的脚本列表
+ */
+export function getScriptsByTags(tags: string[]) {
+    return request({
+        url: '/api/material/script/library/by-tags/post/',
+        method: 'post',
+        data: {
+            scriptTags: tags
+        }
+    })
+}
+
+/**
+ * 分页查询脚本库
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回脚本列表及分页信息
+ */
+export function getScriptPaginateList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/script/library/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
