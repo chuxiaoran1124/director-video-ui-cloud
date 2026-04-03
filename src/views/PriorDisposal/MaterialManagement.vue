@@ -721,58 +721,55 @@ export default defineComponent({
     // 音频播放功能
     const playVoice = (voice: any) => {
       let url = voice.url
-      
-      // 处理URL字段可能是数组或JSON字符串的情况
-      if (Array.isArray(url)) {
-        url = url[0]
-      } else if (typeof url === 'string' && (url.startsWith('[') || url.startsWith("['")) ) {
-        try {
-          // 尝试解析 JSON 格式的数组
-          const parsed = JSON.parse(url.replace(/'/g, '"'))
-          url = Array.isArray(parsed) ? parsed[0] : parsed
-        } catch (e) {
-          // 如果是 ['url'] 格式，用更宽松的方式解析
-          const match = url.match(/['"]([^'"]+)['"]/);
-          if (match) {
-            url = match[1]
-          }
-        }
+
+      // 处理 "['https://...']" 格式
+      if (url && !url.startsWith('http')) {
+        const match = url.match(/https?:\/\/[^'"\]\)\s]+/)
+        if (match) url = match[0]
       }
-      
+
       if (!url) {
         ElMessage.warning('该声音文件不存在')
         return
       }
 
-      // 如果正在播放其他音频，先停止
-      if (audioPlayer.value && currentPlayingVoice.value !== voice) {
-        audioPlayer.value.pause()
-        audioPlayer.value = null
-      }
-
-      // 如果点击的是同一个音频，切换播放/暂停
-      if (currentPlayingVoice.value === voice && audioPlayer.value) {
+      // 同一个音频：切换播放/暂停
+      if (audioPlayer.value && currentPlayingVoice.value === voice) {
         if (audioPlayer.value.paused) {
-          audioPlayer.value.play()
+          audioPlayer.value.play().catch(() => {})
         } else {
           audioPlayer.value.pause()
         }
         return
       }
 
-      // 创建新的音频播放器
-      audioPlayer.value = new Audio(url)
+      // 不同音频：停止当前，播放新的
+      if (audioPlayer.value) {
+        ;(audioPlayer.value as any)._aborted = true
+        audioPlayer.value.pause()
+        audioPlayer.value.src = ''
+        audioPlayer.value = null
+      }
       currentPlayingVoice.value = voice
 
-      audioPlayer.value.play().catch(error => {
-        console.error('播放失败:', error)
-        ElMessage.error('音频播放失败')
+      const audio = new Audio()
+      audioPlayer.value = audio
+
+      audio.addEventListener('error', () => {
+        if ((audio as any)._aborted) return
+        ElMessage.error('音频播放失败，请检查文件地址')
         audioPlayer.value = null
         currentPlayingVoice.value = null
       })
 
-      // 播放结束时清理
-      audioPlayer.value.onended = () => {
+      audio.src = url
+      audio.play().catch(error => {
+        ElMessage.error('音频播放失败: ' + (error.message || ''))
+        audioPlayer.value = null
+        currentPlayingVoice.value = null
+      })
+
+      audio.onended = () => {
         audioPlayer.value = null
         currentPlayingVoice.value = null
       }

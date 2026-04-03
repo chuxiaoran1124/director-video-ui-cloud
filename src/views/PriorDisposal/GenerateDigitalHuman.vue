@@ -151,30 +151,32 @@
         </div>
 
         <el-form-item label="形象图片上传" class="mt-2">
+          <div class="mb-3" v-if="form.imageUrl">
+            <div class="relative w-full h-[200px] rounded-lg overflow-hidden border border-gray-300 bg-gray-50">
+              <img :src="form.imageUrl" class="w-full h-full object-contain" />
+              <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity flex-col gap-2">
+                <span class="text-white text-sm font-medium">更换图片</span>
+                <span class="text-white text-xs">点击下方上传</span>
+              </div>
+            </div>
+          </div>
           <el-upload
             class="upload-demo w-full"
             drag
             action="#"
             :auto-upload="false"
             :on-change="handleImageChange"
-            :limit="1"
             accept=".jpg,.jpeg,.png,image/jpeg,image/png"
           >
-            <div v-if="!form.imageUrl" class="flex flex-col items-center justify-center py-6">
+            <div class="flex flex-col items-center justify-center py-6">
               <i class="el-icon-picture text-5xl text-blue-400 mb-2"></i>
               <div class="el-upload__text text-sm text-gray-400">
                 将形象照片拖到此处，或 <em class="text-blue-500 font-medium">点击上传</em>
               </div>
             </div>
-            <div v-else class="relative w-full h-[180px]">
-              <img :src="form.imageUrl" class="w-full h-full object-contain rounded-lg" />
-              <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-                 <span class="text-white text-xs">更换图片</span>
-              </div>
-            </div>
             <template #tip>
               <div class="el-upload__tip text-gray-400 text-[11px] mt-2">
-                建议上传正面、清晰、光线均匀的半身或全身照片。
+                建议上传正面、清晰、光线均匀的半身或全身照片。<span class="text-red-500">宽高比必须为 9:16</span>
               </div>
             </template>
           </el-upload>
@@ -275,12 +277,15 @@ const nameValidationLoading = ref(false)
 const nameValidationState = ref<'idle' | 'valid' | 'invalid'>('idle')
 const recommendedName = ref('')
 const validatedName = ref('')
+const imageRatioValid = ref(false)
 const canSubmitTask = computed(() => {
   const finalName = form.name.trim()
   return !!finalName
     && !nameValidationLoading.value
     && nameValidationState.value === 'valid'
     && validatedName.value === finalName
+    && !!form.imageUrl
+    && imageRatioValid.value
 })
 
 // --- Pagination ---
@@ -368,16 +373,56 @@ const getStatusType = (status: string) => {
 const handleImageChange = (file: any) => {
   const rawFile = file.raw
   if (!rawFile) return
-  
+
   // 仅支持 jpg 和 png
   const allowedTypes = ['image/jpeg', 'image/png']
   if (!allowedTypes.includes(rawFile.type)) {
     ElMessage.error('仅支持 JPG 和 PNG 格式的图片')
     return false
   }
-  
-  form.rawFile = rawFile
-  form.imageUrl = URL.createObjectURL(rawFile)
+
+  // 释放上一张图片的 Blob URL
+  if (form.imageUrl) {
+    URL.revokeObjectURL(form.imageUrl)
+  }
+
+  // 创建唯一 URL，img.src 和回显共用同一个对象
+  const objectUrl = URL.createObjectURL(rawFile)
+
+  const img = new Image()
+  img.onload = () => {
+    const aspectRatio = img.width / img.height
+    const targetRatio = 9 / 16
+    const tolerance = 0.05
+
+    if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+      URL.revokeObjectURL(objectUrl)
+      form.rawFile = null
+      form.imageUrl = ''
+      imageRatioValid.value = false
+      ElMessage.error(`图片宽高比必须为 9:16（当前约为 ${img.width}:${img.height}），请重新上传`)
+      return
+    }
+
+    // 校验通过：更新回显图片和文件数据
+    form.rawFile = rawFile
+    form.imageUrl = objectUrl
+    imageRatioValid.value = true
+  }
+
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl)
+    form.rawFile = null
+    form.imageUrl = ''
+    imageRatioValid.value = false
+    ElMessage.error('无法读取图片信息，请更换图片')
+  }
+
+  // 先清空旧数据，再异步加载新图
+  form.rawFile = null
+  form.imageUrl = ''
+  imageRatioValid.value = false
+  img.src = objectUrl
 }
 
 const resetNameValidationState = () => {
@@ -441,6 +486,10 @@ const applyRecommendedName = async () => {
 
 const handleCancelDialog = () => {
   dialogVisible.value = false
+  if (form.imageUrl) URL.revokeObjectURL(form.imageUrl)
+  form.imageUrl = ''
+  form.rawFile = null
+  imageRatioValid.value = false
   resetNameValidationState()
 }
 
@@ -488,12 +537,18 @@ const handleSubmit = async () => {
       form.name = ''
       form.imageUrl = ''
       form.rawFile = null
+      imageRatioValid.value = false
       resetNameValidationState()
       
       // 关闭对话框
       dialogVisible.value = false
       
       ElMessage.success('数字人训练任务已提交，预计生成时间 15-30 分钟')
+      
+      // 延迟 1 秒后刷新页面，清空缓存
+      setTimeout(() => {
+        location.reload()
+      }, 1000)
     } else {
       ElMessage.error(res.data?.message || '提交失败，请稍后重试')
     }

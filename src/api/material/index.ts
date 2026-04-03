@@ -1,5 +1,200 @@
 import request from '/@/utils/request'
 
+// ===== 视频计划管理（A2EPlanVideoViews）相关接口 =====
+
+/**
+ * 分页查询视频计划
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象
+ * @returns 返回计划列表及分页信息
+ */
+export function getPlanVideoList(page: number = 1, pageSize: number = 20, search: any = {}) {
+    return request({
+        url: '/api/material/plan/video/paginate/',
+        method: 'post',
+        data: { page, pageSize, ...search }
+    })
+}
+
+/**
+ * 获取视频计划详情
+ * @param id 计划ID
+ * @returns 返回计划详情
+ */
+export function getPlanVideoDetail(id: number | string) {
+    return request({
+        url: `/api/material/plan/video/${id}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 创建/更新视频计划
+ * @param data 计划数据 {id?, plan_name, msg, language, subtitleSelector, colour?}
+ * @returns 创建结果
+ */
+export function createPlanVideo(data: any) {
+    return request({
+        url: '/api/material/plan/video/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 更新视频计划（可直接使用createPlanVideo with id）
+ * @param id 计划ID
+ * @param data 计划数据
+ * @returns 更新结果
+ */
+export function updatePlanVideo(id: number | string, data: any) {
+    return request({
+        url: `/api/material/plan/video/create/`,
+        method: 'post',
+        data: { ...data, id },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 删除视频计划
+ * @param id 计划ID
+ * @returns 删除结果
+ */
+export function deletePlanVideo(id: number | string) {
+    return request({
+        url: `/api/material/plan/video/delete/${id}/`,
+        method: 'delete'
+    })
+}
+
+/**
+ * 校验计划名称是否可用
+ * @param name 名称
+ * @returns 可用性与推荐名称
+ */
+export function validatePlanVideoName(name: string) {
+    return request({
+        url: '/api/material/plan/video/validate-name/',
+        method: 'post',
+        data: { name },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+// ===== 计划视频任务（A2EPlanVideoTaskViews）相关接口 =====
+
+/**
+ * 创建/修改视频任务
+ * @param data 任务数据 {id?, title, msg, plan_id, voice_id, digital_human_id, language, speechRate, subtitleSelector, colour?}
+ * @returns 创建结果
+ */
+export function createPlanVideoTask(data: any) {
+    return request({
+        url: '/api/material/plan/video/task/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 删除视频任务
+ * @param id 任务ID
+ * @returns 删除结果
+ */
+export function deletePlanVideoTask(id: number | string) {
+    return request({
+        url: `/api/material/plan/video/task/delete/${id}/`,
+        method: 'delete'
+    })
+}
+
+/**
+ * 获取所有视频任务
+ * @returns 任务列表
+ */
+export function getAllPlanVideoTasks() {
+    return request({
+        url: '/api/material/plan/video/task/all/',
+        method: 'get'
+    })
+}
+
+/**
+ * 获取视频任务详情
+ * @param id 任务ID
+ * @returns 任务详情
+ */
+export function getPlanVideoTaskDetail(id: number | string) {
+    return request({
+        url: `/api/material/plan/video/task/${id}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 按计划ID获取视频任务
+ * @param planId 计划ID
+ * @returns 任务列表
+ */
+export function getPlanVideoTasksByPlanId(planId: number | string) {
+    return request({
+        url: '/api/material/plan/video/task/',
+        method: 'post',
+        data: { plan_id: planId },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 分页查询视频任务（推荐使用）
+ * @param page 页码
+ * @param pageSize 每页大小
+ * @param search 搜索条件
+ * @returns 任务分页数据
+ */
+export function getPlanVideoTasksPaginate(page: number = 1, pageSize: number = 20, search: any = {}) {
+    return request({
+        url: '/api/material/plan/video/task/paginate/post/',
+        method: 'post',
+        data: { page, pageSize, search },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 启动视频任务（立即执行）
+ * @param taskId 任务ID
+ * @returns 启动结果
+ */
+export function startPlanVideoTask(taskId: number | string) {
+    return request({
+        url: '/api/material/plan/video/task/start/',
+        method: 'post',
+        data: { task_id: taskId },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 批量启动计划下的所有任务
+ * @param planId 计划ID
+ * @returns 批量启动结果
+ */
+export function startAllPlanTasks(planId: number | string) {
+    return request({
+        url: '/api/material/plan/video/task/start-all/',
+        method: 'post',
+        data: { plan_id: planId },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+// ===== 其他接口 =====
+
 export function getVoices() {
     return request({
         url: '/api/material/getVoices',
@@ -781,5 +976,85 @@ export function getScriptPaginateList(page: number = 1, pageSize: number = 20, s
             pageSize,
             ...(search && { search })
         }
+    })
+}
+
+/**
+ * 获取角标列表
+ * @returns 返回角标列表
+ */
+export function getCornerMarkList() {
+    return request({
+        url: '/api/material/corner-mark/all/',
+        method: 'get'
+    })
+}
+
+// ===== 字幕消除相关接口 =====
+
+/**
+ * 创建字幕消除任务（直接上传视频文件）
+ * @param formData 包含 file（视频文件，必需）、title（任务标题，可选）
+ * @returns 返回 { id } 任务ID
+ */
+export function createSubtitleRemoveTask(formData: FormData) {
+    return request({
+        url: '/api/material/subtitle-remove/task/create/',
+        method: 'post',
+        data: formData,
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })
+}
+
+/**
+ * 检查字幕消除任务标题是否重复
+ * @param title 标题名称
+ * @returns { is_valid, title, recommended_name }
+ */
+export function checkSubtitleRemoveTitle(title: string) {
+    return request({
+        url: '/api/material/subtitle-remove/task/check-title/',
+        method: 'post',
+        data: { title },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 分页查询字幕消除任务列表
+ * @param page 页码（从1开始）
+ * @param pageSize 每页大小
+ * @param search 搜索条件对象（taskStatus 等）
+ * @returns 返回任务列表及分页信息
+ */
+export function getSubtitleRemoveTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/subtitle-remove/task/paginate/',
+        method: 'post',
+        data: { page, pageSize, ...(search && { search }) }
+    })
+}
+
+/**
+ * 查询单个字幕消除任务
+ * @param id 任务ID
+ * @returns 返回任务详情
+ */
+export function getSubtitleRemoveTaskById(id: number | string) {
+    return request({
+        url: `/api/material/subtitle-remove/task/${id}/`,
+        method: 'get'
+    })
+}
+
+/**
+ * 删除字幕消除任务
+ * @param id 任务ID
+ * @returns 返回删除结果
+ */
+export function deleteSubtitleRemoveTask(id: number | string) {
+    return request({
+        url: `/api/material/subtitle-remove/task/delete/${id}/`,
+        method: 'post'
     })
 }

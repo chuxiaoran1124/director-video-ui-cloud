@@ -67,6 +67,16 @@ export default [
         }
     },
     {
+        url: '/api/users/get-route/',
+        method: 'get',
+        timeout: 300,
+        response: (req: IReq) => {
+            const userName = checkToken(req)
+            if(!userName) return responseData(401, '身份认证失败', '')
+            return responseData(200, '', getRoute(userName))
+        }
+    },
+    {
         url: '/api/getTableList',
         method: 'get',
         timeout: 600,

@@ -168,16 +168,25 @@
                 <h3 class="text-2xl font-bold text-slate-800">上传克隆视频</h3>
                 <p class="text-slate-400 mt-2 max-w-sm">系统将从该视频中同时提取形象与音色</p>
              </div>
-             <div class="flex justify-center w-full">
-               <el-upload class="!w-2/3" drag action="#" :auto-upload="false" :on-change="handleFileChange" accept="video/mp4,.mov">
+             <div class="w-2/3 mx-auto">
+               <el-upload ref="videoUploadRef" class="!w-full" drag action="#" :auto-upload="false" :on-change="handleFileChange" :on-exceed="handleVideoExceed" :limit="1" accept="video/mp4,.mov">
                   <el-icon class="el-icon--upload"><el-icon-upload-filled /></el-icon>
                   <div class="el-upload__text">拖拽视频到此处，或 <em>点击上传</em></div>
                   <template #tip>
-                    <div class="text-slate-400 text-xs mt-2">仅支持 MP4、MOV 格式，文件大小不超过 500MB</div>
+                    <div class="text-slate-400 text-xs mt-2">仅支持 MP4、MOV 格式，文件大小不超过 500MB。<span class="text-red-500">视频宽高比必须为 9:16</span></div>
                   </template>
                </el-upload>
              </div>
-             <div class="mt-10 pt-6 border-t border-slate-50 flex gap-4 items-start">
+             <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
+               <span class="text-sm text-slate-600 font-medium">视频是否含有字幕</span>
+               <el-switch
+                 v-model="form.isSubtitle"
+                 active-text="有字幕"
+                 inactive-text="无字幕"
+               />
+               <span class="text-xs text-slate-400">将影响字幕消除预处理步骤</span>
+             </div>
+             <div class="mt-4 pt-2 flex gap-4 items-start">
                 <div class="flex-1">
                   <el-input
                     v-model="form.humanName"
@@ -377,6 +386,7 @@ const currentAsset = ref<any>(null)
 const form = reactive({
   humanName: '',
   gender: 'male',  // male or female
+  isSubtitle: false,
   hasFile: false,
   rawFile: null as File | null,
   currentTaskId: null as number | null  // 当前正在轮询的任务ID
@@ -386,12 +396,16 @@ const nameValidationLoading = ref(false)
 const nameValidationState = ref<'idle' | 'valid' | 'invalid'>('idle')
 const recommendedName = ref('')
 const validatedName = ref('')
+const videoUploadRef = ref()
+const videoRatioValid = ref(false)
 const canStartProcessing = computed(() => {
   const finalName = form.humanName.trim()
   return !!finalName
     && !nameValidationLoading.value
     && nameValidationState.value === 'valid'
     && validatedName.value === finalName
+    && form.hasFile
+    && videoRatioValid.value
 })
 
 // --- 任务列表数据 ---
@@ -624,6 +638,10 @@ const applyRecommendedName = async () => {
 const handleCreateNew = () => {
   isCreating.value = true
   activeStep.value = 0
+  form.hasFile = false
+  form.rawFile = null
+  form.isSubtitle = false
+  videoRatioValid.value = false
   resetNameValidationState()
 }
 
@@ -680,19 +698,65 @@ const handleCancelTask = (row: any) => {
 const handleFileChange = (file: any) => {
   const rawFile = file.raw
   if (!rawFile) return
-  
+
   // 验证文件格式
   const allowedTypes = ['video/mp4', 'video/quicktime']
   const fileName = rawFile.name.toLowerCase()
   const isValidType = allowedTypes.includes(rawFile.type) || fileName.endsWith('.mp4') || fileName.endsWith('.mov')
-  
+
   if (!isValidType) {
     ElMessage.error('只支持 MP4 和 MOV 格式的视频文件')
+    form.rawFile = null
+    form.hasFile = false
+    videoRatioValid.value = false
     return
   }
-  
-  form.rawFile = rawFile
-  form.hasFile = true
+
+  // 先清空旧数据
+  form.rawFile = null
+  form.hasFile = false
+  videoRatioValid.value = false
+
+  // 异步校验视频宽高比
+  const objectUrl = URL.createObjectURL(rawFile)
+  const videoEl = document.createElement('video')
+
+  videoEl.onloadedmetadata = () => {
+    URL.revokeObjectURL(objectUrl)
+    const aspectRatio = videoEl.videoWidth / videoEl.videoHeight
+    const targetRatio = 9 / 16
+    const tolerance = 0.05
+
+    if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+      videoUploadRef.value?.clearFiles()
+      form.rawFile = null
+      form.hasFile = false
+      videoRatioValid.value = false
+      ElMessage.error(`视频宽高比必须为 9:16（当前为 ${videoEl.videoWidth}×${videoEl.videoHeight}），请重新上传`)
+      return
+    }
+
+    form.rawFile = rawFile
+    form.hasFile = true
+    videoRatioValid.value = true
+  }
+
+  videoEl.onerror = () => {
+    URL.revokeObjectURL(objectUrl)
+    videoUploadRef.value?.clearFiles()
+    form.rawFile = null
+    form.hasFile = false
+    videoRatioValid.value = false
+    ElMessage.error('无法读取视频信息，请更换文件')
+  }
+
+  videoEl.src = objectUrl
+}
+
+const handleVideoExceed = (files: any[]) => {
+  // 超出限制时，清空旧文件并处理新文件
+  videoUploadRef.value?.clearFiles()
+  handleFileChange({ raw: files[0] })
 }
 
 const startProcessing = async () => {
@@ -710,6 +774,7 @@ const startProcessing = async () => {
     formData.append('file', form.rawFile!)
     formData.append('name', finalName)
     formData.append('gender', form.gender)
+    formData.append('is_subtitle', form.isSubtitle ? 'true' : 'false')
 
     // 调用API提交任务
     const res = await createFastTask(formData)
@@ -821,7 +886,7 @@ const handleComplete = async () => {
     
     ElMessage.success('数字化资产已成功绑定并完成训练任务！')
     isCreating.value = false
-    
+
     // 重置状态
     activeStep.value = 0
     imageProgress.value = 0
@@ -831,7 +896,13 @@ const handleComplete = async () => {
     form.hasFile = false
     form.rawFile = null
     form.currentTaskId = null
+    videoRatioValid.value = false
     resetNameValidationState()
+
+    // 延迟 1 秒后刷新页面，清空缓存
+    setTimeout(() => {
+      location.reload()
+    }, 1000)
   } catch (error: any) {
     console.error('Failed to complete task:', error)
     ElMessage.error('刷新失败，请手动刷新列表')
@@ -882,11 +953,20 @@ onUnmounted(() => {
   min-height: 500px;
 }
 
+:deep(.el-upload) {
+  width: 100%;
+}
+
 :deep(.el-upload-dragger) {
+  width: 100%;
   border-radius: 20px;
   background-color: #f8fafc;
   border-width: 2px;
   padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 :deep(.el-upload-dragger:hover) {
