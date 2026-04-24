@@ -990,6 +990,18 @@ export function getCornerMarkList() {
     })
 }
 
+/**
+ * 角标置顶/取消置顶
+ * @param id 角标ID
+ */
+export function toTopCornerMark(id: string | number) {
+    return request({
+        url: '/api/material/corner-mark/to-top/',
+        method: 'post',
+        data: { id }
+    })
+}
+
 // ===== 字幕消除相关接口 =====
 
 /**
@@ -1056,5 +1068,143 @@ export function deleteSubtitleRemoveTask(id: number | string) {
     return request({
         url: `/api/material/subtitle-remove/task/delete/${id}/`,
         method: 'post'
+    })
+}
+
+// ===== 视频角标任务相关接口 =====
+
+/**
+ * 创建视频角标任务
+ */
+export function createCornerMarkTask(data: FormData) {
+    return request({
+        url: '/api/material/corner-mark-task/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })
+}
+
+/**
+ * 检查角标任务标题是否重复
+ */
+export function checkCornerMarkTaskTitle(title: string) {
+    return request({
+        url: '/api/material/corner-mark-task/check-name/',
+        method: 'post',
+        data: { title },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 分页查询角标任务列表
+ */
+export function getCornerMarkTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/corner-mark-task/paginate/',
+        method: 'post',
+        data: { page, pageSize, ...(search && { search }) }
+    })
+}
+
+/**
+ * 删除角标任务
+ */
+export function deleteCornerMarkTask(id: number | string) {
+    return request({
+        url: `/api/material/corner-mark-task/delete/${id}/`,
+        method: 'delete'
+    })
+}
+
+/**
+ * 获取视频字幕预览帧
+ * @param data { video_url, frame_time?, blur_subtitles?, blur_strength? }
+ * @returns 返回 base64 帧图片及分辨率信息
+ */
+export function getSubtitlePreviewFrame(data: {
+    video_url: string
+    frame_time?: number
+    blur_subtitles?: boolean
+    blur_strength?: number
+}) {
+    return request({
+        url: '/api/material/video/preview-frame/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/**
+ * 通过后端代理下载文件（解决跨域问题）
+ * @param fileUrl 需要下载的文件 URL
+ */
+export function downloadFileByProxy(fileUrl: string) {
+    return request({
+        url: '/api/material/download-proxy/',
+        method: 'get',
+        params: { url: fileUrl },
+        responseType: 'blob',
+        timeout: 120000
+    })
+}
+
+// ===== 字幕模板 (SubtitleTemplate) 相关接口 =====
+
+/** 获取当前用户所有字幕模板 */
+export function getSubtitleTemplateAll() {
+    return request({
+        url: '/api/material/subtitle-template/all/',
+        method: 'get'
+    })
+}
+
+/** 创建字幕模板 */
+export function createSubtitleTemplate(data: { subtitleTemplateName: string; subtitleConfig: string }) {
+    return request({
+        url: '/api/material/subtitle-template/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 更新字幕模板 */
+export function updateSubtitleTemplate(data: { id: number; subtitleTemplateName?: string; subtitleConfig?: string }) {
+    return request({
+        url: '/api/material/subtitle-template/update/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 删除字幕模板（逻辑删除） */
+export function deleteSubtitleTemplate(id: number) {
+    return request({
+        url: '/api/material/subtitle-template/delete/',
+        method: 'post',
+        data: { id },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 获取用户最近使用的角标列表 */
+export function getRecentCornerMarks() {
+    return request({
+        url: '/api/material/corner-mark/recent/',
+        method: 'get'
+    })
+}
+
+/** 记录用户选择的角标 */
+export function recordRecentCornerMark(cornerMarkId: number | string) {
+    return request({
+        url: '/api/material/corner-mark/record-recent/',
+        method: 'post',
+        data: { corner_mark_id: cornerMarkId },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
     })
 }

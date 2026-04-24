@@ -22,7 +22,7 @@
           <template #default="scope">
             <div class="flex items-center py-1">
               <el-image 
-                :src="scope.row.sourceImage" 
+                :src="scope.row.basePhotoUrl" 
                 class="w-10 h-10 rounded-lg mr-3 shadow-sm object-cover border border-gray-100 flex-shrink-0"
                 fit="cover"
               >
@@ -247,7 +247,7 @@ interface DigitalHumanTask {
   name: string
   gender: string
   status: '已完成' | '生成中' | '已提交' | '生成失败'
-  sourceImage: string
+  basePhotoUrl: string
   videoUrl?: string
   createTime: string
   finishTime?: string
@@ -335,7 +335,7 @@ const loadDigitalHumanTaskList = async () => {
           name: item.digitalHumanName || item.voiceName || item.name || item.humanName,
           gender: item.gender === 'male' ? '男' : '女',
           status: item.taskStatus === '2' ? '已完成' : (item.taskStatus === '1' ? '生成中' : (item.taskStatus === '0' ? '已提交' : '生成失败')),
-          sourceImage: item.coverUrl || item.sourceImage || item.image || '',
+          basePhotoUrl: item.basePhotoUrl || item.coverUrl || item.sourceImage || item.image || '',
           videoUrl: videoUrl,
           createTime: item.createTime,
           finishTime: item.updateTime || item.completeTime || item.finishTime

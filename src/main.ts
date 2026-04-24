@@ -28,4 +28,19 @@ for (const iconName in ElIconsData) {
     app.component(`ElIcon${iconName}`, ElIconsData[iconName])
 }
   
+// 生产环境禁用 F12 及右键菜单
+if (import.meta.env.PROD) {
+  document.addEventListener('keydown', (e) => {
+    if (
+      e.key === 'F12' ||
+      (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) ||
+      (e.ctrlKey && e.key.toUpperCase() === 'U')
+    ) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }, true)
+  document.addEventListener('contextmenu', (e) => e.preventDefault())
+}
+
 app.mount('#app')

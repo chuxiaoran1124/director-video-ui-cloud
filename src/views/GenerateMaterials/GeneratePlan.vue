@@ -572,18 +572,27 @@
     <!-- 角标选择器 -->
     <el-dialog title="选择角标" v-model="cornerMarkSelectorDialog.visible" width="900px" append-to-body>
       <div class="space-y-4">
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
           <el-input placeholder="搜索角标..." v-model="cornerMarkSelectorDialog.search" size="small" style="width: 300px;" clearable>
             <template #prefix><i class="el-icon-search"></i></template>
           </el-input>
+          <span v-if="pinnedCornerMarkIds.length > 0" class="text-xs text-blue-500 flex items-center gap-1">
+            <i class="el-icon-top"></i>{{ pinnedCornerMarkIds.length }} 个已置顶
+          </span>
         </div>
         <div class="grid grid-cols-3 gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[700px] overflow-y-auto">
           <div
-            v-for="item in cornerMarkOptions.filter((i: any) => !cornerMarkSelectorDialog.search || i.name.includes(cornerMarkSelectorDialog.search))"
+            v-for="item in sortedCornerMarkOptions"
             :key="item.id"
             class="relative cursor-pointer group text-center"
             @click="selectCornerMark(item)"
           >
+            <!-- 置顶标识 -->
+            <div v-if="pinnedCornerMarkIds.includes(item.id)" class="absolute top-2 left-2 z-10">
+              <el-tag type="primary" size="small" effect="dark" class="!px-1.5 !text-[10px] !h-5 leading-5 shadow">
+                置顶
+              </el-tag>
+            </div>
             <div
               class="rounded-lg overflow-hidden border-2 transition-all shadow-sm p-2 bg-white h-[400px] flex items-center justify-center"
               :class="(cornerMarkSelectorDialog.context === 'project' ? projectForm.cornerMark : subTaskForm.cornerMark) === item.id
@@ -596,8 +605,24 @@
                 :alt="item.name"
               >
             </div>
-            <div class="mt-3">
-              <p class="text-sm text-gray-700 font-medium truncate">{{ item.name }}</p>
+            <div class="mt-3 flex items-center justify-center gap-2">
+              <p class="text-sm text-gray-700 font-medium truncate flex-1 text-center">{{ item.name }}</p>
+              <div
+                :class="[
+                  'flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded border cursor-pointer transition-all select-none flex-shrink-0 font-medium',
+                  pinnedCornerMarkIds.includes(item.id)
+                    ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
+                    : 'bg-white border-blue-300 text-blue-400 hover:border-blue-500 hover:text-blue-500'
+                ]"
+                @click.stop="togglePinCornerMark(item.id)"
+              >
+                <svg viewBox="0 0 24 24" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5"/>
+                  <polyline points="5 12 12 5 19 12"/>
+                  <line x1="5" y1="3" x2="19" y2="3"/>
+                </svg>
+                <span>置顶</span>
+              </div>
             </div>
             <div
               v-if="(cornerMarkSelectorDialog.context === 'project' ? projectForm.cornerMark : subTaskForm.cornerMark) === item.id"
@@ -756,7 +781,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore } from '/@/store/modules/task'
-import { createPlanVideo, createPlanVideoTask, deletePlanVideoTask, deletePlanVideo, getPlanVideoList, getScriptPaginateList, getScriptHistoryList, createScript, getDigitalHumanList, getVoiceList, getBindingList, startPlanVideoTask, startAllPlanTasks, getCornerMarkList } from '/@/api/material/index'
+import { createPlanVideo, createPlanVideoTask, deletePlanVideoTask, deletePlanVideo, getPlanVideoList, getScriptPaginateList, getScriptHistoryList, createScript, getDigitalHumanList, getVoiceList, getBindingList, startPlanVideoTask, startAllPlanTasks, getCornerMarkList, toTopCornerMark } from '/@/api/material/index'
 import request from '/@/utils/request'
 
 // --- 数据定义 ---
@@ -926,6 +951,35 @@ const cornerMarkSelectorDialog = reactive({
   context: 'project' as 'project' | 'subtask'
 })
 
+// 置顶的角标 ID（按 sort 倒序，sort 越大越靠前）
+const pinnedCornerMarkIds = ref<(string | number)[]>([])
+
+// 置顶排序后的角标列表
+const sortedCornerMarkOptions = computed(() => {
+  const filtered = cornerMarkOptions.value.filter(
+    (i: any) => !cornerMarkSelectorDialog.search || i.name.includes(cornerMarkSelectorDialog.search)
+  )
+  const pinned = filtered
+    .filter((i: any) => i.sort !== null && i.sort !== undefined)
+    .sort((a: any, b: any) => b.sort - a.sort)
+  const rest = filtered.filter((i: any) => i.sort === null || i.sort === undefined)
+  return [...pinned, ...rest]
+})
+
+// 切换置顶状态（调用后端接口，接口同时处理置顶和取消置顶）
+const togglePinCornerMark = async (id: string | number) => {
+  try {
+    await toTopCornerMark(id)
+    // 重新拉取列表以获取最新 sort 值
+    await fetchCornerMarks()
+    const isPinned = pinnedCornerMarkIds.value.includes(id)
+    ElMessage.success(isPinned ? '已置顶，排在最前' : '已取消置顶')
+  } catch (error) {
+    console.error('置顶操作失败:', error)
+    ElMessage.error('操作失败，请重试')
+  }
+}
+
 const videoPreview = reactive({
   visible: false,
   url: ''
@@ -1027,8 +1081,14 @@ const fetchCornerMarks = async () => {
     cornerMarkOptions.value = cornerMarkData.map((item: any) => ({
       id: item.id,
       name: item.photoName || item.name || '',
-      photoUrl: item.photoUrl || ''
+      photoUrl: item.photoUrl || '',
+      sort: item.sort ?? null
     }))
+    // 初始化置顶列表：sort不为null的按sort倒序
+    pinnedCornerMarkIds.value = cornerMarkOptions.value
+      .filter((i: any) => i.sort !== null && i.sort !== undefined)
+      .sort((a: any, b: any) => b.sort - a.sort)
+      .map((i: any) => i.id)
   } catch (error) {
     console.error('获取角标列表失败:', error)
   }

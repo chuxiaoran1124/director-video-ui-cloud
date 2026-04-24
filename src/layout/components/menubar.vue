@@ -12,7 +12,7 @@
             "w-full": getSetting.mode === "horizontal" && !getMenubar.isPhone, 
         }'
         :collapse-transition='false'
-        :unique-opened='true'
+        :unique-opened='false'
         @select='onOpenChange'
     >
         <menubar-item v-for='v in filterMenubarData' :key='v.path' :index='v.path' :menu-list='v' />
@@ -69,7 +69,6 @@ export default defineComponent ({
         })
         const onOpenChange = (d: any) => {
             router.push({ path: d })
-            getMenubar.status === 2 && changeCollapsed()
         }
         return {
             getMenubar,
