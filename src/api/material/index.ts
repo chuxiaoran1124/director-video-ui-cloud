@@ -444,6 +444,99 @@ export function deleteDigitalHuman(id: number | string) {
     })
 }
 
+// ===== 标签管理接口 =====
+
+/**
+ * 获取当前用户可见的标签分组
+ * @returns 按层级分组的标签数据
+ */
+export function getUserVisibleLabelGroups() {
+    return request({
+        url: '/api/material/label/all/grouped/by-user/',
+        method: 'get'
+    })
+}
+
+/**
+ * 创建标签
+ * @param data 标签数据
+ * @returns 创建结果
+ */
+export function createLabel(data: {
+    name: string
+    level?: number
+    is_public?: boolean
+    is_shared?: boolean
+    sort?: number
+    to_top?: boolean
+}) {
+    return request({
+        url: '/api/material/label/create/',
+        method: 'post',
+        data,
+        silentError: true,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    } as any)
+}
+
+/**
+ * 更新标签
+ * @param data 标签更新数据
+ * @returns 更新结果
+ */
+export function updateLabel(data: {
+    id: number | string
+    name?: string
+    level?: number
+    is_public?: boolean
+    is_shared?: boolean
+    sort?: number
+    to_top?: boolean
+}) {
+    return request({
+        url: '/api/material/label/update/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 删除标签
+ * @param id 标签ID
+ * @returns 删除结果
+ */
+export function deleteLabel(id: number | string) {
+    return request({
+        url: '/api/material/label/delete/',
+        method: 'post',
+        data: { id },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 标签置顶
+ * @param id 标签ID
+ * @returns 操作结果
+ */
+export function topLabel(id: number | string) {
+    return request({
+        url: '/api/material/label/to-top/',
+        method: 'post',
+        data: { id },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
 // ===== 快速生成相关接口 =====
 
 /**
@@ -1119,15 +1212,30 @@ export function deleteCornerMarkTask(id: number | string) {
 }
 
 /**
- * 获取视频字幕预览帧
- * @param data { video_url, frame_time?, blur_subtitles?, blur_strength? }
- * @returns 返回 base64 帧图片及分辨率信息
+ * 获取视频字幕预览帧（后端渲染）
+ * @param data 支持传 video_url（由后端提取首帧）或 frame_base64（直接作为背景帧），以及字幕样式参数
+ * @returns 返回 base64 渲染结果图
  */
 export function getSubtitlePreviewFrame(data: {
-    video_url: string
+    video_url?: string
+    frame_base64?: string
     frame_time?: number
-    blur_subtitles?: boolean
-    blur_strength?: number
+    preview_text?: string
+    corner_mark_url?: string
+    subtitle_config?: {
+        font_size?: number
+        margin_v?: number
+        primary_colour?: string
+        outline?: number
+        outline_colour?: string
+        bold?: number
+        font_name?: string
+        bg_mode?: string
+        bg_height?: number
+        blur_strength?: number
+        bg_colour?: string
+        blur_subtitles?: boolean
+    }
 }) {
     return request({
         url: '/api/material/video/preview-frame/',

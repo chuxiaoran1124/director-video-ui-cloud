@@ -21,6 +21,7 @@ export const useLayoutStore = defineStore({
         // 用户信息
         userInfo: {
             name: '',
+            username: '',
             role: []
         },
         // 标签栏
@@ -225,6 +226,7 @@ export const useLayoutStore = defineStore({
             sessionStorage.setItem('token', token)
             // 设置用户信息（兼容后端 role 可能为字符串或数组）
             this.userInfo.name = name
+            this.userInfo.username = param.username
             try { setCookie('username', name, 365) } catch {}
             if (Array.isArray(role)) {
                 this.userInfo.role = role

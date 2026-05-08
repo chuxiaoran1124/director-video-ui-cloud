@@ -1,28 +1,29 @@
 <template>
   <div class="subtitle-preview">
-    <!-- Canvas 预览区 -->
+    <!-- 后端渲染预览区 -->
     <div class="preview-area mb-4">
-      <div class="relative inline-block rounded-lg overflow-hidden shadow-lg border border-gray-200 bg-black">
-        <canvas
-          ref="canvasRef"
-          :width="canvasWidth"
-          :height="canvasHeight"
-          class="block"
-          :style="{ width: displayWidth + 'px', height: displayHeight + 'px' }"
+      <div class="relative inline-block rounded-lg overflow-hidden shadow-lg border border-gray-200 bg-black"
+           :style="{ width: displayWidth + 'px', height: displayHeight + 'px' }">
+        <img
+          v-if="previewImageSrc"
+          :src="previewImageSrc"
+          class="block w-full h-full object-cover"
+          :class="{ 'opacity-40': loading }"
         />
-        <!-- 加载遮罩 -->
-        <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-black/60">
-          <div class="text-center text-white">
-            <i class="el-icon-loading text-2xl animate-spin"></i>
-            <p class="mt-2 text-sm">正在加载预览帧...</p>
-          </div>
-        </div>
-        <!-- 无图片提示 -->
-        <div v-if="!loading && !bgImage" class="absolute inset-0 flex items-center justify-center bg-gray-800" style="z-index:1">
+        <!-- 无预览提示 -->
+        <div v-if="!previewImageSrc && !loading" class="absolute inset-0 flex items-center justify-center bg-gray-800">
           <div class="text-center text-gray-400">
             <i class="el-icon-picture text-4xl"></i>
             <p class="mt-2 text-sm">请先选择数字人以加载预览</p>
           </div>
+        </div>
+        <!-- 渲染中遮罩（有无旧图均显示） -->
+        <div v-if="loading" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
+          <svg class="animate-spin w-8 h-8 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p class="text-white text-xs">渲染中...</p>
         </div>
       </div>
     </div>
@@ -65,7 +66,7 @@
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">字体大小</label>
           <div class="flex items-center gap-2">
-            <el-slider v-model="config.font_size" :min="6" :max="18" :step="1" class="flex-1" @input="renderPreview" />
+            <el-slider v-model="config.font_size" :min="6" :max="18" :step="1" class="flex-1" @input="requestBackendPreview" />
             <span class="text-xs text-gray-500 w-8 text-right">{{ config.font_size }}</span>
           </div>
         </div>
@@ -74,7 +75,7 @@
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">底部边距</label>
           <div class="flex items-center gap-2">
-            <el-slider v-model="config.margin_v" :min="10" :max="120" :step="1" class="flex-1" @input="renderPreview" />
+            <el-slider v-model="config.margin_v" :min="10" :max="120" :step="1" class="flex-1" @input="requestBackendPreview" />
             <span class="text-xs text-gray-500 w-8 text-right">{{ config.margin_v }}</span>
           </div>
         </div>
@@ -84,13 +85,13 @@
         <!-- 字体颜色 -->
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">字体颜色</label>
-          <el-color-picker v-model="config.primary_colour" show-alpha @change="renderPreview" />
+          <el-color-picker v-model="config.primary_colour" show-alpha @change="requestBackendPreview" />
         </div>
 
         <!-- 描边颜色 -->
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">描边颜色</label>
-          <el-color-picker v-model="config.outline_colour" show-alpha @change="renderPreview" />
+          <el-color-picker v-model="config.outline_colour" show-alpha @change="requestBackendPreview" />
         </div>
       </div>
 
@@ -99,7 +100,7 @@
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">描边宽度</label>
           <div class="flex items-center gap-2">
-            <el-slider v-model="config.outline" :min="0" :max="5" :step="0.1" class="flex-1" @input="renderPreview" />
+            <el-slider v-model="config.outline" :min="0" :max="5" :step="0.1" class="flex-1" @input="requestBackendPreview" />
             <span class="text-xs text-gray-500 w-8 text-right">{{ config.outline }}</span>
           </div>
         </div>
@@ -117,7 +118,7 @@
       </div>
       <div>
         <label class="text-xs font-bold text-gray-600 mb-1 block">字幕区域背景</label>
-        <el-radio-group v-model="config.bg_mode" size="small" @change="renderPreview">
+        <el-radio-group v-model="config.bg_mode" size="small" @change="requestBackendPreview">
           <el-radio-button label="none">无</el-radio-button>
           <el-radio-button label="blur">高斯模糊</el-radio-button>
           <el-radio-button label="fill">颜色填充</el-radio-button>
@@ -129,21 +130,21 @@
         <div>
           <label class="text-xs font-bold text-gray-600 mb-1 block">区域高度（以字幕为中心）</label>
           <div class="flex items-center gap-2">
-            <el-slider v-model="config.bg_height" :min="10" :max="200" :step="1" class="flex-1" @input="renderPreview" />
+            <el-slider v-model="config.bg_height" :min="10" :max="200" :step="1" class="flex-1" @input="requestBackendPreview" />
             <span class="text-xs text-gray-500 w-8 text-right">{{ config.bg_height }}</span>
           </div>
         </div>
         <div v-if="config.bg_mode === 'blur'">
           <label class="text-xs font-bold text-gray-600 mb-1 block">模糊强度</label>
           <div class="flex items-center gap-2">
-            <el-slider v-model="config.blur_strength" :min="5" :max="30" :step="1" class="flex-1" @input="renderPreview" />
+            <el-slider v-model="config.blur_strength" :min="5" :max="30" :step="1" class="flex-1" @input="requestBackendPreview" />
             <span class="text-xs text-gray-500 w-8 text-right">{{ config.blur_strength }}</span>
           </div>
         </div>
         <div v-if="config.bg_mode === 'fill'">
           <label class="text-xs font-bold text-gray-600 mb-1 block">填充颜色</label>
           <div class="flex items-center gap-2">
-            <el-color-picker v-model="config.bg_colour" show-alpha @change="renderPreview" />
+            <el-color-picker v-model="config.bg_colour" show-alpha @change="requestBackendPreview" />
             <span class="text-xs text-gray-400">支持透明度</span>
           </div>
         </div>
@@ -152,7 +153,7 @@
       <!-- 预览文字 -->
       <div>
         <label class="text-xs font-bold text-gray-600 mb-1 block">预览文字</label>
-        <el-input v-model="previewText" placeholder="输入预览字幕文字" size="small" @input="renderPreview" />
+        <el-input v-model="previewText" placeholder="输入预览字幕文字" size="small" @input="requestBackendPreview" />
       </div>
 
       </div>
@@ -225,12 +226,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getSubtitlePreviewFrame, getSubtitleTemplateAll, createSubtitleTemplate, deleteSubtitleTemplate } from '/@/api/material'
 
 const props = defineProps<{
-  videoUrl: string
+  frameBase64: string
   scriptText?: string
   cornerMarkUrl?: string
 }>()
@@ -239,24 +240,16 @@ const emit = defineEmits<{
   (e: 'update:config', value: any): void
 }>()
 
-// Canvas 相关
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-const canvasWidth = 540
-const canvasHeight = 960
-const displayWidth = 270  // CSS显示尺寸 = canvas / 2
+// 预览图尺寸（CSS显示）
+const displayWidth = 270
 const displayHeight = 480
 
-const bgImage = ref<HTMLImageElement | null>(null)
-const cornerMarkImage = ref<HTMLImageElement | null>(null)
-let scaleRatio = 1
-let hSquish = 1 // 水平压缩比，对齐 FFmpeg libass 的字形宽高比修正
-
-// 字体宽度校正系数：补偿浏览器 Canvas 字体引擎 vs libass/FreeType 的宽度差异
-// 实测竹言体：Canvas 251px vs 实际视频 211px → 211/251 ≈ 0.84
-// 若切换字体后差异较大，可调整此值（0.8~1.0 之间）
-const FONT_WIDTH_CORRECTION = 0.84
-
+// 后端渲染结果
+const previewImageSrc = ref('')
 const loading = ref(false)
+
+// 防抖 timer
+let previewDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // 字幕配置
 const config = reactive({
@@ -309,7 +302,7 @@ const loadFont = async (fontName: string): Promise<void> => {
 
 const handleFontChange = async (fontName: string) => {
   await loadFont(fontName)
-  renderPreview()
+  requestBackendPreview()
 }
 
 // 下拉框展开时批量预加载所有字体，这样选项里才能显示字体样式
@@ -327,7 +320,7 @@ const onFontDropdownOpen = (visible: boolean) => {
 const boldSwitch = ref(true)
 const handleBoldChange = (val: boolean) => {
   config.bold = val ? 1 : 0
-  renderPreview()
+  requestBackendPreview()
 }
 
 // ====== 字幕模板 ======
@@ -398,7 +391,7 @@ const applyTemplate = async (tpl: SubtitleTemplate) => {
   if (tpl.config.font_name !== '竹言体') {
     await loadFont(tpl.config.font_name)
   }
-  renderPreview()
+  requestBackendPreview()
 }
 
 const saveCurrentTemplate = async () => {
@@ -466,195 +459,83 @@ const deleteTemplate = async (id: string) => {
 // 预览文字：截取文案第一句
 const previewText = ref('这里展示字幕效果')
 
-// 获取预览帧
-const loadPreviewFrame = async (videoUrl: string) => {
-  if (!videoUrl) return
-  loading.value = true
-  try {
-    const res = await getSubtitlePreviewFrame({
-      video_url: videoUrl,
-      frame_time: 0,
-      blur_subtitles: false
-    })
-    
-    const data = res.data?.data || res.data
-    if (!data || !data.frame_base64) {
-      throw new Error('未获取到预览帧数据')
-    }
-
-    const PLAY_RES_Y = data.play_res_y || 288
-    const PLAY_RES_X = data.play_res_x || 0
-    scaleRatio = data.preview_height / PLAY_RES_Y
-    // 计算水平压缩比：hSquish = (play_res_x / play_res_y) / (video_width / video_height)
-    // 后端 PlayResX 是按视频宽高比精确计算的，所以 9:16 时 hSquish = 1.0（不压缩）
-    if (PLAY_RES_X > 0 && data.video_width && data.video_height) {
-      hSquish = (PLAY_RES_X / PLAY_RES_Y) / (data.video_width / data.video_height)
-    } else {
-      hSquish = 1
-    }
-
-    const img = new Image()
-    img.onload = () => {
-      bgImage.value = img
-      renderPreview()
+// 向后端请求渲染预览（带 500ms 防抖）
+const requestBackendPreview = () => {
+  if (!props.frameBase64) {
+    console.warn('[SubtitlePreview] frameBase64 为空，跳过渲染')
+    return
+  }
+  console.log('[SubtitlePreview] 触发后端渲染，frameBase64 长度:', props.frameBase64.length)
+  if (previewDebounceTimer) clearTimeout(previewDebounceTimer)
+  previewDebounceTimer = setTimeout(async () => {
+    loading.value = true
+    try {
+      const res = await getSubtitlePreviewFrame({
+        frame_base64: props.frameBase64,
+        preview_text: previewText.value,
+        corner_mark_url: props.cornerMarkUrl || '',
+        subtitle_config: {
+          font_size: config.font_size,
+          margin_v: config.margin_v,
+          primary_colour: config.primary_colour,
+          outline: config.outline,
+          outline_colour: config.outline_colour,
+          bold: config.bold,
+          font_name: config.font_name,
+          bg_mode: config.bg_mode,
+          bg_height: config.bg_height,
+          blur_strength: config.blur_strength,
+          bg_colour: config.bg_colour,
+          blur_subtitles: config.bg_mode === 'blur',
+        },
+      })
+      const data = res.data?.data || res.data
+      console.log('[SubtitlePreview] 接口返回:', data)
+      if (data?.frame_base64) {
+        previewImageSrc.value = data.frame_base64
+      } else {
+        console.warn('[SubtitlePreview] 接口未返回 frame_base64，完整响应:', res.data)
+      }
+      // 通知父组件配置变化
+      emit('update:config', {
+        ...config,
+        blur_subtitles: config.bg_mode === 'blur',
+      })
+    } catch (error: any) {
+      console.error('[SubtitlePreview] 后端渲染预览失败:', error)
+    } finally {
       loading.value = false
     }
-    img.onerror = () => {
-      ElMessage.error('预览帧图片加载失败')
-      loading.value = false
-    }
-    img.src = data.frame_base64
-  } catch (error: any) {
-    console.error('获取预览帧失败:', error)
-    ElMessage.error('获取预览帧失败: ' + (error.message || '未知错误'))
-    loading.value = false
-  }
-}
-
-// 渲染预览
-const renderPreview = () => {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight)
-
-  // 1. 画背景帧
-  if (bgImage.value) {
-    ctx.drawImage(bgImage.value, 0, 0, canvasWidth, canvasHeight)
-  } else {
-    // 无背景帧时画一个渐变背景模拟
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight)
-    gradient.addColorStop(0, '#1a1a2e')
-    gradient.addColorStop(0.5, '#16213e')
-    gradient.addColorStop(1, '#0f3460')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-  }
-
-  // 2. 自适应背景处理（以字幕为中心）
-  if (config.bg_mode !== 'none' && bgImage.value) {
-    const ratio = bgImage.value ? scaleRatio : (canvasHeight / 1920)
-    const subtitleCenterY = canvasHeight - config.margin_v * ratio - (config.font_size * ratio * FONT_WIDTH_CORRECTION) / 2
-    const halfH = (config.bg_height * ratio) / 2
-    const regionY = Math.max(0, Math.floor(subtitleCenterY - halfH))
-    const regionBottom = Math.min(canvasHeight, Math.ceil(subtitleCenterY + halfH))
-    const regionH = regionBottom - regionY
-
-    if (config.bg_mode === 'blur') {
-      const off = document.createElement('canvas')
-      off.width = canvasWidth
-      off.height = canvasHeight
-      const offCtx = off.getContext('2d')!
-      offCtx.drawImage(bgImage.value, 0, 0, canvasWidth, canvasHeight)
-      ctx.save()
-      ctx.filter = `blur(${Math.round(config.blur_strength * 0.5)}px)`
-      ctx.drawImage(off, 0, regionY, canvasWidth, regionH, 0, regionY, canvasWidth, regionH)
-      ctx.restore()
-    } else if (config.bg_mode === 'fill') {
-      ctx.save()
-      ctx.fillStyle = config.bg_colour
-      ctx.fillRect(0, regionY, canvasWidth, regionH)
-      ctx.restore()
-    }
-  }
-
-  // 3. 角标叠层
-  if (cornerMarkImage.value) {
-    ctx.drawImage(cornerMarkImage.value, 0, 0, canvasWidth, canvasHeight)
-  }
-
-  // 2. 坐标换算（视频原始px → canvas px）
-  const effectiveRatio = bgImage.value ? scaleRatio : (canvasHeight / 1920)
-  const fontSize = config.font_size * effectiveRatio
-  const marginBottom = config.margin_v * effectiveRatio
-  const x = canvasWidth / 2
-  const y = canvasHeight - marginBottom
-
-  // 字体设置（美术字体通常无 Bold 字重，用 normal 匹配 libass 实际渲染）
-  ctx.font = `normal ${fontSize}px "${config.font_name}", "Microsoft YaHei", "微软雅黑", sans-serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'bottom'
-
-  // 结合 hSquish 和字体宽度校正系数
-  // bold 时后端用 \fscx106\fscy106，预览同步 1.06 缩放以匹配实际输出
-  const boldScale = config.bold ? 1.06 : 1
-  const totalScaleX = hSquish * FONT_WIDTH_CORRECTION * boldScale
-
-  // 描边在 scale 之外设置，避免 scale 影响 lineWidth 导致偏粗
-  // bold 时描边额外 +1.0（与后端一致）
-  // bold 同色细描边的 lineWidth 也在外部换算：目标视觉宽度 / 当前 scale 系数
-  const boldExtraLineWidth = config.bold
-    ? (fontSize * 0.015) / Math.sqrt(totalScaleX * FONT_WIDTH_CORRECTION * boldScale)
-    : 0
-  if (config.outline > 0) {
-    ctx.strokeStyle = config.outline_colour
-    ctx.lineWidth = (config.outline + (config.bold ? 1.0 : 0)) * effectiveRatio * 0.5
-    ctx.lineJoin = 'round'
-  }
-
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.scale(totalScaleX, FONT_WIDTH_CORRECTION * boldScale)
-
-  if (config.outline > 0) {
-    ctx.strokeText(previewText.value, 0, 0)
-  }
-  ctx.fillStyle = config.primary_colour
-  // bold：用同色细描边叠在文字上，模拟笔画加粗（lineWidth 已在 scale 外换算）
-  if (config.bold) {
-    ctx.strokeStyle = config.primary_colour
-    ctx.lineWidth = boldExtraLineWidth
-    ctx.lineJoin = 'round'
-    ctx.strokeText(previewText.value, 0, 0)
-  }
-  ctx.fillText(previewText.value, 0, 0)
-  ctx.restore()
-
-  // 通知父组件配置变化（映射 bg_mode → blur_subtitles）
-  emit('update:config', {
-    ...config,
-    blur_subtitles: config.bg_mode === 'blur',
-  })
+  }, 500)
 }
 
 // 暴露方法供父组件调用
 const getConfig = () => ({ ...config })
 
-defineExpose({ getConfig, loadPreviewFrame })
+defineExpose({ getConfig })
 
-// 监听角标 URL 变化，加载角标图片
-watch(() => props.cornerMarkUrl, (url) => {
-  if (!url) {
-    cornerMarkImage.value = null
-    renderPreview()
-    return
-  }
-  const img = new Image()
-  img.crossOrigin = 'anonymous'
-  img.onload = () => {
-    cornerMarkImage.value = img
-    renderPreview()
-  }
-  img.onerror = () => {
-    cornerMarkImage.value = null
-    renderPreview()
-  }
-  img.src = url
-}, { immediate: true })
-
-// 监听模糊开关和强度变化
-watch([() => config.bg_mode, () => config.blur_strength, () => config.bg_colour, () => config.bg_height], () => {
-  renderPreview()
+// 监听 frameBase64 变化 → 重新请求渲染
+watch(() => props.frameBase64, (val) => {
+  if (val) requestBackendPreview()
 })
 
-// 监听 videoUrl 变化
-watch(() => props.videoUrl, (newUrl) => {
-  if (newUrl) {
-    loadPreviewFrame(newUrl)
-  }
+// 监听角标 URL 变化 → 重新渲染
+watch(() => props.cornerMarkUrl, () => {
+  requestBackendPreview()
 })
+
+// 监听各项配置变化 → 重新渲染
+watch(
+  [
+    () => config.font_size, () => config.margin_v, () => config.primary_colour,
+    () => config.outline, () => config.outline_colour, () => config.bold,
+    () => config.bg_mode, () => config.bg_height, () => config.blur_strength, () => config.bg_colour,
+  ],
+  () => { requestBackendPreview() }
+)
+
+// 监听预览文字变化
+watch(previewText, () => { requestBackendPreview() })
 
 // 监听 scriptText 变化以截取第一句作为预览
 watch(() => props.scriptText, (newText) => {
@@ -662,25 +543,16 @@ watch(() => props.scriptText, (newText) => {
     const firstSentence = newText.split(/[,，。.!！?？\n]/)[0]
     if (firstSentence) {
       previewText.value = firstSentence.substring(0, 20)
-      renderPreview()
     }
   }
 }, { immediate: true })
 
-// 挂载后初始渲染
+// 挂载后加载字体（仅供下拉框字体样式预览）和用户模板
 onMounted(() => {
-  // 并行：预加载默认字体 + 从 API 拉取用户模板
   Promise.all([
     loadFont('竹言体'),
     loadSavedTemplates()
-  ]).then(() => {
-    nextTick(() => {
-      renderPreview()
-      if (props.videoUrl) {
-        loadPreviewFrame(props.videoUrl)
-      }
-    })
-  })
+  ])
 })
 </script>
 

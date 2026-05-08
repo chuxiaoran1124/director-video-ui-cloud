@@ -18,10 +18,20 @@
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <!-- 搜索和批量操作 -->
         <div class="mb-6 flex items-center justify-between gap-4">
-          <div class="flex-1 max-w-md">
+          <div class="flex items-center gap-3 flex-1">
             <el-input 
               v-model="searchKeyword" 
               placeholder="搜索视频标题或ID..." 
+              clearable
+              @input="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+            <el-input
+              v-model="searchLabel"
+              placeholder="搜索标签..."
               clearable
               @input="handleSearch"
             >
@@ -86,6 +96,22 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="标签" min-width="180" align="center">
+            <template #default="scope">
+              <div class="flex flex-wrap gap-1 justify-center">
+                <el-tag
+                  v-for="tag in splitLabel(scope.row.label)"
+                  :key="`${scope.row.id}-${tag}`"
+                  size="small"
+                  effect="plain"
+                  type="info"
+                >
+                  {{ tag }}
+                </el-tag>
+                <span v-if="splitLabel(scope.row.label).length === 0" class="text-gray-400 text-xs">无</span>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="创建时间" width="180" align="center">
             <template #default="scope">
               <span class="text-sm">{{ scope.row.createTime }}</span>
@@ -123,16 +149,14 @@
 
     <!-- 创建/编辑页面 -->
     <div v-else class="max-w-[1400px] mx-auto">
-      <!-- 顶部导航 -->
-      <div class="mb-3">
-        <el-button @click="showCreate = false" icon="el-icon-arrow-left">返回列表</el-button>
-      </div>
-
       <!-- 顶部标题 -->
-      <div class="bg-white px-5 py-3 rounded-xl shadow-sm flex items-center justify-center relative border border-gray-100 mb-4">
-        <div class="text-center">
-          <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
-          <p class="text-xs text-gray-400 mt-0.5">快速配置并制作单个高质量视频素材</p>
+      <div class="bg-white px-5 py-3 rounded-xl shadow-sm relative border border-gray-100 mb-4">
+        <div class="w-full">
+          <el-button @click="showCreate = false" icon="el-icon-arrow-left" class="mb-2">返回列表</el-button>
+          <div class="text-center">
+            <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
+            <p class="text-xs text-gray-400 mt-0.5">快速配置并制作单个高质量视频素材</p>
+          </div>
         </div>
       </div>
 
@@ -169,39 +193,31 @@
             <el-row :gutter="20" class="mt-2">
               <el-col :span="12">
                 <el-form-item class="!mb-2">
-                  <template #label>
-                    <div class="flex items-center gap-2">
-                      <span><span class="text-red-500">*</span> 数字人形象</span>
-                      <span class="text-xs text-gray-400">{{ humanOptions.length }} 个</span>
-                    </div>
-                  </template>
                   <!-- 数字人选择器 -->
-                  <el-input 
-                    v-model="videoForm.digitalHuman" 
-                    placeholder="点击搜索选择形象"
-                    readonly
-                    style="cursor: pointer;"
-                    clearable
-                    @clear="videoForm.digitalHuman = ''"
-                    @click="openHumanSelector"
-                  >
-                    <template #prepend>选择形象</template>
-                    <template #append>
-                      <el-button icon="el-icon-search" @click.stop="openHumanSelector" />
-                    </template>
-                  </el-input>
+                  <div class="flex items-center gap-2">
+                    <span class="text-red-500 text-base leading-none">*</span>
+                    <el-input 
+                      v-model="videoForm.digitalHuman" 
+                      placeholder="点击搜索选择形象"
+                      readonly
+                      style="cursor: pointer;"
+                      clearable
+                      @clear="videoForm.digitalHuman = ''"
+                      @click="openHumanSelector"
+                    >
+                      <template #prepend>选择形象</template>
+                      <template #append>
+                        <el-button icon="el-icon-search" @click.stop="openHumanSelector" />
+                      </template>
+                    </el-input>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item class="!mb-2">
-                  <template #label>
-                    <div class="flex items-center gap-2">
-                      <span><span class="text-red-500">*</span> 配音声音</span>
-                      <span class="text-xs text-gray-400">{{ voiceOptions.length }} 个</span>
-                    </div>
-                  </template>
                   <!-- 配音选择器 -->
                   <div class="flex gap-2">
+                    <span class="text-red-500 text-base leading-none self-center">*</span>
                     <el-input 
                       v-model="videoForm.voice" 
                       placeholder="点击搜索选择配音"
@@ -226,16 +242,16 @@
             <el-row :gutter="20" class="mt-2">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
-                  <template #label><span class="text-gray-700">快捷预设 <span class="text-xs text-gray-400">（绑定关系，即同时选择数字人形象和配音声音）</span></span></template>
                   <!-- 快捷预设选择器 -->
-                  <div class="flex gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-transparent text-base leading-none">*</span>
                     <el-input 
                       v-model="relName" 
                       placeholder="点击搜索选择预设" 
                       readonly 
                       style="cursor: pointer;"
                       clearable
-                      @clear="videoForm.relId = ''; relName = ''"
+                      @clear="videoForm.relId = ''; relName = ''; videoForm.label = ''"
                       @click="openRelSelector"
                       class="flex-1"
                     >
@@ -244,6 +260,7 @@
                         <el-button icon="el-icon-search" @click.stop="openRelSelector" />
                       </template>
                     </el-input>
+                    <span class="text-xs text-gray-400 whitespace-nowrap">（绑定关系，即同时选择数字人形象和配音声音）</span>
                   </div>
                 </el-form-item>
               </el-col>
@@ -268,30 +285,24 @@
             <el-row :gutter="20" class="mt-2" v-if="videoForm.subtitleSelector === 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
-                  <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 角标</span></template>
                   <div class="flex items-start gap-3">
-                    <!-- 当前选中展示 + 选择按钮 -->
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      <div class="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded bg-white min-h-10 min-w-[140px]">
-                        <template v-if="videoForm.cornerMark">
-                          <img 
-                            v-for="item in cornerMarkOptions"
-                            v-show="item.id === videoForm.cornerMark"
-                            :key="item.id"
-                            :src="item.photoUrl" 
-                            class="w-8 h-8 object-contain"
-                          >
-                          <span class="text-gray-700 text-sm">{{ cornerMarkOptions.find((item: any) => item.id === videoForm.cornerMark)?.name }}</span>
-                        </template>
-                        <span v-else class="text-gray-400 text-sm">请选择角标</span>
-                      </div>
-                      <el-button 
-                        type="primary" 
+                    <div class="flex items-center gap-2 flex-1">
+                      <span class="text-red-500 text-base leading-none self-center">*</span>
+                      <el-input
+                        :model-value="currentCornerMarkName"
+                        placeholder="点击搜索选择角标"
+                        readonly
+                        style="cursor: pointer;"
+                        clearable
+                        @clear="videoForm.cornerMark = ''"
                         @click="openCornerMarkSelector"
-                        size="default"
+                        class="flex-1"
                       >
-                        选择
-                      </el-button>
+                        <template #prepend>选择角标</template>
+                        <template #append>
+                          <el-button icon="el-icon-search" @click.stop="openCornerMarkSelector" />
+                        </template>
+                      </el-input>
                     </div>
                     <!-- 近期快速选择 -->
                     <div v-if="recentCornerMarks.length > 0" class="flex items-center gap-1.5 flex-wrap">
@@ -413,7 +424,7 @@
           </h3>
           <SubtitlePreview
             ref="subtitlePreviewRef"
-            :video-url="subtitlePreviewVideoUrl"
+            :frame-base64="subtitlePreviewFrameBase64"
             :script-text="videoForm.script"
             :corner-mark-url="currentCornerMarkUrl"
             @update:config="handleSubtitleConfigUpdate"
@@ -835,7 +846,7 @@ import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark } from '/@/api/material'
+import { createVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
 // --- 数据定义 ---
@@ -847,6 +858,7 @@ const showCreate = ref(false)
 // 任务列表
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
+const searchLabel = ref('')
 const selectedVideos = ref<any[]>([])
 const videoTaskPage = ref(1)
 const videoTaskPageSize = ref(20)
@@ -854,6 +866,12 @@ const videoTaskTotal = ref(0)
 const filteredVideoList = computed(() => {
   return videoTaskList.value
 })
+
+const splitLabel = (labelValue: string | string[] | null | undefined) => {
+  if (!labelValue) return []
+  if (Array.isArray(labelValue)) return labelValue.filter((t: string) => !!String(t).trim())
+  return String(labelValue).split('|').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+}
 
 const videoForm = reactive({
   title: '',
@@ -870,7 +888,8 @@ const videoForm = reactive({
   subtitleColor: 'yellow',  // 字幕颜色，直接默认使用黄色
   cornerMark: '',  // 角标ID，可选
   previewImg: '',  // 预设选择时的预览图
-  filename: ''   // 视频上传文件夹（共享文件夹存储路径）
+  filename: '',   // 视频上传文件夹（共享文件夹存储路径）
+  label: ''  // 标签（由预设 title 回填）
 })
 
 const relList = ref<any[]>([])
@@ -1032,7 +1051,7 @@ const voiceScrollRef = ref<HTMLElement | null>(null)
 
 // 字幕预览相关
 const subtitlePreviewRef = ref<InstanceType<typeof SubtitlePreview> | null>(null)
-const subtitlePreviewVideoUrl = ref('')
+const subtitlePreviewFrameBase64 = ref('')
 const subtitleConfig = reactive({
   font_size: 18,
   margin_v: 74,
@@ -1043,6 +1062,46 @@ const subtitleConfig = reactive({
   blur_subtitles: false,
   blur_strength: 15
 })
+
+/**
+ * 通过后端代理将图片URL转 base64（绕过浏览器CORS）
+ */
+const fetchImageAsBase64 = async (url: string): Promise<string> => {
+  console.log('[getFrameBase64] 代理拉取封面:', url)
+  const res = await downloadFileByProxy(url)
+  console.log('[getFrameBase64] 代理返回 blob size:', (res.data as Blob)?.size)
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const b64 = reader.result as string
+      console.log('[getFrameBase64] 转 base64 成功, 长度:', b64.length)
+      resolve(b64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(res.data as Blob)
+  })
+}
+
+/**
+ * 优先用封面图URL转 base64；若无封面或失败，则提取视频首帧
+ */
+const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<string> => {
+  console.log('[getFrameBase64] coverUrl:', coverUrl, 'videoUrl:', videoUrl)
+  if (coverUrl) {
+    try {
+      const b64 = await fetchImageAsBase64(coverUrl)
+      if (b64) return b64
+    } catch (e) {
+      console.warn('[getFrameBase64] 封面转换失败，尝试视频首帧', e)
+    }
+  }
+  if (videoUrl) {
+    console.log('[getFrameBase64] 走视频首帧路径')
+    return await extractVideoFirstFrame(videoUrl)
+  }
+  console.warn('[getFrameBase64] 两者均为空，返回空字符串')
+  return ''
+}
 
 // 获取当前选中的数字人视频URL
 const currentDigitalHumanVideoUrl = computed(() => {
@@ -1066,11 +1125,9 @@ const currentCornerMarkUrl = computed(() => {
   return cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl || ''
 })
 
-// 监听数字人变化，自动加载字幕预览帧
-watch(currentDigitalHumanVideoUrl, (url) => {
-  if (url && videoForm.subtitleSelector === 1) {
-    subtitlePreviewVideoUrl.value = url
-  }
+const currentCornerMarkName = computed(() => {
+  if (!videoForm.cornerMark) return ''
+  return cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.name || ''
 })
 
 // 字幕配置更新回调
@@ -1156,10 +1213,19 @@ const videoPreview = reactive({
 // 监听关键配置变化，重置配音状态
 // --- 逻辑处理 ---
 
+const buildVideoTaskSearch = () => {
+  const keyword = searchKeyword.value.trim()
+  const label = searchLabel.value.trim()
+  const search: any = {}
+  if (keyword) search.title = keyword
+  if (label) search.label = label
+  return Object.keys(search).length > 0 ? search : undefined
+}
+
 // 加载视频任务列表
 const loadVideoTasks = async () => {
   try {
-    const response = await getVideoTaskList(videoTaskPage.value, videoTaskPageSize.value)
+    const response = await getVideoTaskList(videoTaskPage.value, videoTaskPageSize.value, buildVideoTaskSearch())
     console.log('API返回数据:', response)
     
     // 处理API返回的数据结构：response.data.data.data 是任务列表数组
@@ -1172,6 +1238,7 @@ const loadVideoTasks = async () => {
         videoTaskTotal.value = data.total || 0
       } else if (Array.isArray(data)) {
         tasks = data
+        videoTaskTotal.value = data.length || 0
       }
     }
     
@@ -1180,6 +1247,7 @@ const loadVideoTasks = async () => {
       id: task.id,
       script: task.msg || task.title || '',
       title: task.title || '',
+      label: task.label || '',
       digitalHuman: task.digitalHuman || task.digital_human || '',
       voice: task.voice || '',
       voiceId: task.voiceId,
@@ -1230,6 +1298,7 @@ const loadDigitalHumanList = async (searchName?: string) => {
         name: digital.digitalHumanName || digital.name,
         externalId: digital.externalId,
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
+        coverUrl: digital.coverUrl || '',   // 原始封面URL，用于字幕预览frame
         videoUrl: digital.videoUrl,
         gender: digital.gender
       }))
@@ -1390,6 +1459,7 @@ watch(() => videoForm.digitalHuman, (newVal, oldVal) => {
     // 数字人发生改变且预设被选中，说明是手动改变，清空预设
     videoForm.relId = ''
     videoForm.previewImg = ''
+    videoForm.label = ''
   }
 })
 
@@ -1398,6 +1468,7 @@ watch(() => videoForm.voice, (newVal, oldVal) => {
     // 配音发生改变且预设被选中，说明是手动改变，清空预设
     videoForm.relId = ''
     videoForm.previewImg = ''
+    videoForm.label = ''
   }
 })
 
@@ -1497,6 +1568,7 @@ const resetForm = () => {
   videoForm.subtitleColor = 'yellow'
   videoForm.cornerMark = ''
   videoForm.filename = ''
+  videoForm.label = ''
   resultVideo.value = ''
   genProgress.value = 0
 }
@@ -1509,6 +1581,7 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
     videoForm.relId = ''
     relName.value = ''
     videoForm.previewImg = ''
+    videoForm.label = ''
     return
   }
   
@@ -1518,14 +1591,18 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
     relName.value = rel.name
     videoForm.digitalHuman = rel.human || rel.digitalHumanName
     videoForm.voice = rel.voice || rel.voiceName
+    videoForm.label = rel.title || ''
     videoForm.digitalHumanExternalId = rel.digitalHumanExternalId || ''
     videoForm.voiceExternalId = rel.voiceExternalId || ''
     
-    // 从视频首帧提取预览图
+    // 字幕预览：优先封面图URL，其次视频URL，通过后端代理转 base64
+    if (videoForm.subtitleSelector === 1) {
+      const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
+      subtitlePreviewFrameBase64.value = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
+    }
+    // 表单缩略图（同样通过代理取视频首帧）
     if (rel.digitalHumanUrl) {
       videoForm.previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
-      // 直接刷新字幕预览视频源，确保会触发预览帧请求
-      subtitlePreviewVideoUrl.value = rel.digitalHumanUrl
     }
     
     ElMessage.success(`已应用联动配置: ${rel.digitalHumanName || rel.human} & ${rel.voiceName || rel.voice}`)
@@ -1823,6 +1900,7 @@ const startGeneration = async () => {
     
     // 映射表单字段到API参数（使用snake_case）
     formData.append('title', videoForm.title)
+    if (videoForm.label) formData.append('label', videoForm.label)
     formData.append('msg', videoForm.script)
     if (videoForm.filename) formData.append('filename', videoForm.filename)
     formData.append('voice_id', voiceId)
@@ -1861,6 +1939,7 @@ const startGeneration = async () => {
 
     console.log('提交的表单数据：', {
       title: videoForm.title,
+      label: videoForm.label,
       msg: videoForm.script,
       voice_id: voiceId,
       digital_human_id: digitalHumanId,
@@ -2017,40 +2096,8 @@ const downloadResult = () => {
 // 搜索视频
 const handleSearch = async () => {
   try {
-    // 构建搜索条件
-    const search = searchKeyword.value ? { title: searchKeyword.value } : undefined
-    
-    const response = await getVideoTaskList(1, 10, search)
-    console.log('搜索API返回数据:', response)
-    
-    let tasks = []
-    if (response.data && response.data.data) {
-      const data = response.data.data
-      if (Array.isArray(data.data)) {
-        tasks = data.data
-      } else if (Array.isArray(data)) {
-        tasks = data
-      }
-    }
-    
-    // 映射字段到前端格式
-    videoTaskList.value = tasks.map((task: any) => ({
-      id: task.id,
-      script: task.msg || task.title || '',
-      title: task.title || '',
-      digitalHuman: task.digitalHuman || task.digital_human || '',
-      voice: task.voice || '',
-      voiceId: task.voiceId,
-      digitalHumanId: task.digitalHumanId,
-      createTime: task.createTime ? new Date(task.createTime).toLocaleString('zh-CN') : new Date().toLocaleString(),
-      updateTime: task.updateTime ? new Date(task.updateTime).toLocaleString('zh-CN') : '',
-      videoUrl: task.videoUrl || task.video_url || '',
-      videoCoverUrl: task.videoCoverUrl || task.video_cover_url || '',
-      taskStatus: task.taskStatus || '0',
-      baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || ''
-    }))
-    
-    console.log('搜索结果:', videoTaskList.value)
+    videoTaskPage.value = 1
+    await loadVideoTasks()
   } catch (error) {
     console.error('搜索失败:', error)
     ElMessage.error('搜索失败，请重试')
@@ -2251,6 +2298,7 @@ const loadMoreHumans = async () => {
         name: digital.digitalHumanName || digital.name,
         externalId: digital.externalId,
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
+        coverUrl: digital.coverUrl || '',   // 原始封面URL，用于字幕预览frame
         videoUrl: digital.videoUrl,
         gender: digital.gender
       }))
@@ -2281,14 +2329,14 @@ const handleHumanScroll = (e: any) => {
   }
 }
 
-const selectHuman = (item: any) => {
+const selectHuman = async (item: any) => {
   console.log('[selectHuman] item:', item)
   videoForm.digitalHuman = item.name
   videoForm.digitalHumanExternalId = item.externalId || ''
   videoForm.previewImg = item.img
-  // 直接使用当前点击项的视频地址，确保会触发字幕预览帧请求
-  if (item.videoUrl) {
-    subtitlePreviewVideoUrl.value = item.videoUrl
+  // 字幕预览：通过后端代理将封面/视频转 base64
+  if (videoForm.subtitleSelector === 1) {
+    subtitlePreviewFrameBase64.value = await getFrameBase64(item.coverUrl || '', item.videoUrl || '')
   }
   humanSelectorDialog.visible = false
   ElMessage.success('已选择数字人')
@@ -2493,6 +2541,7 @@ const selectRel = (item: any) => {
 const clearRelSelection = () => {
   videoForm.relId = ''
   relName.value = ''
+  videoForm.label = ''
   relSelectorDialog.visible = false
   ElMessage.success('已清空预设')
 }

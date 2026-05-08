@@ -114,9 +114,11 @@
     <el-dialog
       title="创建数字人任务"
       v-model="dialogVisible"
-      width="600px"
+      width="1100px"
       custom-class="rounded-xl"
     >
+      <div class="flex gap-5 items-start">
+      <div class="flex-1 min-w-0">
       <el-form :model="form" label-width="100px" label-position="top">
         <div class="grid grid-cols-2 gap-4">
           <el-form-item label="数字人名称" class="col-span-1">
@@ -150,6 +152,14 @@
           </el-form-item>
         </div>
 
+        <!-- 视频方向 -->
+        <el-form-item label="视频方向" class="mt-2">
+          <el-radio-group v-model="orientation">
+            <el-radio-button label="portrait">竖屏（9:16）</el-radio-button>
+            <el-radio-button label="landscape">横屏（16:9）</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
         <el-form-item label="形象图片上传" class="mt-2">
           <div class="mb-3" v-if="form.imageUrl">
             <div class="relative w-full h-[200px] rounded-lg overflow-hidden border border-gray-300 bg-gray-50">
@@ -176,11 +186,25 @@
             </div>
             <template #tip>
               <div class="el-upload__tip text-gray-400 text-[11px] mt-2">
-                建议上传正面、清晰、光线均匀的半身或全身照片。<span class="text-red-500">宽高比必须为 9:16</span>
+                建议上传正面、清晰、光线均匀的半身或全身照片。<span v-if="orientation === 'portrait'" class="text-red-500">宽高比必须为 9:16</span>
               </div>
             </template>
           </el-upload>
         </el-form-item>
+
+        <!-- 模板选择 -->
+        <div class="mb-4">
+          <div class="text-xs text-gray-500 mb-2">选择提示词模板（点击快速填充提示词）</div>
+          <div class="flex flex-wrap gap-2">
+            <el-button
+              v-for="t in templates"
+              :key="t.id"
+              size="small"
+              :type="selectedTemplate === t.id ? 'primary' : 'default'"
+              @click="applyTemplate(t)"
+            >{{ t.name }}</el-button>
+          </div>
+        </div>
 
         <el-form-item label="正面提示词 (Positive Prompt)" class="mt-2">
           <el-input
@@ -199,7 +223,90 @@
             placeholder="描述您希望排除的负面效果"
           ></el-input>
         </el-form-item>
+
+        <!-- 保存模板 -->
+        <div class="flex justify-end mt-1 mb-2">
+          <el-button size="small" @click="handleSaveTemplate">保存模板</el-button>
+        </div>
       </el-form>
+      </div>
+
+      <!-- 右侧：常用提示词标签 -->
+      <div class="w-80 flex-shrink-0 bg-gray-50 rounded-xl p-4 flex flex-col" style="max-height: 580px">
+        <!-- 顶部：标题 -->
+        <div class="font-bold text-gray-700 text-sm mb-3">常用提示词</div>
+
+        <!-- 搜索框 -->
+        <el-input
+          v-model="tagSearch"
+          placeholder="搜索提示词..."
+          size="small"
+          clearable
+          prefix-icon="Search"
+          class="mb-3"
+        />
+
+        <!-- 正面提示词标签 -->
+        <div class="mb-3 bg-white rounded-lg p-3 border border-gray-100">
+          <div class="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b border-gray-200 flex items-center justify-between">
+            <span>正面提示词</span>
+            <span class="text-gray-400 font-normal">{{ filteredPositiveTags.length }} 个</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5 min-h-[52px]">
+            <span
+              v-for="tag in pagedPositiveTags"
+              :key="tag"
+              @click="toggleTag(tag, 'positive')"
+              :class="['cursor-pointer select-none px-2 py-1 text-xs rounded border transition-colors', isTagSelected(tag, 'positive') ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 bg-white hover:border-blue-400 hover:text-blue-500']"
+            >{{ tag }}</span>
+            <span v-if="filteredPositiveTags.length === 0" class="text-xs text-gray-300 italic">无匹配结果</span>
+          </div>
+          <div v-if="filteredPositiveTags.length > tagPageSize" class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+            <button
+              class="text-xs text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+              :disabled="posPage <= 1"
+              @click="posPage--"
+            >上一页</button>
+            <span class="text-xs text-gray-400">{{ posPage }} / {{ Math.ceil(filteredPositiveTags.length / tagPageSize) }}</span>
+            <button
+              class="text-xs text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+              :disabled="posPage >= Math.ceil(filteredPositiveTags.length / tagPageSize)"
+              @click="posPage++"
+            >下一页</button>
+          </div>
+        </div>
+
+        <!-- 负面提示词标签 -->
+        <div class="bg-white rounded-lg p-3 border border-gray-100">
+          <div class="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b border-gray-200 flex items-center justify-between">
+            <span>负面提示词</span>
+            <span class="text-gray-400 font-normal">{{ filteredNegativeTags.length }} 个</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5 min-h-[52px]">
+            <span
+              v-for="tag in pagedNegativeTags"
+              :key="tag"
+              @click="toggleTag(tag, 'negative')"
+              :class="['cursor-pointer select-none px-2 py-1 text-xs rounded border transition-colors', isTagSelected(tag, 'negative') ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 bg-white hover:border-blue-400 hover:text-blue-500']"
+            >{{ tag }}</span>
+            <span v-if="filteredNegativeTags.length === 0" class="text-xs text-gray-300 italic">无匹配结果</span>
+          </div>
+          <div v-if="filteredNegativeTags.length > tagPageSize" class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+            <button
+              class="text-xs text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+              :disabled="negPage <= 1"
+              @click="negPage--"
+            >上一页</button>
+            <span class="text-xs text-gray-400">{{ negPage }} / {{ Math.ceil(filteredNegativeTags.length / tagPageSize) }}</span>
+            <button
+              class="text-xs text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+              :disabled="negPage >= Math.ceil(filteredNegativeTags.length / tagPageSize)"
+              @click="negPage++"
+            >下一页</button>
+          </div>
+        </div>
+      </div>
+      </div>
 
       <template #footer>
         <span class="dialog-footer">
@@ -272,6 +379,91 @@ const form = reactive({
   positivePrompt: '固定视角、静态背景、一个在说话的人物、牙齿清晰、自然的眨眼',
   negativePrompt: '移动的背景、六根手指、奇怪的手、低质量、糟糕的画质、移动的视角'
 })
+
+// --- 模板 & 提示词标签 ---
+interface PromptTemplate { id: number; name: string; positive: string; negative: string }
+const templates: PromptTemplate[] = [
+  { id: 1, name: '模板1', positive: '固定视角、静态背景、一个在说话的人物、牙齿清晰、自然地眨眼', negative: '移动的背景、六根手指、奇怪的手、低质量、糟糕的画质、移动的视角' },
+  { id: 2, name: '模板2', positive: '专业形象、精致妆容、自然光线、高清画质、清晰轮廓', negative: '模糊不清、面部变形、多余肢体、低分辨率、曝光过度' },
+  { id: 3, name: '模板3', positive: '商务风格、正式着装、自信表情、清晰背景、精神面貌好', negative: '休闲服装、背景杂乱、表情夸张、镜头失焦、画面抖动' },
+  { id: 4, name: '模板4', positive: '活泼表情、青春感、明亮背景、自然微笑、眼神有神', negative: '严肃表情、暗色背景、皱纹明显、面部遮挡、阴影过重' },
+  { id: 5, name: '模板5', positive: '中性风格、简洁着装、干净背景、柔和光线、自然妆容', negative: '复杂装饰、强烈对比、阴影过深、多人画面、背景干扰' },
+  { id: 6, name: '模板6', positive: '成熟稳重、深色背景、精致五官、专注表情、高级质感', negative: '幼稚感、浅色背景、五官模糊、分心表情、杂乱环境' }
+]
+const selectedTemplate = ref<number | null>(null)
+
+const positiveTags = [
+  '固定视角', '静态背景', '一个在说话的人物', '牙齿清晰', '自然地眨眼',
+  '高清画质', '专业形象', '精致妆容', '自然光线', '清晰轮廓',
+  '商务风格', '正式着装', '自信表情', '清晰背景', '精神面貌好',
+  '活泼表情', '青春感', '明亮背景', '自然微笑', '眼神有神',
+  '中性风格', '简洁着装', '干净背景', '柔和光线', '自然妆容',
+  '成熟稳重', '精致五官', '专注表情', '高级质感'
+]
+const negativeTags = [
+  '移动的背景', '六根手指', '奇怪的手', '低质量', '糟糕的画质', '移动的视角',
+  '模糊不清', '面部变形', '多余肢体', '低分辨率', '曝光过度',
+  '休闲服装', '背景杂乱', '表情夸张', '镜头失焦', '画面抖动',
+  '严肃表情', '暗色背景', '皱纹明显', '面部遮挡', '阴影过重',
+  '复杂装饰', '强烈对比', '多人画面', '背景干扰', '幼稚感', '五官模糊'
+]
+
+const applyTemplate = (t: PromptTemplate) => {
+  selectedTemplate.value = t.id
+  form.positivePrompt = t.positive
+  form.negativePrompt = t.negative
+}
+
+const isTagSelected = (tag: string, type: 'positive' | 'negative') => {
+  const prompt = type === 'positive' ? form.positivePrompt : form.negativePrompt
+  return prompt.split('、').map(s => s.trim()).includes(tag)
+}
+
+const toggleTag = (tag: string, type: 'positive' | 'negative') => {
+  const current = type === 'positive' ? form.positivePrompt : form.negativePrompt
+  const tags = current.split('、').map(s => s.trim()).filter(Boolean)
+  const idx = tags.indexOf(tag)
+  if (idx >= 0) {
+    tags.splice(idx, 1)
+  } else {
+    tags.push(tag)
+  }
+  if (type === 'positive') {
+    form.positivePrompt = tags.join('、')
+  } else {
+    form.negativePrompt = tags.join('、')
+  }
+  selectedTemplate.value = null
+}
+
+const handleSaveTemplate = () => {
+  ElMessage.success('模板已保存')
+}
+
+// --- 横竖屏 & 标签搜索分页 ---
+const orientation = ref<'portrait' | 'landscape'>('portrait')
+const tagSearch = ref('')
+const posPage = ref(1)
+const negPage = ref(1)
+const tagPageSize = 20
+
+const filteredPositiveTags = computed(() => {
+  const q = tagSearch.value.trim()
+  return q ? positiveTags.filter(t => t.includes(q)) : positiveTags
+})
+const filteredNegativeTags = computed(() => {
+  const q = tagSearch.value.trim()
+  return q ? negativeTags.filter(t => t.includes(q)) : negativeTags
+})
+const pagedPositiveTags = computed(() => {
+  const start = (posPage.value - 1) * tagPageSize
+  return filteredPositiveTags.value.slice(start, start + tagPageSize)
+})
+const pagedNegativeTags = computed(() => {
+  const start = (negPage.value - 1) * tagPageSize
+  return filteredNegativeTags.value.slice(start, start + tagPageSize)
+})
+watch(tagSearch, () => { posPage.value = 1; negPage.value = 1 })
 
 const nameValidationLoading = ref(false)
 const nameValidationState = ref<'idle' | 'valid' | 'invalid'>('idle')
@@ -392,16 +584,19 @@ const handleImageChange = (file: any) => {
   const img = new Image()
   img.onload = () => {
     const aspectRatio = img.width / img.height
-    const targetRatio = 9 / 16
-    const tolerance = 0.05
 
-    if (Math.abs(aspectRatio - targetRatio) > tolerance) {
-      URL.revokeObjectURL(objectUrl)
-      form.rawFile = null
-      form.imageUrl = ''
-      imageRatioValid.value = false
-      ElMessage.error(`图片宽高比必须为 9:16（当前约为 ${img.width}:${img.height}），请重新上传`)
-      return
+    // 横屏不限制比例，只有竖屏才校验 9:16
+    if (orientation.value === 'portrait') {
+      const targetRatio = 9 / 16
+      const tolerance = 0.05
+      if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+        URL.revokeObjectURL(objectUrl)
+        form.rawFile = null
+        form.imageUrl = ''
+        imageRatioValid.value = false
+        ElMessage.error(`竖屏模式下图片宽高比必须为 9:16（当前约为 ${img.width}:${img.height}），请重新上传`)
+        return
+      }
     }
 
     // 校验通过：更新回显图片和文件数据

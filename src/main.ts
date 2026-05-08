@@ -28,8 +28,9 @@ for (const iconName in ElIconsData) {
     app.component(`ElIcon${iconName}`, ElIconsData[iconName])
 }
   
-// 生产环境禁用 F12 及右键菜单
-if (import.meta.env.PROD) {
+// 生产环境是否禁用 F12/右键（默认不禁用，避免线上无法排查问题）
+const disableDevtools = import.meta.env.PROD && String(import.meta.env.VITE_DISABLE_F12).toLowerCase() === 'true'
+if (disableDevtools) {
   document.addEventListener('keydown', (e) => {
     if (
       e.key === 'F12' ||

@@ -20,6 +20,7 @@ export interface IMenubar {
 }
 export interface IUserInfo {
     name: string,
+    username: string,
     role: string[]
 }
 export interface ITags {

@@ -9,7 +9,10 @@ let loading:{close():void}
 const request = axios.create({
     // API 请求的默认前缀
     baseURL: import.meta.env.VITE_API_URL as string | undefined,
-    timeout: 60000 // 请求超时时间
+    timeout: 60000, // 请求超时时间
+    headers: {
+        'Content-Type': 'application/json;charset=UTF-8'
+    }
 })
 
 // 异常拦截处理器
@@ -25,12 +28,14 @@ const errorHandler = (error:any) => {
         try { logout() } catch {}
         router.push('/login')
     }
-    ElNotification({
-        title,
-        message: msg,
-        type: 'error'
-    })
-    return Promise.reject(error)
+    if (!error?.config?.silentError) {
+        ElNotification({
+            title,
+            message: msg,
+            type: 'error'
+        })
+    }
+    return Promise.reject(new Error(msg))
 }
 
 // request interceptor
@@ -78,11 +83,13 @@ request.interceptors.response.use((response:AxiosResponse<IResponse>) => {
             // Token 过期或未授权，重定向到登录页
             router.push('/login')
         }
-        ElNotification({
-            title,
-            message: msg,
-            type: 'error'
-        })
+        if (!(response.config as any).silentError) {
+            ElNotification({
+                title,
+                message: msg,
+                type: 'error'
+            })
+        }
         return Promise.reject(new Error(msg))
     }
     return response

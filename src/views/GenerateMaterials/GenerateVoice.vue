@@ -590,7 +590,9 @@ const saveScriptDialog = reactive({
 const audioPreview = reactive({
   visible: false,
   url: '',
-  title: ''
+  title: '',
+  taskStatus: '',
+  taskId: ''
 })
 
 // --- 逻辑处理 ---
@@ -704,9 +706,53 @@ const handleCreateNew = () => {
   showCreate.value = true
 }
 
+const resolveAudioUrl = (audio: any) => {
+  return audio?.baseVoiceUrl || audio?.audioUrl || audio?.url || ''
+}
+
+const startDownloadByUrl = async (url: string, fileName: string) => {
+  if (!url) {
+    ElMessage.warning('音频URL不可用')
+    return
+  }
+
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const blob = await response.blob()
+    const blobUrl = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(blobUrl)
+    document.body.removeChild(a)
+    ElMessage.success('下载已开始')
+  } catch (error) {
+    // 某些外链可能被 CORS 拦截，直接打开原链接作为降级方案
+    window.open(url, '_blank')
+    ElMessage.warning('直接下载失败，已尝试打开原始链接')
+  }
+}
+
 const handlePlayAudio = (audio: any) => {
-  audioPreview.url = audio.baseVoiceUrl || audio.audioUrl
+  if (String(audio.taskStatus) !== '2') {
+    ElMessage.warning('该音频尚未生成完成，暂不可下载')
+  }
+
+  const audioUrl = resolveAudioUrl(audio)
+  if (!audioUrl) {
+    ElMessage.warning('当前任务暂无可用音频地址')
+    return
+  }
+
+  audioPreview.url = audioUrl
   audioPreview.title = audio.title
+  audioPreview.taskStatus = String(audio.taskStatus ?? '')
+  audioPreview.taskId = String(audio.id ?? '')
   audioPreview.visible = true
 }
 
@@ -998,18 +1044,22 @@ const startGeneration = async () => {
 
 const completeGeneration = async (taskId?: any, taskData?: any) => {
   isGenerating.value = false
-  if (taskData && (taskData.url || taskData.baseVoiceUrl)) {
-    resultAudio.value = taskData.url || taskData.baseVoiceUrl
-  } else {
-    resultAudio.value = 'https://www.w3schools.com/html/mov_bbb.mp4'
+  resultAudio.value = resolveAudioUrl(taskData)
+
+  if (!resultAudio.value) {
+    ElMessage.warning('任务完成但未返回音频地址，请稍后在列表中刷新后重试下载')
   }
   
   const newTask = {
     id: taskId || Date.now(),
+    title: voiceForm.dubbing_name,
     script: voiceForm.script,
     voice: voiceForm.voice,
-    createTime: new Date().toLocaleString(),
-    audioUrl: resultAudio.value
+    createTime: new Date().toLocaleString('zh-CN'),
+    updateTime: new Date().toLocaleString('zh-CN'),
+    audioUrl: resultAudio.value,
+    baseVoiceUrl: taskData?.baseVoiceUrl || taskData?.url || '',
+    taskStatus: '2'
   }
   
   audioTaskList.value.unshift(newTask)
@@ -1017,36 +1067,21 @@ const completeGeneration = async (taskId?: any, taskData?: any) => {
 }
 
 const previewResult = () => {
+  if (!resultAudio.value) {
+    ElMessage.warning('暂无可试听/下载的音频地址，请稍后刷新列表重试')
+    return
+  }
   audioPreview.url = resultAudio.value
+  audioPreview.title = voiceForm.dubbing_name || '新生成音频'
+  audioPreview.taskStatus = '2'
+  audioPreview.taskId = ''
   audioPreview.visible = true
 }
 
 // 下载音频
 const downloadAudio = async () => {
-  if (!audioPreview.url) {
-    ElMessage.warning('音频URL不可用')
-    return
-  }
-  
-  try {
-    ElMessage.loading('正在准备下载...')
-    const response = await fetch(audioPreview.url)
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `audio-${new Date().getTime()}.mp3`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-    
-    setTimeout(() => {
-      ElMessage.success('下载已开始')
-    }, 2000)
-  } catch (error) {
-    ElMessage.error('下载失败，请重试')
-  }
+  const fileNameBase = audioPreview.title || `audio-${audioPreview.taskId || new Date().getTime()}`
+  await startDownloadByUrl(audioPreview.url, `${fileNameBase}.mp3`)
 }
 
 const downloadResult = () => {

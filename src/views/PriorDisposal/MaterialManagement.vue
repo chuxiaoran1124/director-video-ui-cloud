@@ -8,14 +8,14 @@
             <div class="flex items-center gap-4">
               <el-input 
                 v-model="searchVoice" 
-                placeholder="输入素材名称搜索" 
+                placeholder="输入声音名称搜索" 
                 size="default" 
                 style="width: 260px" 
                 clearable 
                 prefix-icon="ElIconSearch"
                 @change="fetchData"
               />
-              <el-input v-model="filterVoiceTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="fetchData" />
+              <!-- <el-input v-model="filterVoiceTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="fetchData" /> -->
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetVoiceSearch">重置条件</el-button>
@@ -34,14 +34,14 @@
                 <span class="font-medium text-blue-600">{{ scope.row.voiceName }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="标签" min-width="150">
+            <!-- <el-table-column label="标签" min-width="150">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1">
                   <span v-if="splitTags(scope.row.title).length === 0" class="text-gray-400 text-xs">暂无标签</span>
                   <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="info">{{ tag }}</el-tag>
                 </div>
               </template>
-            </el-table-column>
+            </el-table-column> -->
             <el-table-column label="试听" width="80" align="center">
               <template #default="scope">
                 <el-button size="small" type="primary" icon="ElIconVideoPlay" @click="playVoice(scope.row)" circle />
@@ -82,14 +82,14 @@
             <div class="flex items-center gap-4">
               <el-input 
                 v-model="searchDH" 
-                placeholder="输入名称搜索" 
+                placeholder="输入数字人名称搜索" 
                 size="default" 
                 style="width: 260px" 
                 clearable 
                 prefix-icon="ElIconSearch"
                 @change="fetchData"
               />
-              <el-input v-model="filterDHTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="activeName === 'digitalHuman' ? fetchDigitalHumans() : fetchData()" />
+              <!-- <el-input v-model="filterDHTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="activeName === 'digitalHuman' ? fetchDigitalHumans() : fetchData()" /> -->
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetDHSearch">重置条件</el-button>
@@ -109,14 +109,14 @@
               </template>
             </el-table-column>
             <el-table-column prop="digitalHumanName" label="名称" min-width="120" />
-            <el-table-column label="个性标签" min-width="150">
+            <!-- <el-table-column label="个性标签" min-width="150">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1">
                   <span v-if="!scope.row.title" class="text-gray-400 text-xs">暂无标签</span>
                   <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="success">{{ tag }}</el-tag>
                 </div>
               </template>
-            </el-table-column>
+            </el-table-column> -->
             <el-table-column prop="createTime" label="录入日期" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
@@ -148,8 +148,38 @@
       <!-- 关系管理 -->
       <el-tab-pane label="关系管理" name="relation">
         <div class="p-4 bg-white rounded-b-lg">
-          <div class="mb-4">
-            <el-button type="primary" icon="ElIconPlus" size="default" @click="openAddRelDialog">批量建立关系</el-button>
+          <div class="filter-header mb-4 flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+            <div class="flex items-center gap-4">
+              <el-input
+                v-model="searchRelVoice"
+                placeholder="输入声音名称搜索"
+                size="default"
+                style="width: 220px"
+                clearable
+                prefix-icon="ElIconSearch"
+              />
+              <el-input
+                v-model="searchRelDH"
+                placeholder="输入数字人名称搜索"
+                size="default"
+                style="width: 220px"
+                clearable
+                prefix-icon="ElIconSearch"
+              />
+              <el-input
+                v-model="searchRelTag"
+                placeholder="输入标签搜索"
+                size="default"
+                style="width: 220px"
+                clearable
+                prefix-icon="ElIconSearch"
+              />
+            </div>
+            <div class="flex items-center gap-3">
+              <el-button size="default" @click="resetRelSearch">重置条件</el-button>
+              <el-button type="primary" size="default" icon="ElIconSearch" @click="fetchRelations">查询关系</el-button>
+              <el-button type="primary" icon="ElIconPlus" size="default" @click="openAddRelDialog">批量建立关系</el-button>
+            </div>
           </div>
           <el-table :data="paginatedRelations" border stripe :header-cell-style="{background:'#f8f9fb', color:'#606266'}">
             <el-table-column label="序号" width="70" align="center">
@@ -191,7 +221,7 @@
             <el-pagination
               v-model:current-page="relPage.currentPage"
               v-model:page-size="relPage.pageSize"
-              :total="relations.length"
+              :total="relationsTotal"
               :page-sizes="[10, 20, 50]"
               layout="total, sizes, prev, pager, next, jumper"
               background
@@ -199,6 +229,200 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <!-- 横幅管理 Tab -->
+      <el-tab-pane label="横幅管理" name="banner">
+        <div class="p-5 bg-white rounded-b-lg">
+          <template v-if="bannerMode === 'list'">
+            <div class="flex items-center justify-between mb-4">
+              <div class="text-base font-semibold text-gray-700">横幅图片列表</div>
+              <el-button type="primary" icon="ElIconPlus" @click="openCreateBanner">新建横幅</el-button>
+            </div>
+
+            <el-table :data="bannerList" border stripe :header-cell-style="{ background: '#f8f9fb', color: '#606266' }">
+              <el-table-column type="index" label="序号" width="70" align="center" />
+              <el-table-column prop="name" label="横幅名称" min-width="140" align="center" />
+              <el-table-column label="数字人" min-width="160" align="center">
+                <template #default="scope">
+                  <div class="flex items-center justify-center gap-2">
+                    <el-avatar :size="24" shape="square" :src="scope.row.dhCoverUrl" />
+                    <span>{{ scope.row.dhName }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="横幅图" min-width="160" align="center">
+                <template #default="scope">
+                  <img :src="scope.row.imageUrl" class="w-28 h-12 object-cover rounded-md border border-gray-200" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="updateTime" label="更新时间" width="180" align="center" />
+              <el-table-column label="操作" width="180" align="center" fixed="right">
+                <template #default="scope">
+                  <el-button type="primary" plain size="mini" @click="editBanner(scope.row)">编辑</el-button>
+                  <el-button type="danger" plain size="mini" @click="deleteBanner(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <el-empty v-if="bannerList.length === 0" description="暂无横幅，点击右上角新建" :image-size="86" />
+          </template>
+
+          <template v-else>
+            <div class="flex items-center justify-between mb-4">
+              <div class="text-base font-semibold text-gray-700">{{ bannerEditingId ? '编辑横幅' : '新建横幅' }}</div>
+              <el-button @click="cancelBannerEdit">返回列表</el-button>
+            </div>
+
+            <div class="flex gap-6 items-start">
+              <div class="w-80 flex-shrink-0 space-y-4">
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div class="text-sm font-semibold text-gray-700 mb-2">横幅名称</div>
+                  <el-input v-model="bannerName" maxlength="30" show-word-limit placeholder="请输入横幅名称" />
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div class="text-sm font-semibold text-gray-700 mb-3">① 选择数字人</div>
+                  <el-select
+                    v-model="bannerSelectedDH"
+                    placeholder="请选择数字人"
+                    filterable
+                    clearable
+                    style="width: 100%"
+                    @change="onBannerDHChange"
+                  >
+                    <el-option
+                      v-for="dh in digitalHumans"
+                      :key="dh.id"
+                      :value="dh.id"
+                      :label="dh.digitalHumanName"
+                    >
+                      <div class="flex items-center gap-2">
+                        <el-avatar :size="24" shape="square" :src="dh.coverUrl" />
+                        <span>{{ dh.digitalHumanName }}</span>
+                      </div>
+                    </el-option>
+                  </el-select>
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div class="text-sm font-semibold text-gray-700 mb-3">② 上传横幅图片</div>
+                  <div class="banner-upload-wrap">
+                    <el-upload
+                      drag
+                      action="#"
+                      class="banner-upload"
+                      :auto-upload="false"
+                      :on-change="onBannerImageChange"
+                      :show-file-list="false"
+                      accept=".jpg,.jpeg,.png,.gif,.webp"
+                    >
+                      <div v-if="bannerImageUrl" class="relative w-full h-24 rounded-lg overflow-hidden">
+                        <img :src="bannerImageUrl" class="w-full h-full object-cover" />
+                        <div class="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs">点击更换</div>
+                      </div>
+                      <div v-else class="flex flex-col items-center justify-center py-5 text-gray-400">
+                        <el-icon class="text-3xl mb-1"><upload-filled /></el-icon>
+                        <span class="text-xs">拖拽或点击上传横幅图</span>
+                      </div>
+                    </el-upload>
+                  </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-4">
+                  <div class="text-sm font-semibold text-gray-700">③ 调节横幅参数</div>
+
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-gray-500">横幅高度</span>
+                      <span class="text-xs text-blue-600 font-medium">{{ bannerHeight }}px</span>
+                    </div>
+                    <el-slider v-model="bannerHeight" :min="20" :max="400" :step="1" />
+                  </div>
+
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-gray-500">横幅宽度</span>
+                      <span class="text-xs text-blue-600 font-medium">{{ bannerWidth }}%</span>
+                    </div>
+                    <el-slider v-model="bannerWidth" :min="20" :max="100" :step="1" />
+                  </div>
+
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-gray-500">垂直位置（距底部 %）</span>
+                      <span class="text-xs text-blue-600 font-medium">{{ bannerY }}%</span>
+                    </div>
+                    <el-slider v-model="bannerY" :min="0" :max="100" :step="1" />
+                  </div>
+
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-gray-500">横幅透明度</span>
+                      <span class="text-xs text-blue-600 font-medium">{{ bannerOpacity }}%</span>
+                    </div>
+                    <el-slider v-model="bannerOpacity" :min="10" :max="100" :step="5" />
+                  </div>
+                </div>
+
+                <div class="flex gap-2">
+                  <el-button style="flex:1" @click="resetBanner">重置</el-button>
+                  <el-button type="primary" style="flex:1" @click="saveBanner">保存配置</el-button>
+                </div>
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-gray-700 mb-3">实时预览</div>
+                <div
+                  ref="bannerPreviewRef"
+                  class="relative bg-gray-900 rounded-xl overflow-hidden mx-auto select-none"
+                  style="width:360px;height:640px;"
+                >
+                  <img
+                    v-if="bannerDHCoverUrl"
+                    :src="bannerDHCoverUrl"
+                    class="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  />
+                  <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
+                    <el-icon style="font-size:48px;margin-bottom:8px"><user /></el-icon>
+                    <span class="text-xs">请先选择数字人</span>
+                  </div>
+
+                  <div
+                    v-if="bannerImageUrl"
+                    class="absolute left-1/2 cursor-move overflow-hidden"
+                    :style="bannerOverlayStyle"
+                    @mousedown.self="startBannerDrag"
+                  >
+                    <img
+                      :src="bannerImageUrl"
+                      draggable="false"
+                      class="w-full h-full object-cover pointer-events-none"
+                    />
+                    <div
+                      class="absolute bottom-0 left-0 right-0 h-4 flex items-center justify-center cursor-s-resize"
+                      style="background:rgba(0,0,0,0.3)"
+                      @mousedown.stop="startBannerResize"
+                    >
+                      <div style="width:32px;height:2px;background:rgba(255,255,255,0.7);border-radius:2px" />
+                    </div>
+                  </div>
+                  <div v-else-if="bannerSelectedDH" class="absolute bottom-0 left-0 right-0 text-center text-xs pb-3" style="color:rgba(255,255,255,0.5)">
+                    请上传横幅图片
+                  </div>
+
+                  <div class="absolute top-2 right-2 text-[10px] rounded px-1.5 py-0.5" style="color:rgba(255,255,255,0.6);background:rgba(0,0,0,0.3)">
+                    预览 360×640
+                  </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-400 text-center">
+                  可在预览区拖拽横幅调整位置 · 底部手柄可拖拽调节高度
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </el-tab-pane>
+
     </el-tabs>
 
     <!-- 编辑弹窗 (通用) -->
@@ -208,47 +432,24 @@
       width="500px"
       destroy-on-close
     >
-      <el-form :model="editForm" label-width="80px" size="default" class="mt-4">
-        <el-form-item label="名称">
-          <el-input v-model="editForm.name" placeholder="请输入素材名称" class="max-w-xs" />
-        </el-form-item>
-        <el-form-item label="标签">
-          <div class="tag-manager-box p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-            <div class="flex flex-wrap gap-2">
-              <el-tag
-                v-for="(tag, index) in editForm.tags"
-                :key="index"
-                closable
-                :type="activeName === 'voice' ? '' : 'success'"
-                effect="light"
-                class="transition-all hover:scale-105"
-                @close="removeTag(editForm, index)"
-              >
-                {{ tag }}
-              </el-tag>
-              
-              <template v-if="editForm.tags.length < (activeName === 'voice' ? 5 : 7)">
-                <el-input
-                  v-if="tagInputVisible"
-                  ref="tagInputRef"
-                  v-model="newTag"
-                  class="w-20"
-                  size="small"
-                  @keyup.enter="addTag(editForm, activeName === 'voice' ? 5 : 7)"
-                  @blur="addTag(editForm, activeName === 'voice' ? 5 : 7)"
-                />
-                <el-button v-else size="small" class="button-new-tag" @click="showTagInput">
-                  <el-icon class="mr-1"><ElIconPlus /></el-icon>
-                  添加新标签
-                </el-button>
-              </template>
-            </div>
-            <div class="mt-2 text-[12px] text-gray-400 flex justify-between">
-              <span>{{ editForm.tags.length }}/{{ activeName === 'voice' ? 5 : 7 }}</span>
-            </div>
-          </div>
-        </el-form-item>
-      </el-form>
+        <!-- 声音编辑 -->
+        <template v-if="activeName === 'voice'">
+          <el-form :model="editForm" label-position="top" size="default">
+            <el-form-item label="声音名称">
+              <el-input v-model="editForm.name" placeholder="请输入声音名称" />
+            </el-form-item>
+          </el-form>
+        </template>
+
+        <!-- 数字人编辑 -->
+        <template v-else>
+          <el-form :model="editForm" label-width="80px" size="default" class="mt-4">
+            <el-form-item label="名称">
+              <el-input v-model="editForm.name" placeholder="请输入素材名称" class="max-w-xs" />
+            </el-form-item>
+          </el-form>
+        </template>
+
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -339,40 +540,28 @@
     </el-dialog>
 
     <!-- 编辑绑定关系弹窗 (单条修改) -->
-    <el-dialog v-model="editRelVisible" title="编辑绑定关系" width="550px" destroy-on-close>
-      <el-form label-position="top" size="default">
-        <el-form-item label="绑定关系标签 (可增删)" class="mt-6">
-          <div class="tag-manager-box p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-            <div class="flex flex-wrap gap-2">
-              <el-tag
-                v-for="(tag, index) in editRelForm.tags"
-                :key="index"
-                closable
-                type="warning"
-                size="small"
-                @close="removeTag(editRelForm, index)"
-              >
-                {{ tag }}
-              </el-tag>
-              
-              <template v-if="editRelForm.tags.length < 5">
-                <el-input
-                  v-if="tagInputVisible"
-                  ref="tagInputRef"
-                  v-model="newTag"
-                  class="w-20"
-                  size="mini"
-                  @keyup.enter="addTag(editRelForm, 5)"
-                  @blur="addTag(editRelForm, 5)"
-                />
-                <el-button v-else size="mini" class="button-new-tag" @click="showTagInput">
-                  添加
-                </el-button>
-              </template>
-            </div>
+    <el-dialog v-model="editRelVisible" title="编辑绑定关系" width="820px" destroy-on-close>
+      <div class="flex gap-5 items-start">
+        <div class="flex-1 min-w-0">
+          <el-form label-position="top" size="default">
+            <el-form-item label="声音">
+              <el-input :model-value="editRelForm.voiceName" disabled />
+            </el-form-item>
+            <el-form-item label="数字人">
+              <el-input :model-value="editRelForm.digitalHumanName" disabled />
+            </el-form-item>
+          </el-form>
+          <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-600 leading-5">
+            <div class="font-medium mb-1">操作说明</div>
+            <div>· 单击标签 — 选中/取消选中</div>
+            <div>· 双击标签 — 编辑名称</div>
+            <div>· 点 + — 新建标签</div>
           </div>
-        </el-form-item>
-      </el-form>
+        </div>
+        <div class="w-[400px] flex-shrink-0">
+          <TagManager ref="relTagManagerRef" :initial-tags="editRelForm.tags" />
+        </div>
+      </div>
       <template #footer>
         <el-button @click="editRelVisible = false">取消</el-button>
         <el-button type="primary" @click="saveEditRel">确认更新</el-button>
@@ -383,11 +572,15 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed, reactive, nextTick, watch } from 'vue'
-import { getVoices, getDigitalHumans, getRelations, getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding } from '/@/api/material/index'
+import TagManager from '/@/components/TagManager/index.vue'
+import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding } from '/@/api/material/index'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 export default defineComponent({
   name: 'MaterialManagement',
+  components: {
+    TagManager
+  },
   setup() {
     const activeName = ref('voice')
     const voices = ref([])
@@ -395,6 +588,191 @@ export default defineComponent({
     const digitalHumansTotal = ref(0) // 数字人总数
     const voicesTotal = ref(0) // 声音总数
     const relations = ref([])
+    const relationsTotal = ref(0)
+
+    // ── 横幅管理 ──────────────────────────────────────────────
+    const bannerMode = ref<'list' | 'edit'>('list')
+    const bannerEditingId = ref<number | null>(null)
+    const bannerIdSeed = ref(1)
+
+    const bannerList = ref<any[]>([])
+    const bannerName = ref('')
+    const bannerSelectedDH = ref<number | null>(null)
+    const bannerSelectedDHName = ref('')
+    const bannerDHCoverUrl = ref('')
+    const bannerImageUrl = ref('')
+    const bannerHeight = ref(80)
+    const bannerWidth = ref(100)
+    const bannerY = ref(10)          // 距底部百分比
+    const bannerOpacity = ref(100)   // 0-100
+
+    // 预览区 DOM 引用（拖拽时用于换算坐标）
+    const bannerPreviewRef = ref<HTMLElement | null>(null)
+
+    // 当前拖拽/缩放状态
+    let _bannerDragState: {
+      startMouseY: number; startBannerY: number
+    } | null = null
+    let _bannerResizeState: {
+      startMouseY: number; startHeight: number
+    } | null = null
+
+    // 横幅叠层 style（基于预览容器 640px 高）
+    const bannerOverlayStyle = computed(() => {
+      const containerH = 640
+      const h = bannerHeight.value
+      // bottomPct 表示距底部百分比，转换为 top = containerH - h - bottomPx
+      const bottomPx = (bannerY.value / 100) * containerH
+      const topPx = Math.max(0, containerH - h - bottomPx)
+      return {
+        top: `${topPx}px`,
+        height: `${h}px`,
+        width: `${bannerWidth.value}%`,
+        transform: 'translateX(-50%)',
+        opacity: String(bannerOpacity.value / 100)
+      }
+    })
+
+    function onBannerDHChange(id: number | null) {
+      if (!id) {
+        bannerSelectedDHName.value = ''
+        bannerDHCoverUrl.value = ''
+        return
+      }
+      const dh = (digitalHumans.value as any[]).find((d: any) => d.id === id)
+      bannerSelectedDHName.value = dh?.digitalHumanName ?? ''
+      bannerDHCoverUrl.value = dh?.coverUrl ?? ''
+    }
+
+    function onBannerImageChange(file: any) {
+      if (file?.raw) {
+        bannerImageUrl.value = URL.createObjectURL(file.raw)
+      }
+    }
+
+    function startBannerDrag(e: MouseEvent) {
+      const preview = bannerPreviewRef.value
+      if (!preview) return
+      _bannerDragState = { startMouseY: e.clientY, startBannerY: bannerY.value }
+      const containerH = preview.offsetHeight
+
+      const onMove = (ev: MouseEvent) => {
+        if (!_bannerDragState) return
+        const deltaY = ev.clientY - _bannerDragState.startMouseY
+        // 向下拖 → bottomPx 减小（距底更近）
+        const deltaPct = (deltaY / containerH) * 100
+        const newY = Math.max(0, Math.min(100, _bannerDragState.startBannerY - deltaPct))
+        bannerY.value = Math.round(newY)
+      }
+      const onUp = () => {
+        _bannerDragState = null
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    }
+
+    function startBannerResize(e: MouseEvent) {
+      _bannerResizeState = { startMouseY: e.clientY, startHeight: bannerHeight.value }
+      const onMove = (ev: MouseEvent) => {
+        if (!_bannerResizeState) return
+        const deltaY = ev.clientY - _bannerResizeState.startMouseY
+        bannerHeight.value = Math.max(20, Math.min(400, _bannerResizeState.startHeight + deltaY))
+      }
+      const onUp = () => {
+        _bannerResizeState = null
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    }
+
+    function resetBanner() {
+      bannerSelectedDH.value = null
+      bannerSelectedDHName.value = ''
+      bannerDHCoverUrl.value = ''
+      bannerName.value = ''
+      bannerImageUrl.value = ''
+      bannerHeight.value = 80
+      bannerWidth.value = 100
+      bannerY.value = 10
+      bannerOpacity.value = 100
+    }
+
+    function openCreateBanner() {
+      bannerEditingId.value = null
+      resetBanner()
+      bannerMode.value = 'edit'
+    }
+
+    function cancelBannerEdit() {
+      bannerMode.value = 'list'
+    }
+
+    function editBanner(row: any) {
+      bannerEditingId.value = row.id
+      bannerName.value = row.name || ''
+      bannerSelectedDH.value = row.dhId || null
+      bannerSelectedDHName.value = row.dhName || ''
+      bannerDHCoverUrl.value = row.dhCoverUrl || ''
+      bannerImageUrl.value = row.imageUrl || ''
+      bannerHeight.value = row.height || 80
+      bannerWidth.value = row.width || 100
+      bannerY.value = row.y || 10
+      bannerOpacity.value = row.opacity || 100
+      bannerMode.value = 'edit'
+    }
+
+    function deleteBanner(row: any) {
+      bannerList.value = bannerList.value.filter((item: any) => item.id !== row.id)
+      ElMessage.success('横幅已删除')
+    }
+
+    function saveBanner() {
+      if (!bannerName.value.trim()) {
+        ElMessage.warning('请输入横幅名称')
+        return
+      }
+      if (!bannerSelectedDH.value) {
+        ElMessage.warning('请选择数字人')
+        return
+      }
+      if (!bannerImageUrl.value) {
+        ElMessage.warning('请上传横幅图片')
+        return
+      }
+
+      const now = new Date()
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const updateTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+
+      const payload = {
+        id: bannerEditingId.value || bannerIdSeed.value++,
+        name: bannerName.value.trim(),
+        dhId: bannerSelectedDH.value,
+        dhName: bannerSelectedDHName.value,
+        dhCoverUrl: bannerDHCoverUrl.value,
+        imageUrl: bannerImageUrl.value,
+        height: bannerHeight.value,
+        width: bannerWidth.value,
+        y: bannerY.value,
+        opacity: bannerOpacity.value,
+        updateTime
+      }
+
+      const editIdx = bannerList.value.findIndex((item: any) => item.id === payload.id)
+      if (editIdx >= 0) {
+        bannerList.value.splice(editIdx, 1, payload)
+      } else {
+        bannerList.value.unshift(payload)
+      }
+
+      bannerMode.value = 'list'
+      ElMessage.success('横幅配置已保存')
+    }
+    // ── 横幅管理 end ──────────────────────────────────────────
     
     // 音频播放相关
     const audioPlayer = ref(null as HTMLAudioElement | null)
@@ -405,6 +783,9 @@ export default defineComponent({
     const searchDH = ref('')
     const filterVoiceTag = ref('')
     const filterDHTag = ref('')
+    const searchRelVoice = ref('')
+    const searchRelDH = ref('')
+    const searchRelTag = ref('')
 
     // 分页数据
     const voicePage = reactive({ currentPage: 1, pageSize: 10 })
@@ -436,6 +817,8 @@ export default defineComponent({
     const dhDialogPage = reactive({ currentPage: 1, pageSize: 20, total: 0, loading: false })
     const voiceTableRef = ref(null)
     const dhTableRef = ref(null)
+      const tagManagerRef = ref(null)
+      const relTagManagerRef = ref(null)
 
     const isAddRelTag = ref(false)
     const bulkRelTags = ref<string[]>([])
@@ -493,8 +876,7 @@ export default defineComponent({
     })
 
     const paginatedRelations = computed(() => {
-      const start = (relPage.currentPage - 1) * relPage.pageSize
-      return relations.value.slice(start, start + relPage.pageSize)
+      return relations.value
     })
 
     // 弹窗内的过滤逻辑
@@ -512,17 +894,28 @@ export default defineComponent({
 
     const fetchData = async () => {
       try {
-        // 使用新的分页接口获取绑定关系
-        const [bRes] = await Promise.all([
-          getBindingList(relPage.currentPage, relPage.pageSize)
-        ])
-        relations.value = bRes.data.data.data || []
+        await fetchRelations()
         
         // 声音和数字人都使用分页查询
         await fetchVoices()
         await fetchDigitalHumans()
       } catch (error) {
         console.error('Failed to fetch data:', error)
+      }
+    }
+
+    const fetchRelations = async () => {
+      try {
+        const searchObj: any = {}
+        if (searchRelVoice.value) Object.assign(searchObj, { voiceName: searchRelVoice.value })
+        if (searchRelDH.value) Object.assign(searchObj, { digitalHumanName: searchRelDH.value })
+        if (searchRelTag.value) Object.assign(searchObj, { title: searchRelTag.value })
+
+        const bRes = await getBindingList(relPage.currentPage, relPage.pageSize, searchObj)
+        relations.value = bRes.data?.data?.data || []
+        relationsTotal.value = bRes.data?.data?.total || 0
+      } catch (error) {
+        console.error('Failed to fetch relations:', error)
       }
     }
 
@@ -572,6 +965,14 @@ export default defineComponent({
       filterDHTag.value = ''
       dhPage.currentPage = 1
       fetchDigitalHumans()
+    }
+
+    const resetRelSearch = () => {
+      searchRelVoice.value = ''
+      searchRelDH.value = ''
+      searchRelTag.value = ''
+      relPage.currentPage = 1
+      fetchRelations()
     }
 
     // 关系管理操作
@@ -671,10 +1072,7 @@ export default defineComponent({
 
         // 创建完成后重新请求分页接口刷新
         relPage.currentPage = 1
-        const bRes = await getBindingList(relPage.currentPage, relPage.pageSize)
-        if (bRes.data.code === 200) {
-          relations.value = bRes.data.data.data || []
-        }
+        await fetchRelations()
 
         addRelVisible.value = false
         ElMessage.success(`成功生成 ${successCount} 条绑定关系`)
@@ -700,7 +1098,8 @@ export default defineComponent({
       const row = editRelForm.originalRow
       
       try {
-        const tagsStr = `|${editRelForm.tags.join('|')}|`
+        const selectedTags = (relTagManagerRef.value as any)?.getSelectedTags() ?? editRelForm.tags
+        const tagsStr = selectedTags.length ? `|${selectedTags.join('|')}|` : ''
         const updateData = {
           title: tagsStr
         }
@@ -775,7 +1174,7 @@ export default defineComponent({
       }
     }
 
-    const handleEdit = (row: any) => {
+    const handleEdit = async (row: any) => {
       editForm.id = row.externalId || row.id
       // 根据当前标签页设置正确的字段
       if (activeName.value === 'digitalHuman') {
@@ -834,9 +1233,10 @@ export default defineComponent({
       }
       
       try {
-        const tagsStr = `|${editForm.tags.join('|')}|`
-        
-        if (activeName.value === 'digitalHuman') {
+          // 声音编辑时从 TagManager 读取选中标签
+          const tagsStr = ''
+
+          if (activeName.value === 'digitalHuman') {
           // 更新数字人
           const row = editForm.originalRow
           const updateData = {
@@ -858,7 +1258,6 @@ export default defineComponent({
         } else {
           // 更新声音
           const row = editForm.originalRow
-          const tagsStr = `|${editForm.tags.join('|')}|`
           const updateData = {
             voice_name: editForm.name,
             title: tagsStr,
@@ -990,8 +1389,13 @@ export default defineComponent({
 
     // 监听关系分页变化
     watch(() => [relPage.currentPage, relPage.pageSize], () => {
-      fetchData()
+      fetchRelations()
     }, { deep: true })
+
+    watch(() => [searchRelVoice.value, searchRelDH.value, searchRelTag.value], () => {
+      relPage.currentPage = 1
+      fetchRelations()
+    })
 
     return {
       activeName,
@@ -1004,6 +1408,9 @@ export default defineComponent({
       searchDH,
       filterVoiceTag,
       filterDHTag,
+      searchRelVoice,
+      searchRelDH,
+      searchRelTag,
       sourceMap,
       splitTags,
       filteredVoices,
@@ -1011,6 +1418,7 @@ export default defineComponent({
       paginatedVoices,
       paginatedDigitalHumans,
       paginatedRelations,
+      relationsTotal,
       voicePage,
       dhPage,
       relPage,
@@ -1040,6 +1448,8 @@ export default defineComponent({
       fetchDigitalHumans,
       resetVoiceSearch,
       resetDHSearch,
+      resetRelSearch,
+      fetchRelations,
       handleEdit,
       handleDelete,
       addTag,
@@ -1051,6 +1461,8 @@ export default defineComponent({
       fetchVoicesForDialog,
       fetchDigitalHumansForDialog,
       voiceTableRef,
+        tagManagerRef,
+        relTagManagerRef,
       dhTableRef,
       addBulkRelTag,
       handleVoiceSelectionChange,
@@ -1058,7 +1470,31 @@ export default defineComponent({
       saveRelations,
       handleEditRel,
       saveEditRel,
-      playVoice
+      playVoice,
+      // 横幅管理
+      bannerMode,
+      bannerEditingId,
+      bannerList,
+      bannerName,
+      bannerSelectedDH,
+      bannerDHCoverUrl,
+      bannerImageUrl,
+      bannerHeight,
+      bannerWidth,
+      bannerY,
+      bannerOpacity,
+      bannerPreviewRef,
+      bannerOverlayStyle,
+      onBannerDHChange,
+      onBannerImageChange,
+      startBannerDrag,
+      startBannerResize,
+      resetBanner,
+      openCreateBanner,
+      cancelBannerEdit,
+      editBanner,
+      deleteBanner,
+      saveBanner
     }
   }
 })
@@ -1116,5 +1552,23 @@ export default defineComponent({
 :deep(.el-tabs__item) {
   height: 50px;
   line-height: 50px;
+}
+
+.banner-upload-wrap {
+  width: 100%;
+}
+
+:deep(.banner-upload) {
+  width: 100%;
+}
+
+:deep(.banner-upload .el-upload) {
+  width: 100%;
+}
+
+:deep(.banner-upload .el-upload-dragger) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 </style>
