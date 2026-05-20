@@ -109,7 +109,7 @@
     <div v-else class="space-y-4 animate-fade-in">
       <div class="bg-white p-5 rounded-xl shadow-sm flex justify-between items-center border border-gray-100">
         <div class="flex items-center gap-4">
-          <el-button circle icon="el-icon-back" @click="viewMode = 'list'"></el-button>
+          <el-button circle icon="el-icon-back" @click="goBackToList"></el-button>
           <div>
             <h2 class="text-xl font-bold text-gray-800">
               <span class="text-gray-400 font-normal">计划：</span>{{ currentProject.name }}
@@ -758,10 +758,10 @@
     </el-dialog>
 
     <!-- 视频播放弹窗 -->
-    <el-dialog title="视频预览" v-model="videoPreview.visible" width="85%" :modal="true" append-to-body top="5vh" custom-class="video-preview-dialog">
+    <el-dialog title="视频预览" v-model="videoPreview.visible" width="85%" :modal="true" append-to-body top="5vh" custom-class="video-preview-dialog" @closed="handleVideoPreviewClosed">
       <div class="flex flex-col gap-4">
         <div class="bg-black flex items-center justify-center rounded-lg overflow-hidden" style="height: 500px;">
-          <video v-if="videoPreview.url" :src="videoPreview.url" controls autoplay class="max-w-full max-h-full object-contain"></video>
+          <video v-if="videoPreview.url" ref="videoPreviewRef" :src="videoPreview.url" controls autoplay class="max-w-full max-h-full object-contain"></video>
           <div v-else class="text-white text-center">
             <i class="el-icon-loading text-4xl animate-spin"></i>
             <p class="mt-2 text-sm">加载中...</p>
@@ -984,6 +984,13 @@ const videoPreview = reactive({
   visible: false,
   url: ''
 })
+const videoPreviewRef = ref<HTMLVideoElement | null>(null)
+
+const handleVideoPreviewClosed = () => {
+  if (!videoPreviewRef.value) return
+  videoPreviewRef.value.pause()
+  videoPreviewRef.value.currentTime = 0
+}
 
 const filteredScriptLibrary = computed(() => {
   const s = scriptSelector.search.toLowerCase()
@@ -1525,6 +1532,12 @@ const playVoice = (audioUrl: string, voiceName: string = '配音') => {
 }
 
 // --- 页面跳转 ---
+const goBackToList = async () => {
+  viewMode.value = 'list'
+  // 刷新外部列表，确保任务数和状态是最新的
+  await loadProjectList()
+}
+
 const enterSubTaskView = async (row: any) => {
   currentProject.value = row
   viewMode.value = 'detail'
@@ -1698,10 +1711,10 @@ const handleRunProject = async (row: any) => {
         console.warn('部分任务启动失败:', result.failed_tasks)
       }
       
-      // 延迟1秒后刷新页面
-      setTimeout(() => {
-        window.location.reload()
-      }, 1000)
+            // 延迟2秒后重新加载列表，给后端处理时间
+      setTimeout(async () => {
+        await loadProjectList()
+      }, 2000)
     } else {
       ElMessage.error(apiData?.message || '计划启动失败')
     }

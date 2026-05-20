@@ -165,20 +165,20 @@
       <div class="flex-1 space-y-4">
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 h-full">
           <el-form :model="videoForm" label-width="100px" label-position="top">
-            <!-- 渠道与数字人 -->
+                        <!-- 渠道与配置方式 -->
             <el-row :gutter="20">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
-                  <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-3 flex-wrap">
                     <span class="text-sm text-gray-700 font-medium whitespace-nowrap"><span class="text-red-500">*</span> 生成渠道</span>
-                    <div class="flex gap-2 p-1 bg-gray-50 rounded-lg w-fit">
-                      <div 
-                        class="px-4 py-1.5 rounded-md cursor-pointer transition-all flex items-center gap-2 border-2 bg-white border-blue-500 shadow-sm text-blue-600 text-sm"
-                        @click="videoForm.channel = 'A2E'"
-                      >
-                        <span class="font-bold">默认</span>
-                      </div>
-                    </div>
+                    <el-radio-group v-model="videoForm.channel" size="small">
+                      <el-radio value="A2E">默认</el-radio>
+                    </el-radio-group>
+                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频方向</span>
+                    <el-radio-group v-model="videoForm.videoType" size="small">
+                      <el-radio :label="0">竖版</el-radio>
+                      <el-radio :label="1">横版</el-radio>
+                    </el-radio-group>
                     <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频语言</span>
                     <el-select v-model="videoForm.language" placeholder="请选择语言" size="small" style="width: 120px">
                       <el-option label="自动识别" value="auto" />
@@ -186,6 +186,19 @@
                       <el-option label="英文" value="en" />
                     </el-select>
                   </div>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <!-- 配置方式 -->
+            <el-row :gutter="20" class="mt-2">
+              <el-col :span="24">
+                <el-form-item class="!mb-2">
+                  <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 配置方式</span></template>
+                  <el-radio-group v-model="videoForm.mode">
+                    <el-radio :label="0" size="large" border>视频文案配置</el-radio>
+                    <el-radio :label="1" size="large" border>直接上传音频</el-radio>
+                  </el-radio-group>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -213,7 +226,7 @@
                   </div>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+                            <el-col :span="12">
                 <el-form-item class="!mb-2">
                   <!-- 配音选择器 -->
                   <div class="flex gap-2">
@@ -227,19 +240,21 @@
                       @clear="videoForm.voice = ''"
                       @click="openVoiceSelector"
                       class="flex-1"
+                      :disabled="videoForm.mode === 1"
                     >
                       <template #prepend>选择配音</template>
                       <template #append>
-                        <el-button icon="el-icon-search" @click.stop="openVoiceSelector" />
+                        <el-button icon="el-icon-search" @click.stop="openVoiceSelector" :disabled="videoForm.mode === 1" />
                       </template>
                     </el-input>
-                    <el-button v-if="videoForm.voice && videoForm.voiceUrl" type="primary" plain icon="el-icon-headset" @click="playVoice(videoForm.voiceUrl, videoForm.voice)">试听</el-button>
+                    <el-button v-if="videoForm.voice && videoForm.voiceUrl && videoForm.mode === 0" type="primary" plain icon="el-icon-headset" @click="playVoice(videoForm.voiceUrl, videoForm.voice)">试听</el-button>
                   </div>
+                  <span v-if="videoForm.mode === 1" class="text-xs text-gray-400 ml-2">上传音频模式下无需选择配音，系统将使用您上传的音频</span>
                 </el-form-item>
               </el-col>
             </el-row>
 
-            <el-row :gutter="20" class="mt-2">
+                        <el-row v-if="videoForm.mode === 0" :gutter="20" class="mt-2">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                   <!-- 快捷预设选择器 -->
@@ -266,28 +281,30 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20" class="mt-2">
-              <el-col :span="12">
-                <el-form-item class="!mb-2">
-                  <template #label><span class="text-gray-700">启用字幕</span></template>
-                  <el-switch 
-                    v-model="videoForm.subtitleSelector" 
-                    :active-value="1" 
-                    :inactive-value="0"
-                    active-text="开启"
-                    inactive-text="关闭"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <el-row v-if="videoForm.mode === 0" :gutter="20" class="mt-2">
+                                      <el-col :span="12">
+                                        <el-form-item class="!mb-2">
+                                          <template #label><span class="text-gray-700">启用字幕</span></template>
+                                          <el-switch 
+                                            v-model="videoForm.subtitleSelector" 
+                                            :active-value="1" 
+                                            :inactive-value="0"
+                                :disabled="videoForm.videoType === 1"
+                                active-text="开启"
+                                inactive-text="关闭"
+                              />
+                              <span v-if="videoForm.videoType === 1" class="text-xs text-gray-400 ml-2">横版模式下不支持字幕</span>
+                            </el-form-item>
+                          </el-col>
+                        </el-row>
 
             <!-- 角标选择 -->
-            <el-row :gutter="20" class="mt-2" v-if="videoForm.subtitleSelector === 1">
+                        <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
-                  <div class="flex items-start gap-3">
+                                    <div class="flex items-start gap-3">
                     <div class="flex items-center gap-2 flex-1">
-                      <span class="text-red-500 text-base leading-none self-center">*</span>
+                      <span v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1" class="text-red-500 text-base leading-none self-center">*</span>
                       <el-input
                         :model-value="currentCornerMarkName"
                         placeholder="点击搜索选择角标"
@@ -330,7 +347,7 @@
               </el-col>
             </el-row>
 
-            <el-row>
+                        <el-row>
               <el-col :span="24">
                 <div class="text-[11px] text-gray-400 mb-2 italic">
                     <i class="el-icon-info"></i> 说明：选择预设后将自动覆盖上方的形象和配音选择。
@@ -359,44 +376,69 @@
             </div>
 
             <!-- 上传文件夹 -->
-            <div class="mt-2">
-              <el-form-item class="!mb-2">
-                <template #label><span class="text-gray-700">视频上传文件夹 <span class="text-xs text-gray-400">（共享文件夹存储路径）</span></span></template>
-                <el-input
-                  v-model="videoForm.filename"
-                  placeholder="请输入文件夹名称，留空则使用默认路径"
-                  clearable
-                />
-              </el-form-item>
-            </div>
+                        <div class="mt-2">
+                          <el-form-item class="!mb-2">
+                            <template #label><span class="text-gray-700">视频上传文件夹 <span class="text-xs text-gray-400">（共享文件夹存储路径）</span></span></template>
+                            <el-input
+                              v-model="videoForm.filename"
+                              placeholder="请输入文件夹名称，留空则使用默认路径"
+                              clearable
+                            />
+                          </el-form-item>
+                        </div>
 
-            <!-- 文案部分 -->
-            <div class="mt-2">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-gray-600 text-sm font-bold flex items-center gap-1">
-                  视频文案内容 <span class="text-red-500">*</span>
-                </span>
-                <div class="flex gap-2">
-                  <el-button size="mini" plain @click="openScriptSelector('library')">文案库导入</el-button>
-                  <el-button size="mini" plain @click="openScriptSelector('history')">历史文案</el-button>
-                </div>
-              </div>
-              <el-input
-                type="textarea"
-                v-model="videoForm.script"
-                placeholder="请输入视频解说文案（建议300-500字以获得最佳生成效果）"
-                :rows="8"
-                class="script-input"
-              />
-              <div class="flex justify-between items-center mt-3">
-                <div class="text-[11px] text-gray-400">
-                   当前字数：<span class="text-blue-500 font-bold">{{ videoForm.script.length }}</span> / 2000
-                </div>
-                <el-button size="mini" plain type="success" :disabled="!videoForm.script" @click="openSaveScriptDialog" icon="el-icon-folder-add">
-                  转存至文案库
-                </el-button>
-              </div>
-            </div>
+                        <!-- 文案模式：文案部分 -->
+                        <div v-if="videoForm.mode === 0" class="mt-2">
+                          <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-bold flex items-center gap-1">
+                              视频文案内容 <span class="text-red-500">*</span>
+                            </span>
+                            <div class="flex gap-2">
+                              <el-button size="mini" plain @click="openScriptSelector('library')">文案库导入</el-button>
+                              <el-button size="mini" plain @click="openScriptSelector('history')">历史文案</el-button>
+                            </div>
+                          </div>
+                          <el-input
+                            type="textarea"
+                            v-model="videoForm.script"
+                            placeholder="请输入视频解说文案（建议300-500字以获得最佳生成效果）"
+                            :rows="8"
+                            class="script-input"
+                          />
+                          <div class="flex justify-between items-center mt-3">
+                            <div class="text-[11px] text-gray-400">
+                               当前字数：<span class="text-blue-500 font-bold">{{ videoForm.script.length }}</span> / 2000
+                            </div>
+                            <el-button size="mini" plain type="success" :disabled="!videoForm.script" @click="openSaveScriptDialog" icon="el-icon-folder-add">
+                              转存至文案库
+                            </el-button>
+                          </div>
+                        </div>
+
+                        <!-- 音频模式：上传音频 -->
+                        <div v-if="videoForm.mode === 1" class="mt-2">
+                          <el-form-item class="!mb-2">
+                            <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 上传音频文件</span></template>
+                            <el-upload
+                              ref="audioUploadRef"
+                              :auto-upload="false"
+                              :limit="1"
+                              accept="audio/*"
+                              :on-change="handleAudioChange"
+                              :on-remove="handleAudioRemove"
+                            >
+                              <el-button size="small" type="primary" icon="el-icon-upload2">选择音频文件</el-button>
+                              <template #tip>
+                                <div class="text-[11px] text-gray-400 mt-1">支持 MP3、WAV、M4A 等常见音频格式</div>
+                              </template>
+                            </el-upload>
+                            <div v-if="audioFileName" class="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                              <i class="el-icon-headset text-blue-500"></i>
+                              <span>{{ audioFileName }}</span>
+                              <el-button size="mini" type="danger" text @click="clearAudioFile">移除</el-button>
+                            </div>
+                          </el-form-item>
+                        </div>
 
             <div class="mt-4 flex flex-col items-center border-t border-gray-50 pt-4 gap-4">
                <el-button 
@@ -417,19 +459,31 @@
 
       <!-- 右侧预览与结果区 -->
       <div class="w-[440px] space-y-4">
-        <!-- 预览效果 -->
-        <div v-if="videoForm.subtitleSelector === 1" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-            <i class="el-icon-picture-outline text-orange-500"></i>预览效果
-          </h3>
-          <SubtitlePreview
-            ref="subtitlePreviewRef"
-            :frame-base64="subtitlePreviewFrameBase64"
-            :script-text="videoForm.script"
-            :corner-mark-url="currentCornerMarkUrl"
-            @update:config="handleSubtitleConfigUpdate"
-          />
-        </div>
+                <!-- 预览效果 -->
+        <!-- 文案竖版：字幕预览（即时渲染） -->
+                <div v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                  <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <i class="el-icon-picture-outline text-orange-500"></i>预览效果
+                  </h3>
+                  <SubtitlePreview
+                    ref="subtitlePreviewRef"
+                    :frame-base64="subtitlePreviewFrameBase64"
+                    :script-text="videoForm.script"
+                    :corner-mark-url="currentCornerMarkUrl"
+                    @update:config="handleSubtitleConfigUpdate"
+                  />
+                </div>
+                <!-- 其他情况（横版 / 音频模式 / 竖版未开字幕）：直接显示数字人封面图 -->
+                <div v-if="!(videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0)" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                  <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <i class="el-icon-picture-outline text-orange-500"></i>预览效果
+                  </h3>
+                  <div class="w-full rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center bg-gray-50" style="height: 300px;">
+                    <img v-if="currentDigitalHumanImg" :key="'prev-' + videoForm.mode + '-' + videoForm.digitalHuman" :src="currentDigitalHumanImg" class="w-full h-full object-contain" alt="数字人预览" @error="(e: any) => { e.target.style.display = 'none' }">
+                    <span v-else class="text-gray-300 text-sm">尚未选择形象</span>
+                  </div>
+                  <p v-if="videoForm.digitalHuman" class="text-xs text-gray-400 mt-2 text-center">{{ videoForm.digitalHuman }}</p>
+                </div>
 
         <!-- 任务状态与历史 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 min-h-[300px]">
@@ -846,7 +900,7 @@ import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { createVideoTask, createAudioVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
 // --- 数据定义 ---
@@ -886,11 +940,37 @@ const videoForm = reactive({
   language: 'auto',
   subtitleSelector: 1,  // 字幕启用状态，默认开启（值为 1）
   subtitleColor: 'yellow',  // 字幕颜色，直接默认使用黄色
+  videoType: 0 as 0 | 1,  // 0=竖版 9:16, 1=横版 16:9
+  mode: 0 as 0 | 1,  // 0=视频文案配置, 1=直接上传音频
   cornerMark: '',  // 角标ID，可选
   previewImg: '',  // 预设选择时的预览图
   filename: '',   // 视频上传文件夹（共享文件夹存储路径）
-  label: ''  // 标签（由预设 title 回填）
+    label: ''  // 标签（由预设 title 回填）
 })
+
+// 上传音频模式相关
+const audioUploadRef = ref<any>(null)
+const audioFile = ref<File | null>(null)
+const audioFileName = ref('')
+
+const handleAudioChange = (uploadFile: any) => {
+  audioFile.value = uploadFile.raw
+  audioFileName.value = uploadFile.name
+  return false  // 阻止自动上传
+}
+
+const handleAudioRemove = () => {
+  audioFile.value = null
+  audioFileName.value = ''
+}
+
+const clearAudioFile = () => {
+  audioFile.value = null
+  audioFileName.value = ''
+  if (audioUploadRef.value) {
+    audioUploadRef.value.clearFiles()
+  }
+}
 
 const relList = ref<any[]>([])
 const voiceSearchInput = ref('')  // 配音搜索框
@@ -1115,6 +1195,23 @@ const currentDigitalHumanVideoUrl = computed(() => {
   if (videoForm.relId) {
     const rel = relList.value.find((r: any) => r.id === videoForm.relId)
     if (rel?.digitalHumanUrl) return rel.digitalHumanUrl
+  }
+  return ''
+})
+
+// 获取当前选中数字人的封面图（横版预览用）
+const currentDigitalHumanImg = computed(() => {
+  if (videoForm.digitalHuman) {
+    const human = humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
+    if (human?.coverUrl) return human.coverUrl
+    if (human?.img) return human.img
+    const humanFromDialog = humanSelectorDialog.allList.find((h: any) => h.name === videoForm.digitalHuman)
+    if (humanFromDialog?.coverUrl) return humanFromDialog.coverUrl
+    if (humanFromDialog?.img) return humanFromDialog.img
+  }
+  if (videoForm.relId) {
+    const rel = relList.value.find((r: any) => r.id === videoForm.relId)
+    if (rel?.digitalHumanCoverUrl) return rel.digitalHumanCoverUrl
   }
   return ''
 })
@@ -1487,6 +1584,21 @@ onUnmounted(() => {
   stopVideoTaskAutoRefresh()
 })
 
+// 当切换为横版时自动关闭字幕
+watch(() => videoForm.videoType, (val) => {
+  if (val === 1) {
+    videoForm.subtitleSelector = 0
+  }
+})
+
+// 监听 mode 切换：清空数字人选择、预览图
+watch(() => videoForm.mode, () => {
+  videoForm.digitalHuman = ''
+  videoForm.digitalHumanExternalId = ''
+  videoForm.previewImg = ''
+  subtitlePreviewFrameBase64.value = ''
+})
+
 watch(showCreate, (val) => {
   if (val) {
     stopVideoTaskAutoRefresh()
@@ -1568,7 +1680,14 @@ const resetForm = () => {
   videoForm.subtitleColor = 'yellow'
   videoForm.cornerMark = ''
   videoForm.filename = ''
-  videoForm.label = ''
+    videoForm.label = ''
+    videoForm.videoType = 0
+  videoForm.mode = 0
+  audioFile.value = null
+  audioFileName.value = ''
+  if (audioUploadRef.value) {
+    audioUploadRef.value.clearFiles()
+  }
   resultVideo.value = ''
   genProgress.value = 0
 }
@@ -1862,11 +1981,25 @@ const startGeneration = async () => {
     return
   }
   
-  if (!videoForm.title || !videoForm.digitalHuman || !videoForm.voice || !videoForm.script) {
-    return ElMessage.warning('请先完整配置标题、数字人、配音及文案')
+        if (!videoForm.title || !videoForm.digitalHuman) {
+    return ElMessage.warning('请先完整配置标题和数字人')
   }
   
-  if (videoForm.subtitleSelector === 1 && !videoForm.cornerMark) {
+  // 文案模式还需要配音
+  if (videoForm.mode === 0 && !videoForm.voice) {
+    return ElMessage.warning('请选择配音')
+  }
+  
+  // 文案模式校验文案，音频模式校验音频
+  if (videoForm.mode === 0 && !videoForm.script) {
+    return ElMessage.warning('请输入视频文案内容')
+  }
+  if (videoForm.mode === 1 && !audioFile.value) {
+    return ElMessage.warning('请上传音频文件')
+  }
+  
+    // 竖屏文案模式且开启字幕时校验角标必填
+  if (videoForm.videoType !== 1 && videoForm.mode === 0 && videoForm.subtitleSelector === 1 && !videoForm.cornerMark) {
     return ElMessage.warning('请选择角标')
   }
 
@@ -1876,39 +2009,61 @@ const startGeneration = async () => {
   genStage.value = '正在上传素材...'
 
   try {
-    let digitalHumanId: string
-    let voiceId: string
+        let digitalHumanId: string
+    let voiceId: string = ''
 
-    if (videoForm.relId) {
-      // 使用绑定预设：直接从 relList 取 voiceExternalId / digitalHumanExternalId
-      const rel = relList.value.find((r: any) => r.id === videoForm.relId)
-      digitalHumanId = rel?.digitalHumanExternalId || videoForm.digitalHumanExternalId || videoForm.digitalHuman
-      voiceId = rel?.voiceExternalId || videoForm.voiceExternalId || videoForm.voice
-      console.log('[提交-绑定预设] rel:', rel?.name, '| digitalHumanExternalId:', digitalHumanId, '| voiceExternalId:', voiceId)
+    if (videoForm.mode === 0) {
+      if (videoForm.relId) {
+        // 使用绑定预设：直接从 relList 取 voiceExternalId / digitalHumanExternalId
+        const rel = relList.value.find((r: any) => r.id === videoForm.relId)
+        digitalHumanId = rel?.digitalHumanExternalId || videoForm.digitalHumanExternalId || videoForm.digitalHuman
+        voiceId = rel?.voiceExternalId || videoForm.voiceExternalId || videoForm.voice
+        console.log('[提交-绑定预设] rel:', rel?.name, '| digitalHumanExternalId:', digitalHumanId, '| voiceExternalId:', voiceId)
+      } else {
+        // 单独选择：取各自列表的 externalId
+        digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
+        voiceId = videoForm.voiceExternalId || voiceOptions.value.find((voice: any) => voice.name === videoForm.voice)?.externalId || videoForm.voice
+        console.log('[提交-单独选择] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId, '| voice:', videoForm.voice, '| externalId:', voiceId)
+      }
     } else {
-      // 单独选择：取各自列表的 externalId
+      // 音频模式：只取数字人 ID
       digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
-      voiceId = videoForm.voiceExternalId || voiceOptions.value.find((voice: any) => voice.name === videoForm.voice)?.externalId || videoForm.voice
-      console.log('[提交-单独选择] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId, '| voice:', videoForm.voice, '| externalId:', voiceId)
+      console.log('[提交-音频模式] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId)
     }
     
     // 确定语言（如果是自动，则默认zh）
     const language = videoForm.language === 'auto' ? 'zh' : videoForm.language
     
-    // 创建FormData对象
+        // 创建FormData对象
     const formData = new FormData()
+    
+    // 添加视频方向参数
+    formData.append('type', String(videoForm.videoType))
     
     // 映射表单字段到API参数（使用snake_case）
     formData.append('title', videoForm.title)
     if (videoForm.label) formData.append('label', videoForm.label)
-    formData.append('msg', videoForm.script)
-    if (videoForm.filename) formData.append('filename', videoForm.filename)
-    formData.append('voice_id', voiceId)
+    
+    // 文案模式传 msg，音频模式传音频文件
+    if (videoForm.mode === 0) {
+      formData.append('msg', videoForm.script)
+    } else if (audioFile.value) {
+      formData.append('audioFile', audioFile.value)
+    }
+    
+        if (videoForm.filename) formData.append('filename', videoForm.filename)
+    // 文案模式传配音ID，音频模式不传
+    if (videoForm.mode === 0 && voiceId) {
+      formData.append('voice_id', voiceId)
+    }
     formData.append('digital_human_id', digitalHumanId)
     formData.append('language', language)
     formData.append('speechRate', '1')
-    formData.append('subtitleSelector', String(videoForm.subtitleSelector))
-    if (videoForm.subtitleSelector === 1) {
+    
+    // 横版模式下强制关闭字幕
+    const effectiveSubtitle = videoForm.videoType === 1 ? 0 : (videoForm.mode === 1 ? 0 : videoForm.subtitleSelector)
+    formData.append('subtitleSelector', String(effectiveSubtitle))
+    if (effectiveSubtitle === 1) {
       formData.append('colour', 'yellow')
       
       // 只有开启字幕时才添加角标参数
@@ -1952,7 +2107,7 @@ const startGeneration = async () => {
       subtitle_config: videoForm.subtitleSelector === 1 ? { ...subtitleConfig } : undefined
     })
 
-    // 同步到全局通知中心（暂未启用）
+        // 同步到全局通知中心（暂未启用）
     // taskStore.addTask({
     //   taskType: 'VIDEO_TASK',
     //   subTitle: `正在制作：${videoForm.title}`,
@@ -1960,9 +2115,31 @@ const startGeneration = async () => {
     //   image: getHumanImg(videoForm.digitalHuman)
     // })
 
-    // 调用API创建视频任务
-    const response = await createVideoTask(formData)
-    console.log('创建任务响应:', response)
+    let response
+    if (videoForm.mode === 0) {
+      // 文案模式：调用原创建视频任务接口
+      response = await createVideoTask(formData)
+      console.log('文案模式提交完成:', response)
+    } else {
+      // 音频模式：调用实时合成接口
+      const audioFormData = new FormData()
+      if (audioFile.value) audioFormData.append('file', audioFile.value)
+      audioFormData.append('title', videoForm.title)
+      audioFormData.append('digital_human_id', digitalHumanId)
+      const lang = language === 'auto' ? 'zh-CN' : language
+      audioFormData.append('language', lang)
+      // 竖屏音频模式可传角标
+      if (videoForm.videoType !== 1 && videoForm.cornerMark) {
+        audioFormData.append('corner_mark_id', String(videoForm.cornerMark))
+        const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
+        if (selectedCornerMark?.photoUrl) {
+          audioFormData.append('corner_mark_url', selectedCornerMark.photoUrl)
+        }
+      }
+      console.log('音频模式提交数据:', Object.fromEntries(audioFormData.entries()))
+      response = await createAudioVideoTask(audioFormData)
+      console.log('音频模式提交完成:', response)
+    }
     
     if (response && response.data) {
       // 提交成功，立即返回列表并清空表单
@@ -2278,9 +2455,11 @@ const openHumanSelector = async () => {
 const loadMoreHumans = async () => {
   humanSelectorDialog.loading = true
   try {
-    // 从API加载下一页数字人数据
-    const response = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, 
-      humanSelectorDialog.search ? { name: humanSelectorDialog.search } : {})
+    // 从API加载下一页数字人数据，传入视频方向参数
+    const searchParams: any = {}
+    if (humanSelectorDialog.search) searchParams.name = humanSelectorDialog.search
+    searchParams.type = videoForm.videoType
+    const response = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, searchParams)
     
     if (response.data && response.data.data) {
       const data = response.data.data
@@ -2334,12 +2513,26 @@ const selectHuman = async (item: any) => {
   videoForm.digitalHuman = item.name
   videoForm.digitalHumanExternalId = item.externalId || ''
   videoForm.previewImg = item.img
-  // 字幕预览：通过后端代理将封面/视频转 base64
-  if (videoForm.subtitleSelector === 1) {
-    subtitlePreviewFrameBase64.value = await getFrameBase64(item.coverUrl || '', item.videoUrl || '')
-  }
+  // 统一刷新预览
+  refreshPreview(item)
   humanSelectorDialog.visible = false
   ElMessage.success('已选择数字人')
+}
+
+/**
+ * 统一刷新预览效果
+ * - 文案竖版开字幕：后端即时渲染（SubtitlePreview）
+ * - 其他情况：直接显示封面图
+ */
+const refreshPreview = async (item?: any) => {
+  const digitalHuman = item || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
+  if (!digitalHuman) return
+  
+  // 文案竖版且开启字幕时，请求后端即时渲染
+  if (videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0) {
+    subtitlePreviewFrameBase64.value = await getFrameBase64(digitalHuman.coverUrl || '', digitalHuman.videoUrl || '')
+  }
+  // 其他情况封面预览依赖 currentDigitalHumanImg 计算属性自动更新，无需额外操作
 }
 
 // --- 角标选择器 ---
@@ -2379,9 +2572,11 @@ const openVoiceSelector = async () => {
 const loadMoreVoices = async () => {
   voiceSelectorDialog.loading = true
   try {
-    // 从API加载下一页配音数据
-    const response = await getVoicePaginateList(voiceSelectorDialog.page, voiceSelectorDialog.pageSize, 
-      voiceSelectorDialog.search ? { name: voiceSelectorDialog.search } : {})
+    // 从API加载下一页配音数据，传入视频方向参数
+    const searchParams: any = {}
+    if (voiceSelectorDialog.search) searchParams.name = voiceSelectorDialog.search
+    searchParams.type = videoForm.videoType
+    const response = await getVoicePaginateList(voiceSelectorDialog.page, voiceSelectorDialog.pageSize, searchParams)
     
     if (response.data && response.data.data) {
       const data = response.data.data
@@ -2465,9 +2660,11 @@ const openRelSelector = async () => {
 const loadMoreRels = async () => {
   relSelectorDialog.loading = true
   try {
-    // 从API加载下一页预设数据
-    const response = await getBindingList(relSelectorDialog.page, relSelectorDialog.pageSize, 
-      relSelectorDialog.search ? { title: relSelectorDialog.search } : {})
+    // 从API加载下一页预设数据，传入视频方向参数
+    const searchParams: any = {}
+    if (relSelectorDialog.search) searchParams.title = relSelectorDialog.search
+    searchParams.type = videoForm.videoType
+    const response = await getBindingList(relSelectorDialog.page, relSelectorDialog.pageSize, searchParams)
     
     if (response.data && response.data.data && response.data.data.data) {
       const bindingList = response.data.data.data || []

@@ -185,10 +185,12 @@
       v-model="sourcePreview.visible"
       width="480px"
       destroy-on-close
+      @closed="handleSourcePreviewClosed"
     >
       <div class="bg-black rounded-lg overflow-hidden flex items-center justify-center min-h-[400px]">
         <video
           v-if="sourcePreview.url"
+          ref="sourcePreviewVideoRef"
           :src="sourcePreview.url"
           controls
           autoplay
@@ -207,10 +209,12 @@
       v-model="previewVisible"
       width="480px"
       destroy-on-close
+      @closed="handleResultPreviewClosed"
     >
       <div class="bg-black rounded-lg overflow-hidden flex items-center justify-center min-h-[400px]">
         <video
           v-if="previewItem?.outputVideoUrl"
+          ref="resultPreviewVideoRef"
           :src="previewItem.outputVideoUrl"
           controls
           autoplay
@@ -250,6 +254,8 @@ const previewVisible = ref(false)
 const submitting = ref(false)
 const previewItem = ref<SubtitleRemoveTask | null>(null)
 const sourcePreview = reactive({ visible: false, url: '', id: '', title: '' })
+const sourcePreviewVideoRef = ref<HTMLVideoElement | null>(null)
+const resultPreviewVideoRef = ref<HTMLVideoElement | null>(null)
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null
 
@@ -257,6 +263,20 @@ const form = reactive({
   title: '',
   file: null as File | null
 })
+
+const stopMedia = (mediaEl: HTMLMediaElement | null) => {
+  if (!mediaEl) return
+  mediaEl.pause()
+  mediaEl.currentTime = 0
+}
+
+const handleSourcePreviewClosed = () => {
+  stopMedia(sourcePreviewVideoRef.value)
+}
+
+const handleResultPreviewClosed = () => {
+  stopMedia(resultPreviewVideoRef.value)
+}
 
 // --- Title validation ---
 const titleValidating = ref(false)

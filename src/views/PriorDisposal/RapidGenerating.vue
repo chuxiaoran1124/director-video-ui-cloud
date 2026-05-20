@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div class="p-6 bg-slate-50 min-h-screen">
     <!-- 顶部状态切换与标题 -->
     <div class="mb-6 flex justify-between items-end">
       <div>
         <h1 class="text-2xl font-bold text-slate-800">快速克隆生成</h1>
-        <p class="text-slate-500 text-sm mt-1">一键克隆数字人及声音资产，支持批量任务追踪。</p>
+        <p class="text-slate-500 text-sm mt-1">一键克隆数字人和声音资产，支持批量任务追踪。</p>
       </div>
       <div v-if="!isCreating">
         <el-button type="primary" size="large" @click="handleCreateNew">
@@ -51,7 +51,7 @@
           <div class="text-2xl font-bold text-slate-800">{{ taskStats.total }}</div>
          </div>
          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <div class="text-blue-400 text-xs mb-1">正在处理中</div>
+            <div class="text-blue-400 text-xs mb-1">处理中</div>
           <div class="text-2xl font-bold text-blue-600">{{ taskStats.processing }}</div>
          </div>
          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
@@ -59,7 +59,7 @@
           <div class="text-2xl font-bold text-amber-600">{{ taskStats.waiting }}</div>
          </div>
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-          <div class="text-green-400 text-xs mb-1">已处理</div>
+          <div class="text-green-400 text-xs mb-1">已完成</div>
           <div class="text-2xl font-bold text-green-600">{{ taskStats.completed }}</div>
          </div>
       </div>
@@ -143,54 +143,73 @@
       </div>
     </div>
 
-    <!-- 2. 克隆向导页面 (包装在原有的流中) -->
+    <!-- 2. 克隆向导页面 -->
     <div v-else class="animate-fade-in">
       <!-- 步骤条 -->
       <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 max-w-4xl mx-auto border border-slate-100">
         <el-steps :active="activeStep" finish-status="success" align-center>
           <el-step title="上传素材" />
           <el-step title="同步克隆" />
-          <el-step title="预览预览" />
+          <el-step title="预览确认" />
         </el-steps>
       </div>
 
-      <!-- 内容区域 -->
+      <!-- 鍐呭鍖哄煙 -->
       <div class="max-w-4xl mx-auto">
-        <!-- 第1步与第2步保持原有逻辑，此处略作包装 -->
+        <!-- 第一/二步核心逻辑保留 -->
         <div v-if="activeStep === 0" class="animate-fade-in">
-          <!-- ...原有上传HTML... -->
+          <!-- 上传区域 -->
           <div class="bg-white p-10 rounded-2xl shadow-sm border border-slate-100">
-             <!-- 内容略，见下方完整替换 -->
+             <!-- 上传说明 -->
              <div class="flex flex-col items-center mb-10 text-center">
                 <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 text-4xl mb-4 shadow-inner">
                   <el-icon><el-icon-video-camera /></el-icon>
                 </div>
                 <h3 class="text-2xl font-bold text-slate-800">上传克隆视频</h3>
-                <p class="text-slate-400 mt-2 max-w-sm">系统将从该视频中同时提取形象与音色</p>
+                <p class="text-slate-400 mt-2 max-w-sm">系统将从该视频中提取形象与声音特征。</p>
              </div>
              <div class="w-2/3 mx-auto">
                <el-upload ref="videoUploadRef" class="!w-full" drag action="#" :auto-upload="false" :on-change="handleFileChange" :on-exceed="handleVideoExceed" :limit="1" accept="video/mp4,.mov">
                   <el-icon class="el-icon--upload"><el-icon-upload-filled /></el-icon>
-                  <div class="el-upload__text">拖拽视频到此处，或 <em>点击上传</em></div>
+                  <div class="el-upload__text">拖拽视频到此处，或<em>点击上传</em></div>
                   <template #tip>
-                    <div class="text-slate-400 text-xs mt-2">仅支持 MP4、MOV 格式，文件大小不超过 500MB。<span class="text-red-500">视频宽高比必须为 9:16</span></div>
+                    <div class="text-slate-400 text-xs mt-2">
+                      仅支持 MP4、MOV 格式，文件大小不超过 500MB。
+                      <span v-if="form.videoType === 0" class="text-red-500">竖版模式下视频宽高比需接近 9:16</span>
+                    </div>
                   </template>
                </el-upload>
              </div>
-             <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
-               <span class="text-sm text-slate-600 font-medium">视频是否含有字幕</span>
+              <div class="mt-6 pb-4 border-b border-slate-50">
+                <div class="text-sm text-slate-600 font-medium mb-2">视频方向</div>
+                <el-radio-group v-model="form.videoType">
+                  <el-radio :label="0">竖版 9:16</el-radio>
+                  <el-radio :label="1">横版（不限制比例）</el-radio>
+                </el-radio-group>
+              </div>
+              <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
+                <span class="text-sm text-slate-600 font-medium">视频是否含字幕</span>
                <el-switch
                  v-model="form.isSubtitle"
                  active-text="有字幕"
                  inactive-text="无字幕"
                />
-               <span class="text-xs text-slate-400">将影响字幕消除预处理步骤</span>
-             </div>
-             <div class="mt-4 pt-2 flex gap-4 items-start">
+                <span class="text-xs text-slate-400">将影响字幕消除预处理步骤</span>
+              </div>
+              <div class="mt-4 pb-4 border-b border-slate-50 flex items-center gap-3">
+                <span class="text-sm text-slate-600 font-medium">视频有无声音</span>
+                <el-switch
+                  v-model="form.hasVideoDubbing"
+                  active-text="有声音"
+                  inactive-text="无声音"
+                />
+                <span class="text-xs text-slate-400">{{ form.hasVideoDubbing ? '系统将同时训练形象和声音，并完成绑定' : '关闭后仅训练形象，不训练声音，不完成声音与视频绑定' }}</span>
+              </div>
+              <div class="mt-4 pt-2 flex gap-4 items-start">
                 <div class="flex-1">
                   <el-input
                     v-model="form.humanName"
-                    placeholder="例如：金牌主播-安妮"
+                    placeholder="例如：金牌主播安妮"
                     size="large"
                     clearable
                     @blur="handleNameBlur"
@@ -208,13 +227,19 @@
                       link
                       @click="applyRecommendedName"
                     >
-                      使用推荐名：{{ recommendedName }}
+                      使用推荐名称：{{ recommendedName }}
                     </el-button>
                   </div>
                 </div>
                 <el-select v-model="form.gender" size="large" class="!w-40">
                   <el-option label="男" value="male" />
                   <el-option label="女" value="female" />
+                </el-select>
+                <el-select v-model="form.language" size="large" class="!w-40">
+                  <el-option label="中文" value="zh" />
+                </el-select>
+                <el-select v-model="form.model" size="large" class="!w-40">
+                  <el-option label="默认" value="a2e" />
                 </el-select>
                  <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
              </div>
@@ -228,7 +253,7 @@
               <h4 class="font-bold mb-4">数字人形象建模</h4>
               <el-progress :percentage="imageProgress" status="success" striped striped-flow />
             </div>
-            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+            <div v-if="form.hasVideoDubbing" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
               <h4 class="font-bold mb-4">音色轨迹模拟</h4>
               <el-progress :percentage="voiceProgress" color="#f97316" striped striped-flow />
             </div>
@@ -238,9 +263,9 @@
         <!-- 第三步：深度预览与绑定 -->
         <div v-else class="animate-fade-in section-container">
           <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-             <div class="grid grid-cols-2">
+             <div class="grid" :class="form.hasVideoDubbing ? 'grid-cols-2' : 'grid-cols-1'">
                 <!-- 形象预览 -->
-                <div class="p-8 border-r border-slate-50 flex flex-col items-center bg-slate-950">
+                <div class="p-8 flex flex-col items-center bg-slate-950" :class="form.hasVideoDubbing ? 'border-r border-slate-50' : ''">
                    <span class="text-slate-400 text-xs mb-4 uppercase tracking-widest">Digital Human Preview</span>
                    <div class="w-full aspect-[9/16] bg-slate-900 rounded-xl overflow-hidden relative group">
                       <!-- 实际视频播放 -->
@@ -259,7 +284,7 @@
                 </div>
 
                 <!-- 声音预览 -->
-                <div class="p-8 flex flex-col items-center justify-center">
+                <div v-if="form.hasVideoDubbing" class="p-8 flex flex-col items-center justify-center">
                    <span class="text-slate-400 text-xs mb-8 uppercase tracking-widest">Voice Clone Preview</span>
                    <!-- 音频播放器 -->
                    <div class="w-full bg-blue-50 rounded-2xl p-6 mb-6">
@@ -283,7 +308,7 @@
              <div class="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                 <div class="flex items-center gap-2 text-slate-500 text-sm">
                    <el-icon class="text-green-500"><el-icon-circle-check /></el-icon>
-                   检测到声像同步率极高，建议立即绑定
+                   检测到声像同步率较高，建议立即绑定
                 </div>
                 <div class="flex gap-3">
                    <el-button @click="activeStep = 0">重新调整</el-button>
@@ -301,6 +326,7 @@
       :title="'资产预览: ' + currentAsset?.name"
       width="900px"
       destroy-on-close
+      @closed="handlePreviewClosed"
       class="rounded-2xl overflow-hidden"
     >
       <div v-if="currentAsset" class="grid grid-cols-2 gap-6">
@@ -310,6 +336,7 @@
           <div class="w-full aspect-[9/16] bg-slate-900 rounded-lg relative overflow-hidden flex items-center justify-center border border-white/5">
             <video 
               v-if="currentAsset.videoUrl"
+              ref="previewVideoRef"
               :src="currentAsset.videoUrl" 
               controls 
               class="w-full h-full object-contain"
@@ -329,6 +356,7 @@
             <!-- 音频播放器 -->
             <audio 
               v-if="currentAsset.voiceUrl"
+              ref="previewAudioRef"
               :src="parseVoiceUrl(currentAsset.voiceUrl)"
               controls
               class="w-full mb-6"
@@ -369,28 +397,53 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore } from '/@/store/modules/task'
 import { createFastTask, getFastTaskList, deleteFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getDigitalHumanTaskStatistics } from '/@/api/material'
 
-// --- 状态控制 ---
+// --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
 const activeStep = ref(0)
 const imageProgress = ref(0)
 const voiceProgress = ref(0)
 const isPlaying = ref(false)
 let timer: any = null
-let pollTimer: any = null  // 轮询定时器
+let pollTimer: any = null  // 杞瀹氭椂鍣?
 let nameValidateTimer: any = null
 
 const taskStore = useTaskStore()
 const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
+const previewVideoRef = ref<HTMLVideoElement | null>(null)
+const previewAudioRef = ref<HTMLAudioElement | null>(null)
 
 const form = reactive({
   humanName: '',
   gender: 'male',  // male or female
+  language: 'zh',
+  model: 'a2e',
+  videoType: 0 as 0 | 1, // 0=portrait, 1=landscape
   isSubtitle: false,
+  hasVideoDubbing: true,
   hasFile: false,
   rawFile: null as File | null,
-  currentTaskId: null as number | null  // 当前正在轮询的任务ID
+  currentTaskId: null as number | null  // 褰撳墠姝ｅ湪杞鐨勪换鍔D
 })
+
+const stopMedia = (mediaEl: HTMLMediaElement | null) => {
+  if (!mediaEl) return
+  mediaEl.pause()
+  mediaEl.currentTime = 0
+}
+
+const handlePreviewClosed = () => {
+  stopMedia(previewVideoRef.value)
+  stopMedia(previewAudioRef.value)
+}
+
+const showTaskCompletedMessage = () => {
+  ElMessage.success(form.hasVideoDubbing ? '任务完成，资产已加载' : '形象训练完成，资产已加载')
+}
+
+const showAssetSavedMessage = () => {
+  ElMessage.success(form.hasVideoDubbing ? '数字化资产已成功绑定并完成训练任务！' : '数字人形象资产已保存并完成训练任务！')
+}
 
 const nameValidationLoading = ref(false)
 const nameValidationState = ref<'idle' | 'valid' | 'invalid'>('idle')
@@ -408,12 +461,12 @@ const canStartProcessing = computed(() => {
     && videoRatioValid.value
 })
 
-// --- 任务列表数据 ---
+// --- 浠诲姟鍒楄〃鏁版嵁 ---
 const searchQuery = ref('')
 const filterStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
-const totalCount = ref(0)  // API返回的总数
+const totalCount = ref(0)  // API杩斿洖鐨勬€绘暟
 const taskStats = reactive({
   total: 0,
   processing: 0,
@@ -428,7 +481,7 @@ onMounted(() => {
   loadTaskList()
   loadTaskStatistics()
   
-  // 监听分页改变，重新加载数据
+  // 鐩戝惉鍒嗛〉鏀瑰彉锛岄噸鏂板姞杞芥暟鎹?
   watch([currentPage, pageSize], () => {
     loadTaskList()
   })
@@ -441,14 +494,14 @@ const loadTaskList = async () => {
     if (res.data && res.data.code === 200) {
       const responseData = res.data.data
       const taskListData = responseData?.data || []
-      totalCount.value = responseData?.total || 0  // 保存API返回的总数
+      totalCount.value = responseData?.total || 0  // 淇濆瓨API杩斿洖鐨勬€绘暟
       
       taskList.value = taskListData.map((item: any) => {
         const taskStatus = Number(item.taskStatus)
-        let statusType = 'processing'  // 用于UI样式
+        let statusType = 'processing'  // 鐢ㄤ簬UI鏍峰紡
         let progress = 50
         
-        // 0=等待中, 1=音频克隆中, 2=数字人克隆中, 3=完成, -1=失败
+        // 0=绛夊緟涓? 1=闊抽鍏嬮殕涓? 2=鏁板瓧浜哄厠闅嗕腑, 3=瀹屾垚, -1=澶辫触
         if (taskStatus === 0) {
           statusType = 'processing'
           progress = 5
@@ -471,7 +524,7 @@ const loadTaskList = async () => {
           name: item.digitalHumanName || item.name || '',
           type: 'cloning',
           status: statusType,
-          taskStatus,  // 保存原始状态值
+          taskStatus,  // 淇濆瓨鍘熷鐘舵€佸€?
           progress,
           time: item.createTime,
           updateTime: item.updateTime,
@@ -501,7 +554,7 @@ const loadTaskStatistics = async () => {
   }
 }
 
-// 过滤后的任务列表（前端过滤用）
+// 杩囨护鍚庣殑浠诲姟鍒楄〃锛堝墠绔繃婊ょ敤锛?
 const filteredTaskList = computed(() => {
   return taskList.value.filter(item => {
     const matchSearch = !searchQuery.value || item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
@@ -510,7 +563,7 @@ const filteredTaskList = computed(() => {
   })
 })
 
-// 分页后的列表（由于API已经返回分页数据，这里直接返回当前页的数据进行前端过滤）
+// 鍒嗛〉鍚庣殑鍒楄〃锛堢敱浜嶢PI宸茬粡杩斿洖鍒嗛〉鏁版嵁锛岃繖閲岀洿鎺ヨ繑鍥炲綋鍓嶉〉鐨勬暟鎹繘琛屽墠绔繃婊わ級
 const paginatedTaskList = computed(() => {
   return filteredTaskList.value
 })
@@ -640,21 +693,25 @@ const handleCreateNew = () => {
   activeStep.value = 0
   form.hasFile = false
   form.rawFile = null
+  form.videoType = 0
   form.isSubtitle = false
+  form.hasVideoDubbing = true
+  form.language = 'zh'
+  form.model = 'a2e'
   videoRatioValid.value = false
   resetNameValidationState()
 }
 
 const parseVoiceUrl = (voiceUrl: string) => {
   if (!voiceUrl) return ''
-  // 处理格式: "['https://...']" 或 JSON数组格式
+  // 澶勭悊鏍煎紡: "['https://...']" 鎴?JSON鏁扮粍鏍煎紡
   try {
     if (voiceUrl.startsWith("['") && voiceUrl.endsWith("']")) {
-      // 单引号格式：['https://...']
+      // 鍗曞紩鍙锋牸寮忥細['https://...']
       const url = voiceUrl.slice(2, -2)
       return url
     } else if (voiceUrl.startsWith('[') && voiceUrl.endsWith(']')) {
-      // JSON数组格式：['https://...']
+      // JSON鏁扮粍鏍煎紡锛歔'https://...']
       const parsed = JSON.parse(voiceUrl)
       return Array.isArray(parsed) ? parsed[0] : voiceUrl
     }
@@ -705,7 +762,7 @@ const handleFileChange = (file: any) => {
   const isValidType = allowedTypes.includes(rawFile.type) || fileName.endsWith('.mp4') || fileName.endsWith('.mov')
 
   if (!isValidType) {
-    ElMessage.error('只支持 MP4 和 MOV 格式的视频文件')
+    ElMessage.error('仅支持 MP4 和 MOV 格式的视频文件')
     form.rawFile = null
     form.hasFile = false
     videoRatioValid.value = false
@@ -717,23 +774,26 @@ const handleFileChange = (file: any) => {
   form.hasFile = false
   videoRatioValid.value = false
 
-  // 异步校验视频宽高比
+  // 异步校验视频宽高比：竖版要求 9:16，横版不限制
   const objectUrl = URL.createObjectURL(rawFile)
   const videoEl = document.createElement('video')
 
   videoEl.onloadedmetadata = () => {
     URL.revokeObjectURL(objectUrl)
-    const aspectRatio = videoEl.videoWidth / videoEl.videoHeight
-    const targetRatio = 9 / 16
-    const tolerance = 0.05
 
-    if (Math.abs(aspectRatio - targetRatio) > tolerance) {
-      videoUploadRef.value?.clearFiles()
-      form.rawFile = null
-      form.hasFile = false
-      videoRatioValid.value = false
-      ElMessage.error(`视频宽高比必须为 9:16（当前为 ${videoEl.videoWidth}×${videoEl.videoHeight}），请重新上传`)
-      return
+    if (form.videoType === 0) {
+      const aspectRatio = videoEl.videoWidth / videoEl.videoHeight
+      const targetRatio = 9 / 16
+      const tolerance = 0.05
+
+      if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+        videoUploadRef.value?.clearFiles()
+        form.rawFile = null
+        form.hasFile = false
+        videoRatioValid.value = false
+        ElMessage.error(`竖版模式下视频宽高比需接近 9:16（当前为 ${videoEl.videoWidth}×${videoEl.videoHeight}），请重新上传`)
+        return
+      }
     }
 
     form.rawFile = rawFile
@@ -752,9 +812,8 @@ const handleFileChange = (file: any) => {
 
   videoEl.src = objectUrl
 }
-
 const handleVideoExceed = (files: any[]) => {
-  // 超出限制时，清空旧文件并处理新文件
+  // 瓒呭嚭闄愬埗鏃讹紝娓呯┖鏃ф枃浠跺苟澶勭悊鏂版枃浠?
   videoUploadRef.value?.clearFiles()
   handleFileChange({ raw: files[0] })
 }
@@ -769,18 +828,22 @@ const startProcessing = async () => {
   if (!nameValid) return
   
   try {
-    // 构建 FormData
+    // 鏋勫缓 FormData
     const formData = new FormData()
     formData.append('file', form.rawFile!)
     formData.append('name', finalName)
     formData.append('gender', form.gender)
+    formData.append('language', form.language)
+    formData.append('model', form.model)
+    formData.append('type', String(form.videoType))
     formData.append('is_subtitle', form.isSubtitle ? 'true' : 'false')
+    formData.append('is_video_dubbing', form.hasVideoDubbing ? 'true' : 'false')
 
-    // 调用API提交任务
+    // 璋冪敤API鎻愪氦浠诲姟
     const res = await createFastTask(formData)
     
     if (res.data && res.data.code === 200) {
-      // 获取任务ID
+      // 鑾峰彇浠诲姟ID
       const taskId = res.data.data?.id
       if (!taskId) {
         ElMessage.error('任务创建成功但未返回任务ID，请尝试刷新列表')
@@ -789,17 +852,17 @@ const startProcessing = async () => {
       
       form.currentTaskId = taskId
       
-      // 同步到全局任务中心（暂未启用）
+      // 鍚屾鍒板叏灞€浠诲姟涓績锛堟殏鏈惎鐢級
       // taskStore.addTask({
       //   taskType: 'VIDEO_TASK',
-      //   subTitle: `资产：${form.humanName}`,
+      //   subTitle: `璧勪骇锛?{form.humanName}`,
       //   status: 'running'
       // })
 
       activeStep.value = 1
       ElMessage.success('任务已提交，正在处理中...')
       
-      // 启动轮询
+      // 鍚姩杞
       pollTaskProgress()
     } else {
       ElMessage.error(res.data?.message || '提交失败，请稍后重试')
@@ -813,10 +876,10 @@ const startProcessing = async () => {
 const pollTaskProgress = async () => {
   if (!form.currentTaskId) return
   
-  // 清除之前的轮询定时器
+  // 娓呴櫎涔嬪墠鐨勮疆璇㈠畾鏃跺櫒
   if (pollTimer) clearInterval(pollTimer)
   
-  // 创建轮询逻辑，每2秒检查一次
+  // 鍒涘缓杞閫昏緫锛屾瘡2绉掓鏌ヤ竴娆?
   pollTimer = setInterval(async () => {
     try {
       const res = await getFastTaskDetail(form.currentTaskId!)
@@ -825,28 +888,28 @@ const pollTaskProgress = async () => {
         const taskData = res.data.data
         const taskStatus = taskData.taskStatus
         
-        // 根据任务状态更新进度条
-        // 0=等待中, 1=音频克隆中, 2=视频克隆中, 3=完成
+        // 鏍规嵁浠诲姟鐘舵€佹洿鏂拌繘搴︽潯
+        // 0=绛夊緟涓? 1=闊抽鍏嬮殕涓? 2=瑙嗛鍏嬮殕涓? 3=瀹屾垚
         if (taskStatus === 0) {
-          // 等待中
+          // 绛夊緟涓?
           imageProgress.value = 10
-          voiceProgress.value = 10
+          voiceProgress.value = form.hasVideoDubbing ? 10 : 0
         } else if (taskStatus === 1) {
-          // 音频克隆中
+          // 闊抽鍏嬮殕涓?
           imageProgress.value = 30
-          voiceProgress.value = Math.min(voiceProgress.value + 10, 80)
+          voiceProgress.value = form.hasVideoDubbing ? Math.min(voiceProgress.value + 10, 80) : 0
         } else if (taskStatus === 2) {
-          // 视频克隆中
+          // 瑙嗛鍏嬮殕涓?
           imageProgress.value = Math.min(imageProgress.value + 10, 80)
-          voiceProgress.value = 100
+          voiceProgress.value = form.hasVideoDubbing ? 100 : 0
         } else if (taskStatus === 3) {
-          // 任务完成，停止轮询，加载预览数据
+          // 浠诲姟瀹屾垚锛屽仠姝㈣疆璇紝鍔犺浇棰勮鏁版嵁
           imageProgress.value = 100
-          voiceProgress.value = 100
+          voiceProgress.value = form.hasVideoDubbing ? 100 : 0
           
           if (pollTimer) clearInterval(pollTimer)
           
-          // 加载任务详情作为预览数据
+          // 鍔犺浇浠诲姟璇︽儏浣滀负棰勮鏁版嵁
           currentAsset.value = {
             id: taskData.id,
             name: taskData.digitalHumanName || taskData.name,
@@ -857,13 +920,13 @@ const pollTaskProgress = async () => {
             status: 'success'
           }
           
-          // 在1秒后自动跳转到第三步
+          // 鍦?绉掑悗鑷姩璺宠浆鍒扮涓夋
           setTimeout(() => {
             activeStep.value = 2
-            ElMessage.success('任务完成，资产已加载！')
+            ElMessage.success('任务完成，资产已加载')
           }, 1000)
         } else if (taskStatus === -1) {
-          // 任务失败
+          // 浠诲姟澶辫触
           if (pollTimer) clearInterval(pollTimer)
           ElMessage.error('任务处理失败，请重试')
           activeStep.value = 0
@@ -872,34 +935,37 @@ const pollTaskProgress = async () => {
     } catch (error) {
       console.error('Failed to poll task progress:', error)
     }
-  }, 2000)  // 每2秒轮询一次
+  }, 2000)  // 姣?绉掕疆璇竴娆?
 }
 
 const handleComplete = async () => {
   try {
-    // 清理轮询定时器
+    // 娓呯悊杞瀹氭椂鍣?
     if (pollTimer) clearInterval(pollTimer)
     if (timer) clearInterval(timer)
     
-    // 重新加载任务列表获取最新数据
+    // 閲嶆柊鍔犺浇浠诲姟鍒楄〃鑾峰彇鏈€鏂版暟鎹?
     await Promise.all([loadTaskList(), loadTaskStatistics()])
     
     ElMessage.success('数字化资产已成功绑定并完成训练任务！')
     isCreating.value = false
 
-    // 重置状态
+    // 閲嶇疆鐘舵€?
     activeStep.value = 0
     imageProgress.value = 0
     voiceProgress.value = 0
     form.humanName = ''
     form.gender = 'male'
+    form.language = 'zh'
+    form.model = 'a2e'
+    form.hasVideoDubbing = true
     form.hasFile = false
     form.rawFile = null
     form.currentTaskId = null
     videoRatioValid.value = false
     resetNameValidationState()
 
-    // 延迟 1 秒后刷新页面，清空缓存
+    // 寤惰繜 1 绉掑悗鍒锋柊椤甸潰锛屾竻绌虹紦瀛?
     setTimeout(() => {
       location.reload()
     }, 1000)
@@ -978,3 +1044,5 @@ onUnmounted(() => {
   font-weight: bold;
 }
 </style>
+
+

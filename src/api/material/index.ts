@@ -621,6 +621,20 @@ export function getFastTaskDetail(id: number | string) {
  * @param formData FormData 对象，包含 title, msg, voice_id, digital_human_id, language, speechRate, anchor_type, isSkipRs, video_cover_url, user_group等
  * @returns 返回任务ID
  */
+/**
+ * 视频制作 - 直接上传音频（实时合成）
+ */
+export function createAudioVideoTask(formData: FormData) {
+    return request({
+        url: '/api/material/video/realtime/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
 export function createVideoTask(formData: FormData) {
     return request({
         url: '/api/material/video/task/create/',
@@ -1178,6 +1192,18 @@ export function createCornerMarkTask(data: FormData) {
     })
 }
 
+/**
+ * 批量创建视频角标任务（文件夹上传）
+ */
+export function createCornerMarkBatchTask(data: FormData) {
+    return request({
+        url: '/api/material/corner-mark-task/batch/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })
+}
+
 // ===== PromptWord / PromptTemplate 相关接口 =====
 
 /** 获取当前用户分组提示词 */
@@ -1262,6 +1288,28 @@ export function getCornerMarkTaskList(page: number = 1, pageSize: number = 20, s
         url: '/api/material/corner-mark-task/paginate/',
         method: 'post',
         data: { page, pageSize, ...(search && { search }) }
+    })
+}
+
+/**
+ * 分页查询角标批量任务列表
+ */
+export function getCornerMarkBatchTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+    return request({
+        url: '/api/material/corner-mark-task/batch/paginate/',
+        method: 'post',
+        data: { page, pageSize, ...(search && { search }) }
+    })
+}
+
+/**
+ * 查询角标批量任务明细（子任务）
+ */
+export function getCornerMarkBatchTaskDetail(id: number | string, page: number = 1, pageSize: number = 10) {
+    return request({
+        url: `/api/material/corner-mark-task/batch/detail/${id}/`,
+        method: 'get',
+        params: { page, pageSize }
     })
 }
 

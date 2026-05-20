@@ -58,7 +58,7 @@
 
         <el-table-column label="完成时间" width="170" align="center">
           <template #default="{ row }">
-            <span class="text-gray-400 text-xs">{{ row.finishTime || '-' }}</span>
+            <span class="text-gray-400 text-xs">{{ row.status === '已完成' ? (row.finishTime || '-') : '-' }}</span>
           </template>
         </el-table-column>
 
@@ -118,14 +118,12 @@
               </el-form-item>
             </div>
 
-            <!--
             <el-form-item label="视频方向" class="mt-2">
               <el-radio-group v-model="orientation">
                 <el-radio-button label="portrait">竖屏 9:16</el-radio-button>
                 <el-radio-button label="landscape">横屏 16:9</el-radio-button>
               </el-radio-group>
             </el-form-item>
-            -->
 
             <el-form-item label="形象图片上传" class="mt-2">
               <div class="mb-3" v-if="form.imageUrl">
@@ -269,9 +267,9 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="'视频预览 - ' + (currentItem.name || '')" v-model="previewVisible" width="400px" destroy-on-close class="preview-dialog">
+    <el-dialog :title="'视频预览 - ' + (currentItem.name || '')" v-model="previewVisible" width="400px" destroy-on-close class="preview-dialog" @closed="handlePreviewClosed">
       <div class="bg-black rounded-lg overflow-hidden flex items-center justify-center min-h-[500px]">
-        <video v-if="currentItem.videoUrl" :src="currentItem.videoUrl" controls autoplay class="max-w-full max-h-[600px]"></video>
+        <video v-if="currentItem.videoUrl" ref="previewVideoRef" :src="currentItem.videoUrl" controls autoplay class="max-w-full max-h-[600px]"></video>
         <div v-else class="text-gray-500 italic text-sm">暂无可预览的视频资源</div>
       </div>
     </el-dialog>
@@ -322,6 +320,7 @@ const dialogVisible = ref(false)
 const previewVisible = ref(false)
 const submitting = ref(false)
 const currentItem = ref<Partial<DigitalHumanTask>>({})
+const previewVideoRef = ref<HTMLVideoElement | null>(null)
 const selectedTemplateId = ref<string | number | null>(null)
 const tagSearch = ref('')
 const posPage = ref(1)
@@ -335,6 +334,12 @@ const validatedName = ref('')
 const imageRatioValid = ref(false)
 const promptLoading = reactive({ templates: false, words: false })
 let nameValidateTimer: ReturnType<typeof setTimeout> | null = null
+
+const handlePreviewClosed = () => {
+  if (!previewVideoRef.value) return
+  previewVideoRef.value.pause()
+  previewVideoRef.value.currentTime = 0
+}
 
 const form = reactive({
   name: '',
@@ -686,6 +691,7 @@ const handleSubmit = async () => {
     formData.append('name', finalName)
     formData.append('gender', form.gender === '男' ? 'male' : 'female')
     formData.append('model', 'a2e')
+    formData.append('type', orientation.value === 'landscape' ? '1' : '0')
     formData.append('language', 'zh')
     formData.append('positivePrompt', normalizePromptContent(form.positivePrompt))
     formData.append('negativePrompt', normalizePromptContent(form.negativePrompt))

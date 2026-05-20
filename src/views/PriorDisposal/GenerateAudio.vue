@@ -1,6 +1,5 @@
-<template>
+﻿<template>
   <div class="generate-audio p-6 bg-gray-50 min-h-full">
-    <!-- Header Section -->
     <div class="bg-white p-5 rounded-xl shadow-sm flex items-center justify-between mb-4 border border-gray-100">
       <div>
         <h2 class="text-xl font-bold text-gray-800 tracking-tight">音频克隆与管理</h2>
@@ -11,16 +10,14 @@
       </el-button>
     </div>
 
-    <!-- Alert for limits -->
     <el-alert
-      title="录音规范：请确保上传的录音文件时长在 10-60 秒之间，格式推荐使用 WAV，环境保持安静以提升克隆效果。"
+      title="录音规范：请确保上传的录音文件时长在 10-60 秒之间，推荐使用 WAV，并保持环境安静以提升效果。"
       type="info"
       show-icon
       :closable="false"
       class="mb-4 !rounded-xl border border-blue-50"
     />
 
-    <!-- Task List Table -->
     <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
       <el-table
         :data="voiceTasks"
@@ -58,7 +55,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="近期活跃状态" width="120" align="center">
+        <el-table-column label="状态" width="120" align="center">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)" size="mini" effect="light">
               <i v-if="scope.row.status === '进行中' || scope.row.status === '已提交'" class="el-icon-loading mr-1"></i>
@@ -82,9 +79,9 @@
         <el-table-column label="操作" width="180" align="center" fixed="right">
           <template #default="scope">
             <div class="flex items-center justify-center gap-2">
-              <el-button 
-                size="mini" 
-                type="primary" 
+              <el-button
+                size="mini"
+                type="primary"
                 plain
                 icon="el-icon-video-play"
                 :disabled="scope.row.status !== '训练完成'"
@@ -93,10 +90,10 @@
               >
                 {{ previewingId === scope.row.id ? '正在下载' : '试听' }}
               </el-button>
-              <el-button 
-                size="mini" 
-                type="danger" 
-                plain 
+              <el-button
+                size="mini"
+                type="danger"
+                plain
                 @click="handleDelete(scope.$index)"
               >
                 删除
@@ -106,7 +103,6 @@
         </el-table-column>
       </el-table>
 
-      <!-- Pagination -->
       <div class="p-4 flex justify-end bg-white border-t border-gray-50">
         <el-pagination
           v-model:current-page="pagination.currentPage"
@@ -121,7 +117,6 @@
       </div>
     </div>
 
-    <!-- Create Task Dialog -->
     <el-dialog
       title="新建声音克隆任务"
       v-model="dialogVisible"
@@ -148,7 +143,7 @@
               link
               @click="applyRecommendedName"
             >
-              使用推荐名：{{ recommendedName }}
+              使用推荐名称：{{ recommendedName }}
             </el-button>
           </div>
         </el-form-item>
@@ -156,7 +151,7 @@
         <div class="grid grid-cols-2 gap-x-4 gap-y-0">
           <el-form-item label="渠道源">
             <el-select v-model="form.channel" placeholder="请选择渠道" style="width: 100%" disabled>
-              <el-option label="FreeCreate" value="FreeCreate"></el-option>
+              <el-option label="默认" value="default"></el-option>
             </el-select>
           </el-form-item>
 
@@ -187,13 +182,13 @@
             <div class="flex flex-col items-center justify-center py-4">
               <i class="el-icon-upload text-5xl text-blue-400 mb-4"></i>
               <div class="el-upload__text text-sm">
-                将文件拖到此处，或 <em class="text-blue-500 font-medium">点击上传</em>
+                将文件拖到此处，或<em class="text-blue-500 font-medium">点击上传</em>
               </div>
             </div>
             <template #tip>
               <div class="el-upload__tip text-gray-400 text-[11px] leading-relaxed mt-2 text-left">
                 支持 mp3, wav, m4a, mp4 格式。时长必须在 10s-60s 之间。<br/>
-                推荐使用高质量录像设备并在安静环境录制。
+                推荐使用高质量录音设备，并在安静环境录制。
               </div>
             </template>
           </el-upload>
@@ -209,44 +204,72 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog title="音频试听" v-model="previewDialogVisible" width="560px" @closed="handlePreviewDialogClosed">
+      <div class="space-y-4">
+        <div class="text-sm text-gray-600">{{ previewTitle || '未命名音频' }}</div>
+        <video
+          v-if="isVideoPreview"
+          ref="previewMediaRef"
+          :src="previewMediaSrc"
+          controls
+          class="w-full rounded"
+          @pause="handlePauseStop"
+        ></video>
+        <audio
+          v-else
+          ref="previewMediaRef"
+          :src="previewMediaSrc"
+          controls
+          class="w-full"
+          @pause="handlePauseStop"
+        ></audio>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button type="primary" @click="previewDialogVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useTaskStore } from '/@/store/modules/task'
 import { createVoiceTask, getVoiceTaskList, deleteVoiceTask, validateVoiceTaskName } from '/@/api/material'
 
-// --- Types ---
 interface VoiceTask {
   id?: number
   name: string
   gender: string
   language: string
   channel: string
-  status: '训练中' | '训练完成' | '训练失败'
+  status: '进行中' | '训练完成' | '训练失败' | '已提交'
   duration: number
   createTime: string
-  finishTime?: string
+  updateTime?: string
+  isCompleted?: boolean
   url?: string
 }
 
-// --- API Data ---
-const taskStore = useTaskStore()
 const voiceTasks = ref<VoiceTask[]>([])
-const genderOptions = ref<Array<{ label: string; value: string }>>([{label: '男', value: 'male'}, {label: '女', value: 'female'}])
+const genderOptions = ref<Array<{ label: string; value: string }>>([{ label: '男', value: 'male' }, { label: '女', value: 'female' }])
 
-// --- State ---
 const dialogVisible = ref(false)
 const submitting = ref(false)
-const previewingId = ref<number | null>(null) // 追踪正在预览的音频ID
-let nameValidateTimer: any = null
+const previewingId = ref<number | null>(null)
+const previewDialogVisible = ref(false)
+const previewTitle = ref('')
+const previewMediaRef = ref<HTMLMediaElement | null>(null)
+let previewMediaSrc = ''
+const isVideoPreview = ref(false)
+let nameValidateTimer: number | null = null
 
 const form = reactive({
   name: '',
-  channel: 'FreeCreate',
-  gender: 'male', // 使用字典值
+  channel: 'default',
+  gender: 'male',
   language: '中文',
   audioFile: null as File | null,
   duration: 0
@@ -258,69 +281,66 @@ const recommendedName = ref('')
 const validatedName = ref('')
 const canSubmitTask = computed(() => {
   const finalName = form.name.trim()
-  return !!finalName
-    && !nameValidationLoading.value
-    && nameValidationState.value === 'valid'
-    && validatedName.value === finalName
+  return !!finalName && !nameValidationLoading.value && nameValidationState.value === 'valid' && validatedName.value === finalName
 })
 
-// --- Pagination ---
 const pagination = reactive({
   currentPage: 1,
   pageSize: 20,
-  total: 2
+  total: 0
 })
 
-// --- Lifecycle ---
+const normalizeTaskUrl = (raw: unknown): string => {
+  if (!raw) return ''
+  if (Array.isArray(raw)) return String(raw[0] || '').trim()
+  let s = String(raw).trim()
+  if (!s) return ''
+
+  // Strip one-level wrapping quotes first: "\"['https://...']\"" -> "['https://...']"
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim()
+  }
+
+  // JSON array string or python-like array string: ["..."] / ['...']
+  if (s.startsWith('[') && s.endsWith(']')) {
+    const normalized = s.replace(/'/g, '"')
+    try {
+      const arr = JSON.parse(normalized)
+      if (Array.isArray(arr) && arr.length > 0) return String(arr[0] || '').trim()
+    } catch {
+      const match = s.match(/https?:\/\/[^'",\]\s]+/i)
+      if (match) return match[0]
+    }
+  }
+
+  return s.replace(/^["']|["']$/g, '').trim()
+}
+
 onMounted(() => {
   loadVoiceTaskList()
 })
 
-// --- Methods ---
 const loadVoiceTaskList = async () => {
   try {
     const res = await getVoiceTaskList(pagination.currentPage, pagination.pageSize)
     if (res.data && res.data.code === 200) {
-      // 根据实际返回数据结构映射
       const taskList = res.data.data?.data || []
       voiceTasks.value = taskList.map((item: any) => {
-        // 解析url - 处理各种可能的格式
-        let audioUrl = item.url
-        if (typeof audioUrl === 'string') {
-          // 移除可能的转义字符
-          audioUrl = audioUrl.replace(/\\'/g, "'").replace(/\\"/g, '"')
-          
-          // 如果看起来像JSON数组，尝试解析
-          if (audioUrl.startsWith('[') || audioUrl.startsWith("['")) {
-            try {
-              // 先处理单引号的情况
-              if (audioUrl.includes("'")) {
-                audioUrl = audioUrl.replace(/'/g, '"')
-              }
-              const urlArray = JSON.parse(audioUrl)
-              audioUrl = urlArray[0] || ''
-            } catch (e) {
-              console.warn('Failed to parse URL as JSON, using raw value:', audioUrl)
-            }
-          }
-          
-          // 删除多余的引号
-          audioUrl = audioUrl.replace(/^["']|["']$/g, '')
-          console.debug('Parsed audio URL:', audioUrl)
-        }
+        const audioUrl = normalizeTaskUrl(item.url)
+
         return {
           id: item.id,
           name: item.voiceName,
           gender: item.gender === 'male' ? '男' : '女',
           language: item.language === 'zh' ? '中文' : '英文',
-          channel: item.model === 'a2e' ? 'FreeCreate' : (item.model || 'FreeCreate'),
+          channel: item.model === 'a2e' ? 'default' : (item.model || 'default'),
           status: item.taskStatus === '2' ? '训练完成' : (item.taskStatus === '1' ? '进行中' : (item.taskStatus === '0' ? '已提交' : '训练失败')),
-          duration: 0, // 返回数据中没有duration
+          duration: 0,
           createTime: item.createTime,
           updateTime: item.updateTime,
           isCompleted: item.taskStatus === '2',
           url: audioUrl
-        }
+        } as VoiceTask
       })
       pagination.total = res.data.data?.total || 0
     }
@@ -340,7 +360,6 @@ const handleCurrentChange = (val: number) => {
   loadVoiceTaskList()
 }
 
-// --- Methods ---
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     '训练完成': 'success',
@@ -351,38 +370,57 @@ const getStatusType = (status: string) => {
   return map[status] || ''
 }
 
-const handlePreview = (task: VoiceTask) => {
-  if (!task.id || !task.url) {
+const stopPreviewAudio = () => {
+  if (previewMediaRef.value) {
+    previewMediaRef.value.pause()
+    previewMediaRef.value.currentTime = 0
+  }
+  if (previewMediaSrc && previewMediaSrc.startsWith('blob:')) {
+    URL.revokeObjectURL(previewMediaSrc)
+  }
+  previewMediaSrc = ''
+}
+
+const handlePauseStop = () => {
+  if (!previewMediaRef.value) return
+  previewMediaRef.value.pause()
+  previewMediaRef.value.currentTime = 0
+}
+
+const handlePreviewDialogClosed = () => {
+  handlePauseStop()
+  stopPreviewAudio()
+  previewTitle.value = ''
+  isVideoPreview.value = false
+}
+
+const handlePreview = async (task: VoiceTask) => {
+  const finalUrl = normalizeTaskUrl(task.url)
+  if (!task.id || !finalUrl) {
     ElMessage.warning('音频URL不存在')
     return
   }
-  
-  // 开始下载，设置加载状态
+
+  stopPreviewAudio()
   previewingId.value = task.id
-  
-  console.log('Downloading and playing audio URL:', task.url)
-  
-  // 使用HTML5 Audio API播放
-  const audio = new Audio()
-  audio.crossOrigin = 'anonymous'
-  audio.src = task.url
-  
-  // 监听下载完成事件
-  const handleCanPlay = () => {
-    previewingId.value = null
-    audio.play().catch(error => {
-      console.error('Failed to play audio:', error)
-      ElMessage.error('播放失败：' + error.message)
-    })
-    audio.removeEventListener('canplay', handleCanPlay)
-  }
-  
-  audio.addEventListener('canplay', handleCanPlay)
-  
-  audio.onerror = (error) => {
-    previewingId.value = null
+
+  try {
+    console.log('[AudioPreview] raw url:', task.url, '| parsed url:', finalUrl)
+    const lowerUrl = finalUrl.toLowerCase()
+    isVideoPreview.value = lowerUrl.includes('.mp4')
+    previewMediaSrc = finalUrl
+    previewTitle.value = task.name || ''
+    previewDialogVisible.value = true
+    setTimeout(() => {
+      previewMediaRef.value?.play().catch((error) => {
+        console.error('Failed to play media:', error)
+      })
+    }, 0)
+  } catch (error) {
     console.error('Audio load error:', error)
     ElMessage.error('下载失败，请检查音频格式或网络连接')
+  } finally {
+    previewingId.value = null
   }
 }
 
@@ -390,14 +428,12 @@ const handleFileChange = (file: any) => {
   const rawFile = file.raw
   if (!rawFile) return
 
-  // Format Check - 支持 mp3, wav, m4a, mp4
   const extMatch = rawFile.name.match(/\.(mp3|wav|m4a|mp4)$/i)
   if (!extMatch) {
     ElMessage.error('不支持的格式，请重新上传')
     return false
   }
 
-  // Duration Check
   const audio = new Audio()
   audio.src = URL.createObjectURL(rawFile)
   audio.onloadedmetadata = () => {
@@ -409,7 +445,7 @@ const handleFileChange = (file: any) => {
     } else {
       form.audioFile = rawFile
       form.duration = duration
-      ElMessage.success('素材校验合规')
+      ElMessage.success('素材校验通过')
     }
   }
 }
@@ -448,6 +484,7 @@ const validateName = async (name: string, showError = false) => {
       }
       return isValid
     }
+
     if (showError) ElMessage.error(res.data?.message || '名称校验失败，请稍后重试')
     nameValidationState.value = 'error'
     return false
@@ -480,9 +517,8 @@ const handleCancelDialog = () => {
 }
 
 const handleSubmit = async () => {
-  // 防止重复提交
   if (submitting.value) return
-  
+
   if (!form.name.trim()) return ElMessage.warning('请输入名称')
   if (!form.audioFile) return ElMessage.warning('音频素材校验未通过或未上传')
 
@@ -491,43 +527,29 @@ const handleSubmit = async () => {
   if (!nameValid) return
 
   submitting.value = true
-  
+
   try {
-    // 构建 FormData
     const formData = new FormData()
     formData.append('file', form.audioFile)
     formData.append('name', finalName)
-    // 使用原始值（已从字典中选择）
     formData.append('gender', form.gender)
     formData.append('language', form.language === '中文' ? 'zh' : 'en')
-    // model统一使用 FreeCreate
-    formData.append('model', 'FreeCreate')
+    formData.append('source', 'default')
+    formData.append('model', 'a2e')
 
-    // 调用API提交任务
     const res = await createVoiceTask(formData)
-    
-    if (res.data && res.data.code === 200) {
-      // 同步到全局任务中心（暂未启用）
-      // taskStore.addTask({
-      //   taskType: 'VOICE_TASK',
-      //   subTitle: `角色：${form.name} (${form.gender})`,
-      //   status: 'running'
-      // })
 
-      // 清空表单
+    if (res.data && res.data.code === 200) {
       form.name = ''
       form.audioFile = null
       form.duration = 0
       resetNameValidationState()
-      
-      // 关闭对话框
+
       dialogVisible.value = false
-      
-      // 重新加载任务列表
       pagination.currentPage = 1
       await loadVoiceTaskList()
-      
-      ElMessage.success('已加入训练序列，预计耗时 5-10 分钟')
+
+      ElMessage.success('已加入训练队列，预计耗时 5-10 分钟')
     } else {
       ElMessage.error(res.data?.message || '提交失败，请稍后重试')
     }
@@ -556,7 +578,7 @@ watch(
 
     nameValidationState.value = 'idle'
     recommendedName.value = ''
-    nameValidateTimer = setTimeout(() => {
+    nameValidateTimer = window.setTimeout(() => {
       validateName(finalName)
     }, 400)
   }
@@ -564,6 +586,7 @@ watch(
 
 onUnmounted(() => {
   if (nameValidateTimer) clearTimeout(nameValidateTimer)
+  stopPreviewAudio()
 })
 
 const handleDelete = (index: number) => {
@@ -591,7 +614,7 @@ const handleDelete = (index: number) => {
       ElMessage.error(error.message || '删除失败，请稍后重试')
     }
   }).catch(() => {
-    // User cancelled
+    // cancelled
   })
 }
 </script>
@@ -616,3 +639,4 @@ const handleDelete = (index: number) => {
   border-radius: 12px;
 }
 </style>
+
