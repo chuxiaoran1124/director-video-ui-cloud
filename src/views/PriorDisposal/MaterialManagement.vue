@@ -230,7 +230,7 @@
         </div>
       </el-tab-pane>
 
-      <!-- 横幅管理 Tab -->
+      <!-- 横幅管理 Tab（临时隐藏）
       <el-tab-pane label="横幅管理" name="banner">
         <div class="p-5 bg-white rounded-b-lg">
           <template v-if="bannerMode === 'list'">
@@ -422,6 +422,7 @@
           </template>
         </div>
       </el-tab-pane>
+      -->
 
     </el-tabs>
 

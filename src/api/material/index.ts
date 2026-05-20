@@ -1178,6 +1178,70 @@ export function createCornerMarkTask(data: FormData) {
     })
 }
 
+// ===== PromptWord / PromptTemplate 相关接口 =====
+
+/** 获取当前用户分组提示词 */
+export function getPromptWordGroupedByUser() {
+    return request({
+        url: '/api/material/prompt-word/all/grouped/by-user/',
+        method: 'get'
+    })
+}
+
+/** 获取分组提示词 */
+export function getPromptWordGrouped() {
+    return request({
+        url: '/api/material/prompt-word/all/grouped/',
+        method: 'get'
+    })
+}
+
+/** 创建提示词 */
+export function createPromptWord(data: {
+    name: string
+    content: string
+    type: 'positive' | 'negative'
+    sort?: number
+    to_top?: boolean
+}) {
+    return request({
+        url: '/api/material/prompt-word/create/',
+        method: 'post',
+        data
+    })
+}
+
+/** 获取当前用户分组提示词模板 */
+export function getPromptTemplateGroupedByUser() {
+    return request({
+        url: '/api/material/prompt-template/all/grouped/by-user/',
+        method: 'get'
+    })
+}
+
+/** 获取分组提示词模板 */
+export function getPromptTemplateGrouped() {
+    return request({
+        url: '/api/material/prompt-template/all/grouped/',
+        method: 'get'
+    })
+}
+
+/** 创建提示词模板 */
+export function createPromptTemplate(data: {
+    name: string
+    positive_content: string
+    negative_content: string
+    sort?: number
+    to_top?: boolean
+}) {
+    return request({
+        url: '/api/material/prompt-template/create/',
+        method: 'post',
+        data
+    })
+}
+
 /**
  * 检查角标任务标题是否重复
  */
