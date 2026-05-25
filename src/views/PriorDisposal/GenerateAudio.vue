@@ -162,10 +162,10 @@
           </el-form-item>
 
           <el-form-item label="核心语言" class="col-span-2">
-            <el-select v-model="form.language" placeholder="请选择" style="width: 100%">
-              <el-option label="中文" value="中文"></el-option>
-              <el-option label="英文" value="英文"></el-option>
-            </el-select>
+            <el-radio-group v-model="form.language">
+              <el-radio :label="'zh'" size="large">中文</el-radio>
+              <el-radio :label="'th'" size="large">泰语</el-radio>
+            </el-radio-group>
           </el-form-item>
         </div>
 
@@ -270,7 +270,7 @@ const form = reactive({
   name: '',
   channel: 'default',
   gender: 'male',
-  language: '中文',
+  language: 'zh',
   audioFile: null as File | null,
   duration: 0
 })
@@ -533,9 +533,10 @@ const handleSubmit = async () => {
     formData.append('file', form.audioFile)
     formData.append('name', finalName)
     formData.append('gender', form.gender)
-    formData.append('language', form.language === '中文' ? 'zh' : 'en')
+    formData.append('language', form.language)
+    // 根据语言设置模型：中文用 a2e，泰语用 minimax
+    formData.append('model', form.language === 'zh' ? 'a2e' : 'minimax')
     formData.append('source', 'default')
-    formData.append('model', 'a2e')
 
     const res = await createVoiceTask(formData)
 

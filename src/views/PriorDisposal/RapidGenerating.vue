@@ -101,8 +101,9 @@
               <div v-else-if="scope.row.taskStatus === 3" class="text-green-500 text-sm flex items-center gap-1">
                 <el-icon><el-icon-circle-check /></el-icon> 已完成
               </div>
-              <div v-else-if="scope.row.taskStatus === -1" class="text-red-500 text-sm flex items-center gap-1">
-                <el-icon><el-icon-warning /></el-icon> 任务失败
+              <div v-else-if="scope.row.taskStatus === -1 || scope.row.taskStatus === 4" class="text-red-500 text-sm">
+                <span v-if="scope.row.errorMessage" class="text-red-500">{{ scope.row.errorMessage }}</span>
+                <span v-else><el-icon><el-icon-warning /></el-icon> 任务失败</span>
               </div>
               <span v-else class="text-slate-400 text-sm italic">等待中</span>
             </template>
@@ -180,12 +181,21 @@
                   </template>
                </el-upload>
              </div>
-              <div class="mt-6 pb-4 border-b border-slate-50">
-                <div class="text-sm text-slate-600 font-medium mb-2">视频方向</div>
-                <el-radio-group v-model="form.videoType">
-                  <el-radio :label="0">竖版 9:16</el-radio>
-                  <el-radio :label="1">横版（不限制比例）</el-radio>
-                </el-radio-group>
+              <div class="mt-6 pb-4 border-b border-slate-50 flex items-center gap-8">
+                <div>
+                  <div class="text-sm text-slate-600 font-medium mb-2">视频方向</div>
+                  <el-radio-group v-model="form.videoType">
+                    <el-radio :label="0">竖版 9:16</el-radio>
+                    <el-radio :label="1">横版（不限制比例）</el-radio>
+                  </el-radio-group>
+                </div>
+                <div>
+                  <div class="text-sm text-slate-600 font-medium mb-2">核心语言</div>
+                  <el-radio-group v-model="form.language">
+                    <el-radio :label="'zh'" size="large">中文</el-radio>
+                    <el-radio :label="'th'" size="large">泰语</el-radio>
+                  </el-radio-group>
+                </div>
               </div>
               <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
                 <span class="text-sm text-slate-600 font-medium">视频是否含字幕</span>
@@ -235,13 +245,7 @@
                   <el-option label="男" value="male" />
                   <el-option label="女" value="female" />
                 </el-select>
-                <el-select v-model="form.language" size="large" class="!w-40">
-                  <el-option label="中文" value="zh" />
-                </el-select>
-                <el-select v-model="form.model" size="large" class="!w-40">
-                  <el-option label="默认" value="a2e" />
-                </el-select>
-                 <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
+                <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
              </div>
           </div>
         </div>
@@ -417,7 +421,6 @@ const form = reactive({
   humanName: '',
   gender: 'male',  // male or female
   language: 'zh',
-  model: 'a2e',
   videoType: 0 as 0 | 1, // 0=portrait, 1=landscape
   isSubtitle: false,
   hasVideoDubbing: true,
@@ -514,7 +517,7 @@ const loadTaskList = async () => {
         } else if (taskStatus === 3) {
           statusType = 'success'
           progress = 100
-        } else if (taskStatus === -1) {
+        } else if (taskStatus === -1 || taskStatus === 4) {
           statusType = 'failed'
           progress = 0
         }
@@ -530,7 +533,8 @@ const loadTaskList = async () => {
           updateTime: item.updateTime,
           videoUrl: item.videoUrl,
           voiceUrl: item.voiceUrl,
-          gender: item.gender === 'male' ? '男' : '女'
+          gender: item.gender === 'male' ? '男' : '女',
+          errorMessage: item.errorMessage || item.error_message || ''  // 保存失败原因
         }
       })
     }
@@ -578,7 +582,7 @@ const getStatusLabel = (row: any) => {
   
   // 如果是数字状态码
   if (typeof taskStatus === 'number') {
-    const map: any = { 0: '等待中', 1: '音频克隆中', 2: '数字人克隆中', 3: '已完成', '-1': '任务失败' }
+    const map: any = { 0: '等待中', 1: '音频克隆中', 2: '数字人克隆中', 3: '已完成', 4: '任务失败', '-1': '任务失败' }
     return map[taskStatus] || '未知状态'
   }
   
@@ -592,7 +596,7 @@ const getStatusDotClass = (row: any) => {
   
   // 根据任务状态显示不同颜色
   if (typeof taskStatus === 'number') {
-    const map: any = { 0: 'bg-slate-400', 1: 'bg-blue-500 animate-pulse', 2: 'bg-orange-500 animate-pulse', 3: 'bg-green-500', '-1': 'bg-red-500' }
+    const map: any = { 0: 'bg-slate-400', 1: 'bg-blue-500 animate-pulse', 2: 'bg-orange-500 animate-pulse', 3: 'bg-green-500', 4: 'bg-red-500', '-1': 'bg-red-500' }
     return map[taskStatus] || 'bg-slate-300'
   }
   
@@ -603,7 +607,7 @@ const getStatusDotClass = (row: any) => {
 
 const getStatusTextClass = (row: any) => {
   const status = row.status || row.taskStatus
-  const map: any = { success: 'text-green-600', processing: 'text-blue-600', 0: 'text-slate-600', 1: 'text-blue-600', 2: 'text-orange-600', 3: 'text-green-600', '-1': 'text-red-600', failed: 'text-red-600' }
+  const map: any = { success: 'text-green-600', processing: 'text-blue-600', 0: 'text-slate-600', 1: 'text-blue-600', 2: 'text-orange-600', 3: 'text-green-600', 4: 'text-red-600', '-1': 'text-red-600', failed: 'text-red-600' }
   return map[status] || 'text-slate-500'
 }
 
@@ -613,6 +617,7 @@ const getProgressText = (taskStatus: number) => {
     1: '音频克隆中',
     2: '数字人克隆中',
     3: '已完成',
+    4: '任务失败',
     [-1]: '任务失败'
   }
   return map[taskStatus] || '处理中'
@@ -834,7 +839,8 @@ const startProcessing = async () => {
     formData.append('name', finalName)
     formData.append('gender', form.gender)
     formData.append('language', form.language)
-    formData.append('model', form.model)
+    const model = form.language === 'zh' ? 'a2e' : 'minimax'
+    formData.append('model', model)
     formData.append('type', String(form.videoType))
     formData.append('is_subtitle', form.isSubtitle ? 'true' : 'false')
     formData.append('is_video_dubbing', form.hasVideoDubbing ? 'true' : 'false')
@@ -925,7 +931,7 @@ const pollTaskProgress = async () => {
             activeStep.value = 2
             ElMessage.success('任务完成，资产已加载')
           }, 1000)
-        } else if (taskStatus === -1) {
+        } else if (taskStatus === -1 || taskStatus === 4) {
           // 浠诲姟澶辫触
           if (pollTimer) clearInterval(pollTimer)
           ElMessage.error('任务处理失败，请重试')

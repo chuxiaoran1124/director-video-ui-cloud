@@ -179,12 +179,13 @@
                       <el-radio :label="0">竖版</el-radio>
                       <el-radio :label="1">横版</el-radio>
                     </el-radio-group>
-                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频语言</span>
-                    <el-select v-model="videoForm.language" placeholder="请选择语言" size="small" style="width: 120px">
-                      <el-option label="自动识别" value="auto" />
-                      <el-option label="中文" value="zh" />
-                      <el-option label="英文" value="en" />
-                    </el-select>
+                    <template v-if="videoForm.mode === 0">
+                      <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频语言 <span class="text-xs text-gray-400 font-normal">（语言配置仅适用于视频文案配置）</span></span>
+                      <el-radio-group v-model="videoForm.language">
+                        <el-radio :label="'zh'" size="large">中文</el-radio>
+                        <el-radio :label="'th'" size="large">泰语</el-radio>
+                      </el-radio-group>
+                    </template>
                   </div>
                 </el-form-item>
               </el-col>
@@ -197,7 +198,7 @@
                   <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 配置方式</span></template>
                   <el-radio-group v-model="videoForm.mode">
                     <el-radio :label="0" size="large" border>视频文案配置</el-radio>
-                    <el-radio :label="1" size="large" border>直接上传音频</el-radio>
+                    <el-radio :label="1" size="large" border>音频驱动视频</el-radio>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
@@ -249,7 +250,7 @@
                     </el-input>
                     <el-button v-if="videoForm.voice && videoForm.voiceUrl && videoForm.mode === 0" type="primary" plain icon="el-icon-headset" @click="playVoice(videoForm.voiceUrl, videoForm.voice)">试听</el-button>
                   </div>
-                  <span v-if="videoForm.mode === 1" class="text-xs text-gray-400 ml-2">上传音频模式下无需选择配音，系统将使用您上传的音频</span>
+                  <span v-if="videoForm.mode === 1" class="text-xs text-gray-400 ml-2">音频驱动模式下无需选择配音，系统将使用您上传的音频</span>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -289,11 +290,12 @@
                                             v-model="videoForm.subtitleSelector" 
                                             :active-value="1" 
                                             :inactive-value="0"
-                                :disabled="videoForm.videoType === 1"
+                                :disabled="videoForm.videoType === 1 || videoForm.language === 'th'"
                                 active-text="开启"
                                 inactive-text="关闭"
                               />
                               <span v-if="videoForm.videoType === 1" class="text-xs text-gray-400 ml-2">横版模式下不支持字幕</span>
+                              <span v-if="videoForm.language === 'th'" class="text-xs text-gray-400 ml-2">泰语暂不支持字幕</span>
                             </el-form-item>
                           </el-col>
                         </el-row>
@@ -392,6 +394,7 @@
                           <div class="flex items-center justify-between mb-2">
                             <span class="text-gray-600 text-sm font-bold flex items-center gap-1">
                               视频文案内容 <span class="text-red-500">*</span>
+                              <span v-if="videoForm.language === 'th'" class="text-xs text-gray-400 font-normal">（您已选择泰语，请输入泰语文字）</span>
                             </span>
                             <div class="flex gap-2">
                               <el-button size="mini" plain @click="openScriptSelector('library')">文案库导入</el-button>
@@ -937,7 +940,7 @@ const videoForm = reactive({
   voiceExternalId: '',  // 配音 externalId
   voiceUrl: '',  // 添加音频URL字段
   script: '',
-  language: 'auto',
+  language: 'zh',
   subtitleSelector: 1,  // 字幕启用状态，默认开启（值为 1）
   subtitleColor: 'yellow',  // 字幕颜色，直接默认使用黄色
   videoType: 0 as 0 | 1,  // 0=竖版 9:16, 1=横版 16:9
@@ -1460,8 +1463,12 @@ const extractAudioUrl = (urlString: string): string => {
 // 加载配音列表（仅加载第一页）
 const loadVoiceList = async (searchName?: string) => {
   try {
-    const response = await getVoicePaginateList(1, 20, searchName ? { name: searchName } : {})
-    console.log('配音列表API返回:', response)
+    // 搜索时传入 language 参数，中文传 'zh'，泰语传 'th'
+    const searchParams: any = {}
+    if (searchName) searchParams.name = searchName
+    searchParams.language = videoForm.language
+    const response = await getVoicePaginateList(1, 20, searchParams)
+    console.log('配音列表API返回, language:', videoForm.language)
     
     // 处理API返回的数据结构：response.data.data.data 是配音列表数组
     if (response.data && response.data.data) {
@@ -1478,6 +1485,7 @@ const loadVoiceList = async (searchName?: string) => {
           name: voice.voiceName || voice.name,
           externalId: voice.externalId,
           url: audioUrl,
+          language: voice.language || videoForm.language,
           // 保留原始数据以备后续使用
           ...voice
         }
@@ -1507,6 +1515,8 @@ const loadBindingList = async (voiceName?: string, digitalHumanName?: string) =>
     if (digitalHumanName) {
       searchObj.digitalHumanName = digitalHumanName
     }
+    // 传入语言参数
+    searchObj.language = videoForm.language
     
     const response = await getBindingList(1, 50, searchObj)
     console.log('绑定关系列表API返回:', response)
@@ -1587,6 +1597,14 @@ onUnmounted(() => {
 // 当切换为横版时自动关闭字幕
 watch(() => videoForm.videoType, (val) => {
   if (val === 1) {
+    videoForm.subtitleSelector = 0
+  }
+})
+
+// 监听 mode 切换：清空数字人选择、预览图
+// 当切换为泰语时自动关闭字幕
+watch(() => videoForm.language, (val) => {
+  if (val === 'th') {
     videoForm.subtitleSelector = 0
   }
 })
@@ -1675,7 +1693,7 @@ const resetForm = () => {
   videoForm.voiceExternalId = ''
   videoForm.voiceUrl = ''
   videoForm.script = ''
-  videoForm.language = 'auto'
+  videoForm.language = 'zh'
   videoForm.subtitleSelector = 1
   videoForm.subtitleColor = 'yellow'
   videoForm.cornerMark = ''
@@ -2032,7 +2050,7 @@ const startGeneration = async () => {
     }
     
     // 确定语言（如果是自动，则默认zh）
-    const language = videoForm.language === 'auto' ? 'zh' : videoForm.language
+    const language = videoForm.language
     
         // 创建FormData对象
     const formData = new FormData()
@@ -2048,7 +2066,7 @@ const startGeneration = async () => {
     if (videoForm.mode === 0) {
       formData.append('msg', videoForm.script)
     } else if (audioFile.value) {
-      formData.append('audioFile', audioFile.value)
+      formData.append('file', audioFile.value)
     }
     
         if (videoForm.filename) formData.append('filename', videoForm.filename)
@@ -2121,23 +2139,18 @@ const startGeneration = async () => {
       response = await createVideoTask(formData)
       console.log('文案模式提交完成:', response)
     } else {
-      // 音频模式：调用实时合成接口
-      const audioFormData = new FormData()
-      if (audioFile.value) audioFormData.append('file', audioFile.value)
-      audioFormData.append('title', videoForm.title)
-      audioFormData.append('digital_human_id', digitalHumanId)
-      const lang = language === 'auto' ? 'zh-CN' : language
-      audioFormData.append('language', lang)
+      // 音频文件已在上面 formData 中传了 audioFile，无需重复上传
+      const lang = videoForm.language === 'zh' ? 'zh-CN' : 'th-TH'
+      formData.append('language', lang)
       // 竖屏音频模式可传角标
       if (videoForm.videoType !== 1 && videoForm.cornerMark) {
-        audioFormData.append('corner_mark_id', String(videoForm.cornerMark))
         const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
         if (selectedCornerMark?.photoUrl) {
-          audioFormData.append('corner_mark_url', selectedCornerMark.photoUrl)
+          formData.append('corner_mark_url', selectedCornerMark.photoUrl)
         }
       }
-      console.log('音频模式提交数据:', Object.fromEntries(audioFormData.entries()))
-      response = await createAudioVideoTask(audioFormData)
+      console.log('音频模式提交数据:', Object.fromEntries(formData.entries()))
+      response = await createAudioVideoTask(formData)
       console.log('音频模式提交完成:', response)
     }
     
@@ -2459,6 +2472,7 @@ const loadMoreHumans = async () => {
     const searchParams: any = {}
     if (humanSelectorDialog.search) searchParams.name = humanSelectorDialog.search
     searchParams.type = videoForm.videoType
+    searchParams.language = videoForm.language
     const response = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, searchParams)
     
     if (response.data && response.data.data) {
@@ -2544,14 +2558,12 @@ const openCornerMarkSelector = () => {
 const selectCornerMark = async (item: any) => {
   videoForm.cornerMark = item.id
   cornerMarkSelectorDialog.visible = false
-  ElMessage.success('已选择角标')
-  // 记录近期使用
+  ElMessage.success(`已选择角标: ${item.name}`)
   try {
-    const res = await recordRecentCornerMark(item.id)
-    const list = res.data?.data || res.data || []
-    recentCornerMarks.value = await enrichRecentCornerMarks(list)
+    await recordRecentCornerMark(item.id)
+    await loadRecentCornerMarks()
   } catch (e) {
-    console.error('记录角标失败:', e)
+    console.error('记录角标使用失败:', e)
   }
 }
 
@@ -2572,24 +2584,22 @@ const openVoiceSelector = async () => {
 const loadMoreVoices = async () => {
   voiceSelectorDialog.loading = true
   try {
-    // 从API加载下一页配音数据，传入视频方向参数
+    // 加载配音时传入 language 参数
     const searchParams: any = {}
     if (voiceSelectorDialog.search) searchParams.name = voiceSelectorDialog.search
-    searchParams.type = videoForm.videoType
+    searchParams.language = videoForm.language
     const response = await getVoicePaginateList(voiceSelectorDialog.page, voiceSelectorDialog.pageSize, searchParams)
     
     if (response.data && response.data.data) {
       const data = response.data.data
       const voiceList = data.data || []
       
-      // 如果本页没有数据，说明没有更多内容
       if (voiceList.length === 0) {
         voiceSelectorDialog.hasMore = false
         voiceSelectorDialog.loading = false
         return
       }
       
-      // 映射API返回的数据到前端格式
       const newItems = voiceList.map((voice: any) => {
         const rawUrl = voice.url || voice.audio || voice.voiceUrl || voice.voice_url || voice.audioUrl || ''
         const audioUrl = extractAudioUrl(rawUrl)
@@ -2597,6 +2607,7 @@ const loadMoreVoices = async () => {
           name: voice.voiceName || voice.name,
           externalId: voice.externalId,
           url: audioUrl,
+          language: voice.language || videoForm.language,
           ...voice
         }
       })
@@ -2605,7 +2616,6 @@ const loadMoreVoices = async () => {
       voiceSelectorDialog.displayList = voiceSelectorDialog.allList
       voiceSelectorDialog.page++
       
-      // 如果本页获取的数据少于pageSize，说明已经到底了
       if (voiceList.length < voiceSelectorDialog.pageSize) {
         voiceSelectorDialog.hasMore = false
       }
@@ -2615,18 +2625,10 @@ const loadMoreVoices = async () => {
     ElMessage.error('加载配音失败')
   } finally {
     voiceSelectorDialog.loading = false
-    // 加载完后检查容器是否已满，未满则继续加载
-    await nextTick()
-    if (voiceScrollRef.value && voiceSelectorDialog.hasMore) {
-      const { scrollHeight, clientHeight } = voiceScrollRef.value
-      if (scrollHeight <= clientHeight) {
-        loadMoreVoices()
-      }
-    }
   }
 }
 
-// 滚动到底部时自动加载
+// 滚动到底部时自动加载更多配音
 const handleVoiceScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   if (scrollHeight - scrollTop - clientHeight < 100 && voiceSelectorDialog.hasMore && !voiceSelectorDialog.loading) {
@@ -2638,7 +2640,7 @@ const selectVoice = (item: any) => {
   console.log('[selectVoice] item:', item)
   videoForm.voice = item.name
   videoForm.voiceExternalId = item.externalId || ''
-  videoForm.voiceUrl = item.url || ''  // 保存音频URL
+  videoForm.voiceUrl = item.url || ''
   voiceSelectorDialog.visible = false
   ElMessage.success('已选择配音')
 }
@@ -2646,7 +2648,7 @@ const selectVoice = (item: any) => {
 // --- 快捷预设选择器 ---
 const openRelSelector = async () => {
   relSelectorDialog.visible = true
-  // 重置分页和搜索
+  // 重置分页
   relSelectorDialog.allList = []
   relSelectorDialog.displayList = []
   relSelectorDialog.page = 1
@@ -2660,23 +2662,24 @@ const openRelSelector = async () => {
 const loadMoreRels = async () => {
   relSelectorDialog.loading = true
   try {
-    // 从API加载下一页预设数据，传入视频方向参数
+    // 加载预设时传入 language 参数
     const searchParams: any = {}
-    if (relSelectorDialog.search) searchParams.title = relSelectorDialog.search
-    searchParams.type = videoForm.videoType
+    if (relSelectorDialog.search) {
+      searchParams.title = relSelectorDialog.search
+    }
+    searchParams.language = videoForm.language
     const response = await getBindingList(relSelectorDialog.page, relSelectorDialog.pageSize, searchParams)
     
-    if (response.data && response.data.data && response.data.data.data) {
-      const bindingList = response.data.data.data || []
+    if (response.data && response.data.data) {
+      const data = response.data.data
+      const bindingList = data.data || []
       
-      // 如果本页没有数据，说明没有更多内容
       if (bindingList.length === 0) {
         relSelectorDialog.hasMore = false
         relSelectorDialog.loading = false
         return
       }
       
-      // 映射API返回的数据到前端格式
       const newItems = bindingList.map((binding: any) => {
         const voiceUrl = binding.voiceUrl || binding.voice_url || binding.url || binding.audio || ''
         return {
@@ -2692,6 +2695,7 @@ const loadMoreRels = async () => {
           digitalHumanUrl: binding.digitalHumanUrl,
           digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,
           voiceUrl: voiceUrl,
+          language: binding.language || videoForm.language,
           ...binding
         }
       })
@@ -2700,7 +2704,6 @@ const loadMoreRels = async () => {
       relSelectorDialog.displayList = relSelectorDialog.allList
       relSelectorDialog.page++
       
-      // 如果本页获取的数据少于pageSize，说明已经到底了
       if (bindingList.length < relSelectorDialog.pageSize) {
         relSelectorDialog.hasMore = false
       }
@@ -2713,7 +2716,7 @@ const loadMoreRels = async () => {
   }
 }
 
-// 滚动到底部时自动加载
+// 滚动到底部时自动加载更多预设
 const handleRelScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   if (scrollHeight - scrollTop - clientHeight < 100 && relSelectorDialog.hasMore && !relSelectorDialog.loading) {
@@ -2721,26 +2724,20 @@ const handleRelScroll = (e: any) => {
   }
 }
 
-const selectRel = (item: any) => {
-  if (item.id) {
-    videoForm.relId = item.id
-    relName.value = item.name
-    handleRelChange(item.id, item)
-  } else {
-    videoForm.relId = ''
-    relName.value = ''
-  }
+const selectRel = async (item: any) => {
+  console.log('[selectRel] item:', item)
+  // 调用 handleRelChange 处理预设选择逻辑
+  await handleRelChange(item.id, item)
   relSelectorDialog.visible = false
-  ElMessage.success('已选择预设')
 }
 
-// 清空预设选择
 const clearRelSelection = () => {
   videoForm.relId = ''
   relName.value = ''
+  videoForm.previewImg = ''
   videoForm.label = ''
-  relSelectorDialog.visible = false
-  ElMessage.success('已清空预设')
+  relSelectorDialog.search = ''
+  ElMessage.success('已清空预设选择')
 }
 
 // 监听搜索框变化
