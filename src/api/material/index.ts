@@ -1,13 +1,13 @@
 import request from '/@/utils/request'
 
-// ===== 视频计划管理（A2EPlanVideoViews）相关接口 =====
+// ===== 视频计划管理（A2EPlanVideoViews）相关接�?=====
 
 /**
  * 分页查询视频计划
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回计划列表及分页信息
+ * @returns 返回计划列表及分页信�?
  */
 export function getPlanVideoList(page: number = 1, pageSize: number = 20, search: any = {}) {
     return request({
@@ -44,7 +44,7 @@ export function createPlanVideo(data: any) {
 }
 
 /**
- * 更新视频计划（可直接使用createPlanVideo with id）
+ * 更新视频计划（可直接使用createPlanVideo with id�?
  * @param id 计划ID
  * @param data 计划数据
  * @returns 更新结果
@@ -84,7 +84,7 @@ export function validatePlanVideoName(name: string) {
     })
 }
 
-// ===== 计划视频任务（A2EPlanVideoTaskViews）相关接口 =====
+// ===== 计划视频任务（A2EPlanVideoTaskViews）相关接�?=====
 
 /**
  * 创建/修改视频任务
@@ -113,7 +113,7 @@ export function deletePlanVideoTask(id: number | string) {
 }
 
 /**
- * 获取所有视频任务
+ * 获取所有视频任�?
  * @returns 任务列表
  */
 export function getAllPlanVideoTasks() {
@@ -180,7 +180,7 @@ export function startPlanVideoTask(taskId: number | string) {
 }
 
 /**
- * 批量启动计划下的所有任务
+ * 批量启动计划下的所有任�?
  * @param planId 计划ID
  * @returns 批量启动结果
  */
@@ -223,7 +223,7 @@ export function getRelations() {
 
 /**
  * 创建声音克隆任务
- * @param formData FormData 对象，包含 file, name, gender, language, model
+ * @param formData FormData 对象，包�?file, name, gender, language, model
  * @returns 返回任务ID
  */
 export function createVoiceTask(formData: FormData) {
@@ -242,7 +242,7 @@ export function createVoiceTask(formData: FormData) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getVoiceTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -258,7 +258,7 @@ export function getVoiceTaskList(page: number = 1, pageSize: number = 20, search
 
 /**
  * 查询所有声音克隆任务（不分页）
- * @returns 返回所有任务列表
+ * @returns 返回所有任务列�?
  */
 export function getAllVoiceTasks() {
     return request({
@@ -280,7 +280,7 @@ export function getVoiceTaskById(id: number) {
 }
 
 /**
- * 删除声音克隆任务（逻辑删除）
+ * 删除声音克隆任务（逻辑删除�?
  * @param id 任务ID
  * @returns 返回删除结果
  */
@@ -307,11 +307,11 @@ export function validateVoiceTaskName(name: string) {
     })
 }
 
-// ===== 数字人相关接口 =====
+// ===== 数字人相关接�?=====
 
 /**
- * 创建数字人任务
- * @param formData FormData 对象，包含 file, name, gender, model, language, positivePrompt, negativePrompt
+ * 创建数字人任�?
+ * @param formData FormData 对象，包�?file, name, gender, model, language, positivePrompt, negativePrompt
  * @returns 返回任务ID
  */
 export function createDigitalHumanTask(formData: FormData) {
@@ -326,11 +326,11 @@ export function createDigitalHumanTask(formData: FormData) {
 }
 
 /**
- * 分页查询数字人任务
+ * 分页查询数字人任�?
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getDigitalHumanTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -345,7 +345,7 @@ export function getDigitalHumanTaskList(page: number = 1, pageSize: number = 20,
 }
 
 /**
- * 获取数字人任务统计
+ * 获取数字人任务统�?
  * @returns 返回 total, processing, waiting, completed
  */
 export function getDigitalHumanTaskStatistics() {
@@ -356,7 +356,7 @@ export function getDigitalHumanTaskStatistics() {
 }
 
 /**
- * 删除数字人任务（逻辑删除）
+ * 删除数字人任务（逻辑删除�?
  * @param id 任务ID
  * @returns 返回删除结果
  */
@@ -368,7 +368,7 @@ export function deleteDigitalHumanTask(id: number | string) {
 }
 
 /**
- * 分页查询数字人管理列表
+ * 分页查询数字人管理列�?
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
@@ -387,10 +387,10 @@ export function getDigitalHumanPaginateList(page: number = 1, pageSize: number =
 }
 
 /**
- * 更新数字人信息（本地数据）
+ * 更新数字人信息（本地数据�?
  * @param id 数字人ID
- * @param data 更新数据对象，包含 digital_human_name, title, cover_url, language, gender 等
- * @returns 返回更新后的数字人信息
+ * @param data 更新数据对象，包�?digital_human_name, title, cover_url, language, gender �?
+ * @returns 返回更新后的数字人信�?
  */
 export function updateDigitalHuman(id: number | string, data: any) {
     return request({
@@ -406,7 +406,7 @@ export function updateDigitalHuman(id: number | string, data: any) {
 /**
  * 更新声音信息
  * @param id 声音ID
- * @param data 更新数据对象，包含 voice_name, title, url 等
+ * @param data 更新数据对象，包�?voice_name, title, url �?
  * @returns 返回更新后的声音信息
  */
 export function updateVoice(id: number | string, data: any) {
@@ -433,7 +433,7 @@ export function deleteVoice(id: number | string) {
 }
 
 /**
- * 删除数字人素材
+ * 删除数字人素�?
  * @param id 数字人ID
  * @returns 返回删除结果
  */
@@ -447,7 +447,7 @@ export function deleteDigitalHuman(id: number | string) {
 // ===== 标签管理接口 =====
 
 /**
- * 获取当前用户可见的标签分组
+ * 获取当前用户可见的标签分�?
  * @returns 按层级分组的标签数据
  */
 export function getUserVisibleLabelGroups() {
@@ -537,11 +537,11 @@ export function topLabel(id: number | string) {
     })
 }
 
-// ===== 快速生成相关接口 =====
+// ===== 快速生成相关接�?=====
 
 /**
- * 创建快速生成任务
- * @param formData FormData 对象，包含 file, name, title, gender
+ * 创建快速生成任�?
+ * @param formData FormData 对象，包�?file, name, title, gender
  * @returns 返回任务ID
  */
 export function createFastTask(formData: FormData) {
@@ -556,11 +556,11 @@ export function createFastTask(formData: FormData) {
 }
 
 /**
- * 分页查询快速生成任务
+ * 分页查询快速生成任�?
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getFastTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -575,7 +575,7 @@ export function getFastTaskList(page: number = 1, pageSize: number = 20, search?
 }
 
 /**
- * 校验数字人任务名称是否可用
+ * 校验数字人任务名称是否可�?
  * @param name 名称
  * @returns 返回可用性与推荐名称
  */
@@ -591,7 +591,7 @@ export function validateDigitalHumanTaskName(name: string) {
 }
 
 /**
- * 删除快速生成任务（逻辑删除）
+ * 删除快速生成任务（逻辑删除�?
  * @param id 任务ID
  * @returns 返回删除结果
  */
@@ -603,7 +603,7 @@ export function deleteFastTask(id: number | string) {
 }
 
 /**
- * 获取快速生成任务详情
+ * 获取快速生成任务详�?
  * @param id 任务ID
  * @returns 返回任务详情
  */
@@ -618,7 +618,7 @@ export function getFastTaskDetail(id: number | string) {
 
 /**
  * 创建视频生成任务
- * @param formData FormData 对象，包含 title, msg, voice_id, digital_human_id, language, speechRate, anchor_type, isSkipRs, video_cover_url, user_group等
+ * @param formData FormData 对象，包�?title, msg, voice_id, digital_human_id, language, speechRate, anchor_type, isSkipRs, video_cover_url, user_group�?
  * @returns 返回任务ID
  */
 /**
@@ -651,7 +651,7 @@ export function createVideoTask(formData: FormData) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getVideoTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -667,7 +667,7 @@ export function getVideoTaskList(page: number = 1, pageSize: number = 20, search
 
 /**
  * 查询所有视频生成任务（不分页）
- * @returns 返回所有任务列表
+ * @returns 返回所有任务列�?
  */
 export function getAllVideoTasks() {
     return request({
@@ -700,12 +700,12 @@ export function deleteVideoTask(id: number | string) {
     })
 }
 
-// ===== 数字人相关接口 =====
+// ===== 数字人相关接�?=====
 
 /**
  * 获取数字人列表（用于选择数字人形象）
  * @param name 数字人名称搜索关键词（可选）
- * @returns 返回数字人列表
+ * @returns 返回数字人列�?
  */
 export function getDigitalHumanList(name?: string) {
     return request({
@@ -720,7 +720,7 @@ export function getDigitalHumanList(name?: string) {
 // ===== 音频/配音相关接口 =====
 
 /**
- * 获取音频列表（用于配音选择）
+ * 获取音频列表（用于配音选择�?
  * @param name 音频名称搜索关键词（可选）
  * @returns 返回音频列表
  */
@@ -737,7 +737,7 @@ export function getVoiceList(name?: string) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回音频列表及分页信息
+ * @returns 返回音频列表及分页信�?
  */
 export function getVoicePaginateList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -758,7 +758,7 @@ export function getVoicePaginateList(page: number = 1, pageSize: number = 20, se
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象（title, voiceName, digitalHumanName等）
- * @returns 返回绑定关系列表及分页信息
+ * @returns 返回绑定关系列表及分页信�?
  */
 export function getBindingList(page: number = 1, pageSize: number = 10, search?: any) {
     return request({
@@ -840,7 +840,7 @@ export function createScriptHistory(data: any) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回历史脚本列表及分页信息
+ * @returns 返回历史脚本列表及分页信�?
  */
 export function getScriptHistoryList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -855,8 +855,8 @@ export function getScriptHistoryList(page: number = 1, pageSize: number = 20, se
 }
 
 /**
- * 获取所有历史脚本
- * @returns 返回所有历史脚本列表
+ * 获取所有历史脚�?
+ * @returns 返回所有历史脚本列�?
  */
 export function getAllScriptHistory() {
     return request({
@@ -894,10 +894,10 @@ export function updateScriptHistory(taskId: number | string, data: any) {
     })
 }
 
-// ===== 脚本库相关接口 =====
+// ===== 脚本库相关接�?=====
 
 /**
- * 创建脚本库
+ * 创建脚本�?
  * @param data 包含 script_title, script_content, script_tags, create_user_id, user_id_group
  * @returns 返回创建/更新后的脚本
  */
@@ -913,7 +913,7 @@ export function createScript(data: any) {
 }
 
 /**
- * 更新脚本库
+ * 更新脚本�?
  * @param scriptId 脚本ID
  * @param data 包含 script_title, script_content, script_tags
  * @returns 返回更新后的脚本
@@ -930,7 +930,7 @@ export function updateScript(scriptId: number | string, data: any) {
 }
 
 /**
- * 删除脚本库
+ * 删除脚本�?
  * @param scriptId 脚本ID
  * @returns 返回删除结果
  */
@@ -944,7 +944,7 @@ export function deleteScript(scriptId: number | string) {
 /**
  * 将脚本设置为组内公开
  * @param scriptIds 脚本ID数组
- * @param groupCode 组代码
+ * @param groupCode 组代�?
  * @returns 返回操作结果
  */
 export function makeScriptGroupPublic(scriptIds: (number | string)[], groupCode: string) {
@@ -962,7 +962,7 @@ export function makeScriptGroupPublic(scriptIds: (number | string)[], groupCode:
 
 /**
  * 创建配音任务（文案生成音频）
- * @param data 请求数据对象，包含 dubbing_name, msg, voice_external_id, country, speechRate
+ * @param data 请求数据对象，包�?dubbing_name, msg, voice_external_id, country, speechRate
  * @returns 返回任务ID
  */
 export function createDubbingTask(data: any) {
@@ -978,7 +978,7 @@ export function createDubbingTask(data: any) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getDubbingTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -1004,7 +1004,7 @@ export function deleteDubbingTask(id: number | string) {
     })
 }
 /**
- * 获取单个配音任务的详细信息及状态
+ * 获取单个配音任务的详细信息及状�?
  * @param id 任务ID
  * @returns 返回任务详情
  */
@@ -1015,7 +1015,7 @@ export function getDubbingTaskDetail(id: number | string) {
     })
 }
 /**
- * 检查配音名称是否有效（是否重复）
+ * 检查配音名称是否有效（是否重复�?
  * @param dubbingName 配音名称
  * @returns 返回检查结果，is_valid: true表示有效，false表示重复
  */
@@ -1031,7 +1031,7 @@ export function checkDubbingName(dubbingName: string) {
 
 /**
  * 获取所有脚本库
- * @returns 返回所有脚本列表
+ * @returns 返回所有脚本列�?
  */
 export function getAllScripts() {
     return request({
@@ -1041,7 +1041,7 @@ export function getAllScripts() {
 }
 
 /**
- * 按ID获取脚本库
+ * 按ID获取脚本�?
  * @param scriptId 脚本ID
  * @returns 返回单个脚本详情
  */
@@ -1053,9 +1053,9 @@ export function getScriptById(scriptId: number | string) {
 }
 
 /**
- * 按标签查询脚本库（POST方式）
+ * 按标签查询脚本库（POST方式�?
  * @param tags 标签列表
- * @returns 返回匹配标签的脚本列表
+ * @returns 返回匹配标签的脚本列�?
  */
 export function getScriptsByTags(tags: string[]) {
     return request({
@@ -1068,11 +1068,11 @@ export function getScriptsByTags(tags: string[]) {
 }
 
 /**
- * 分页查询脚本库
+ * 分页查询脚本�?
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象
- * @returns 返回脚本列表及分页信息
+ * @returns 返回脚本列表及分页信�?
  */
 export function getScriptPaginateList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -1126,7 +1126,7 @@ export function createSubtitleRemoveTask(formData: FormData) {
 }
 
 /**
- * 检查字幕消除任务标题是否重复
+ * 检查字幕消除任务标题是否重�?
  * @param title 标题名称
  * @returns { is_valid, title, recommended_name }
  */
@@ -1144,7 +1144,7 @@ export function checkSubtitleRemoveTitle(title: string) {
  * @param page 页码（从1开始）
  * @param pageSize 每页大小
  * @param search 搜索条件对象（taskStatus 等）
- * @returns 返回任务列表及分页信息
+ * @returns 返回任务列表及分页信�?
  */
 export function getSubtitleRemoveTaskList(page: number = 1, pageSize: number = 20, search?: any) {
     return request({
@@ -1193,7 +1193,7 @@ export function createCornerMarkTask(data: FormData) {
 }
 
 /**
- * 批量创建视频角标任务（文件夹上传）
+ * 批量创建视频角标任务（文件夹上传�?
  */
 export function createCornerMarkBatchTask(data: FormData) {
     return request({
@@ -1206,7 +1206,7 @@ export function createCornerMarkBatchTask(data: FormData) {
 
 // ===== PromptWord / PromptTemplate 相关接口 =====
 
-/** 获取当前用户分组提示词 */
+/** 获取当前用户分组提示�?*/
 export function getPromptWordGroupedByUser() {
     return request({
         url: '/api/material/prompt-word/all/grouped/by-user/',
@@ -1214,7 +1214,7 @@ export function getPromptWordGroupedByUser() {
     })
 }
 
-/** 获取分组提示词 */
+/** 获取分组提示�?*/
 export function getPromptWordGrouped() {
     return request({
         url: '/api/material/prompt-word/all/grouped/',
@@ -1222,7 +1222,7 @@ export function getPromptWordGrouped() {
     })
 }
 
-/** 创建提示词 */
+/** 创建提示�?*/
 export function createPromptWord(data: {
     name: string
     content: string
@@ -1237,7 +1237,7 @@ export function createPromptWord(data: {
     })
 }
 
-/** 获取当前用户分组提示词模板 */
+/** 获取当前用户分组提示词模�?*/
 export function getPromptTemplateGroupedByUser() {
     return request({
         url: '/api/material/prompt-template/all/grouped/by-user/',
@@ -1245,7 +1245,7 @@ export function getPromptTemplateGroupedByUser() {
     })
 }
 
-/** 获取分组提示词模板 */
+/** 获取分组提示词模�?*/
 export function getPromptTemplateGrouped() {
     return request({
         url: '/api/material/prompt-template/all/grouped/',
@@ -1253,7 +1253,7 @@ export function getPromptTemplateGrouped() {
     })
 }
 
-/** 创建提示词模板 */
+/** 创建提示词模�?*/
 export function createPromptTemplate(data: {
     name: string
     positive_content: string
@@ -1269,7 +1269,7 @@ export function createPromptTemplate(data: {
 }
 
 /**
- * 检查角标任务标题是否重复
+ * 检查角标任务标题是否重�?
  */
 export function checkCornerMarkTaskTitle(title: string) {
     return request({
@@ -1303,7 +1303,7 @@ export function getCornerMarkBatchTaskList(page: number = 1, pageSize: number = 
 }
 
 /**
- * 查询角标批量任务明细（子任务）
+ * 查询角标批量任务明细（子任务�?
  */
 export function getCornerMarkBatchTaskDetail(id: number | string, page: number = 1, pageSize: number = 10) {
     return request({
@@ -1324,9 +1324,9 @@ export function deleteCornerMarkTask(id: number | string) {
 }
 
 /**
- * 获取视频字幕预览帧（后端渲染）
- * @param data 支持传 video_url（由后端提取首帧）或 frame_base64（直接作为背景帧），以及字幕样式参数
- * @returns 返回 base64 渲染结果图
+ * 获取视频字幕预览帧（后端渲染�?
+ * @param data 支持�?video_url（由后端提取首帧）或 frame_base64（直接作为背景帧），以及字幕样式参数
+ * @returns 返回 base64 渲染结果�?
  */
 export function getSubtitlePreviewFrame(data: {
     video_url?: string
@@ -1373,7 +1373,7 @@ export function downloadFileByProxy(fileUrl: string) {
 
 // ===== 字幕模板 (SubtitleTemplate) 相关接口 =====
 
-/** 获取当前用户所有字幕模板 */
+/** 获取当前用户所有字幕模�?*/
 export function getSubtitleTemplateAll() {
     return request({
         url: '/api/material/subtitle-template/all/',
@@ -1401,7 +1401,7 @@ export function updateSubtitleTemplate(data: { id: number; subtitleTemplateName?
     })
 }
 
-/** 删除字幕模板（逻辑删除） */
+/** 删除字幕模板（逻辑删除�?*/
 export function deleteSubtitleTemplate(id: number) {
     return request({
         url: '/api/material/subtitle-template/delete/',
@@ -1419,7 +1419,7 @@ export function getRecentCornerMarks() {
     })
 }
 
-/** 记录用户选择的角标 */
+/** 记录用户选择的角�?*/
 export function recordRecentCornerMark(cornerMarkId: number | string) {
     return request({
         url: '/api/material/corner-mark/record-recent/',
@@ -1428,3 +1428,21 @@ export function recordRecentCornerMark(cornerMarkId: number | string) {
         headers: { 'Content-Type': 'application/json;charset=UTF-8' }
     })
 }
+
+// ===== ������� (TestBannerOverlay) ��ؽӿ� =====
+
+/** ������ӳ�ʼ�� */
+export function bannerOverlayInit(data: { background_url: string; overlay_url: string; default_scale?: number }) {
+    return request({ url: '/api/material/banner-overlay/init/', method: 'post', data, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
+}
+
+/** �������Ԥ�� */
+export function bannerOverlayPreview(data: { background_base64: string; overlay_base64: string; x?: number; y?: number; scale_x?: number; scale_y?: number; rotate?: number; opacity?: number }) {
+    return request({ url: '/api/material/banner-overlay/preview/', method: 'post', data, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
+}
+
+/** ������ӱ��� */
+export function bannerOverlaySave(data: { background_base64: string; overlay_base64: string; x?: number; y?: number; scale_x?: number; scale_y?: number; rotate?: number; opacity?: number; file_name?: string; title?: string; background_url?: string; overlay_url?: string }) {
+    return request({ url: '/api/material/banner-overlay/save/', method: 'post', data, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
+}
+

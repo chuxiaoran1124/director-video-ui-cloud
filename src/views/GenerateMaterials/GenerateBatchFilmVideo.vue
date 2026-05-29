@@ -924,8 +924,8 @@
         <el-form-item label="文件夹名称" required>
           <el-input v-model="folderForm.name" placeholder="请输入文件夹名称" />
         </el-form-item>
-        <el-form-item label="存储路径" required>
-          <el-input v-model="folderForm.path" placeholder="如：/videos/clip/my-folder/" />
+        <el-form-item label="存储路径">
+          <el-input v-model="folderForm.path" placeholder="由后端自动维护" disabled />
         </el-form-item>
         <el-form-item label="备注">
           <el-input type="textarea" v-model="folderForm.remark" :rows="2" placeholder="可选备注" />
@@ -1109,8 +1109,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '/@/utils/request'
 import {
   Plus, VideoPlay, VideoPause, VideoCamera, Connection, Folder, FolderOpened,
   Document, DArrowRight, Tickets, MoreFilled, ArrowLeft, QuestionFilled, InfoFilled,
@@ -1218,6 +1219,7 @@ interface FolderVideo {
   size?: string
   source: 'generated' | 'uploaded'
   createTime: string
+  fileUrl?: string
 }
 
 // ===== 常量 =====
@@ -1717,79 +1719,54 @@ const saveSingleGenConfig = () => {
   ElMessage.success('保存成功')
 }
 
-// ===== 假视频数据映射（按文件夹ID） =====
-const mockVideosByFolder: Record<number | string, FolderVideo[]> = {
-  1: [
-    { id: 'v1-1', name: 'main_001_爆款开场白_张雯.mp4', duration: '0:32', size: '128 MB', source: 'generated', createTime: '2026-04-12 10:23' },
-    { id: 'v1-2', name: 'main_002_产品展示_李明.mp4', duration: '0:45', size: '213 MB', source: 'generated', createTime: '2026-04-12 11:05' },
-    { id: 'v1-3', name: 'main_003_价格对比_张雯.mp4', duration: '0:28', size: '98 MB', source: 'generated', createTime: '2026-04-13 09:12' },
-    { id: 'v1-4', name: 'main_004_用户评价合集.mp4', duration: '1:10', size: '356 MB', source: 'uploaded', createTime: '2026-04-10 14:30' },
-    { id: 'v1-5', name: 'main_005_促销倒计时_李明.mp4', duration: '0:15', size: '54 MB', source: 'generated', createTime: '2026-04-13 16:40' },
-    { id: 'v1-6', name: 'main_006_功能演示.mp4', duration: '2:05', size: '512 MB', source: 'uploaded', createTime: '2026-04-09 11:20' },
-    { id: 'v1-7', name: 'main_007_开箱体验_张雯.mp4', duration: '0:55', size: '267 MB', source: 'generated', createTime: '2026-04-14 08:55' },
-    { id: 'v1-8', name: 'main_008_品牌背书.mp4', duration: '0:20', size: '72 MB', source: 'uploaded', createTime: '2026-04-11 17:00' },
-  ],
-  2: [
-    { id: 'v2-1', name: 'backup_001_备用开场.mp4', duration: '0:18', size: '65 MB', source: 'uploaded', createTime: '2026-04-05 09:30' },
-    { id: 'v2-2', name: 'backup_002_产品特写_王芳.mp4', duration: '0:30', size: '115 MB', source: 'generated', createTime: '2026-04-06 14:20' },
-    { id: 'v2-3', name: 'backup_003_场景演示.mp4', duration: '1:20', size: '398 MB', source: 'uploaded', createTime: '2026-04-04 10:10' },
-    { id: 'v2-4', name: 'backup_004_限时优惠_王芳.mp4', duration: '0:22', size: '80 MB', source: 'generated', createTime: '2026-04-07 15:45' },
-    { id: 'v2-5', name: 'backup_005_品质保障.mp4', duration: '0:40', size: '185 MB', source: 'uploaded', createTime: '2026-04-03 11:00' },
-  ],
-  3: [
-    { id: 'v3-1', name: 'newprod_001_新品亮相_陈晨.mp4', duration: '0:35', size: '142 MB', source: 'generated', createTime: '2026-04-01 10:00' },
-    { id: 'v3-2', name: 'newprod_002_技术解析.mp4', duration: '1:45', size: '480 MB', source: 'uploaded', createTime: '2026-03-30 14:00' },
-    { id: 'v3-3', name: 'newprod_003_上市预热_陈晨.mp4', duration: '0:28', size: '96 MB', source: 'generated', createTime: '2026-04-02 09:30' },
-  ],
-  4: [
-    { id: 'v4-1', name: 'seasonal_001_春季上新.mp4', duration: '0:42', size: '198 MB', source: 'uploaded', createTime: '2026-03-25 10:00' },
-    { id: 'v4-2', name: 'seasonal_002_换季推荐_刘倩.mp4', duration: '0:33', size: '134 MB', source: 'generated', createTime: '2026-03-26 11:30' },
-    { id: 'v4-3', name: 'seasonal_003_清仓特卖.mp4', duration: '0:25', size: '89 MB', source: 'uploaded', createTime: '2026-03-28 15:00' },
-  ],
-  5: [
-    { id: 'v5-1', name: 'skincare_001_成分讲解_孙丽.mp4', duration: '1:00', size: '290 MB', source: 'generated', createTime: '2026-04-09 10:30' },
-    { id: 'v5-2', name: 'skincare_002_使用教程_孙丽.mp4', duration: '1:30', size: '420 MB', source: 'generated', createTime: '2026-04-09 12:00' },
-    { id: 'v5-3', name: 'skincare_003_效果对比.mp4', duration: '0:50', size: '230 MB', source: 'uploaded', createTime: '2026-04-08 16:00' },
-    { id: 'v5-4', name: 'skincare_004_明星同款_孙丽.mp4', duration: '0:38', size: '162 MB', source: 'generated', createTime: '2026-04-10 09:00' },
-  ],
-  6: [],
-  7: [
-    { id: 'v7-1', name: 'tech_001_参数对比_赵强.mp4', duration: '2:10', size: '620 MB', source: 'generated', createTime: '2026-04-19 08:45' },
-    { id: 'v7-2', name: 'tech_002_实测跑分.mp4', duration: '3:00', size: '890 MB', source: 'uploaded', createTime: '2026-04-18 17:00' },
-    { id: 'v7-3', name: 'tech_003_颜值展示_赵强.mp4', duration: '0:45', size: '215 MB', source: 'generated', createTime: '2026-04-19 10:20' },
-  ],
-}
-
 // ===== 剪辑文件夹 - 产品树形结构 =====
+const ROOT_PRODUCT_ID = 'material-root'
 const accountProducts = ref<ClipProduct[]>([
-  {
-    id: 'p1', name: '熊宝堂',
-    folders: [
-      { id: 1, name: '主力素材库', path: '/videos/xiongbao/main/', videoCount: 45, generatedCount: 32, size: '12.3 GB', updateTime: '2026-04-14' },
-      { id: 2, name: '备用素材库', path: '/videos/xiongbao/backup/', videoCount: 18, generatedCount: 10, size: '5.1 GB', updateTime: '2026-04-07' },
-      { id: 3, name: '新品推广-Q2', path: '/videos/xiongbao/new-product/', videoCount: 8, generatedCount: 8, size: '2.3 GB', updateTime: '2026-04-02' },
-    ],
-  },
-  {
-    id: 'p2', name: '龙牙',
-    folders: [
-      { id: 4, name: '换季专题素材', path: '/videos/longya/seasonal/', videoCount: 25, generatedCount: 12, size: '6.8 GB', updateTime: '2026-03-28' },
-      { id: 5, name: '护肤品系列', path: '/videos/longya/skincare/', videoCount: 20, generatedCount: 20, size: '7.2 GB', updateTime: '2026-04-10' },
-    ],
-  },
-  {
-    id: 'p3', name: '秋冬时尚',
-    folders: [
-      { id: 6, name: '秋冬服装新品', path: '/videos/fashion/new/', videoCount: 0, generatedCount: 0, size: '0 MB', updateTime: '2026-04-15' },
-      { id: 7, name: '数码3C专场', path: '/videos/fashion/tech/', videoCount: 33, generatedCount: 6, size: '9.5 GB', updateTime: '2026-04-19' },
-    ],
-  },
+  { id: ROOT_PRODUCT_ID, name: '媒体库剪辑文件夹', folders: [] },
 ])
 
 // 所有文件夹的扁平化（用于 el-select 下拉 等）
 const folderList = computed(() =>
   accountProducts.value.flatMap(p => p.folders)
 )
+
+const formatDateTime = (raw?: string) => {
+  if (!raw) return ''
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
+  return d.toLocaleString('zh-CN', { hour12: false })
+}
+
+const mapFolderFromApi = (item: any): ClipFolder => ({
+  id: item.id,
+  name: item.folderName || item.folder_name || `文件夹-${item.id}`,
+  path: item.folderPath || item.folder_path || '/',
+  videoCount: Number(item.videoCount ?? item.video_count ?? 0),
+  generatedCount: Number(item.generatedCount ?? item.generated_count ?? 0),
+  size: item.size || '0 MB',
+  updateTime: formatDateTime(item.updateTime || item.update_time || item.createTime || item.create_time),
+  remark: item.remark || '',
+})
+
+const loadMaterialFolders = async () => {
+  try {
+    const res = await request({
+      url: '/api/material/folder/list/',
+      method: 'get',
+      params: { parentId: 0 },
+    })
+    const data = Array.isArray(res?.data?.data) ? res.data.data : []
+    accountProducts.value = [{
+      id: ROOT_PRODUCT_ID,
+      name: '媒体库剪辑文件夹',
+      folders: data.map(mapFolderFromApi),
+    }]
+    if (!selectedProductId.value) selectedProductId.value = ROOT_PRODUCT_ID
+  } catch (error) {
+    console.error('loadMaterialFolders failed:', error)
+    ElMessage.error('加载剪辑文件夹失败')
+  }
+}
 
 // 树形控件数据
 const clipTreeData = computed<ClipTreeNode[]>(() => [
@@ -1946,10 +1923,35 @@ const filteredFolderVideos = computed(() => {
   return currentFolderVideos.value.filter(v => v.name.includes(folderSearch.value))
 })
 
-const handleViewFolder = (folder: ClipFolder) => {
+const currentViewingFolderId = ref<number | string | null>(null)
+
+const handleViewFolder = async (folder: ClipFolder) => {
   folderSearch.value = ''
-  currentFolderVideos.value = mockVideosByFolder[folder.id] ?? []
-  folderVideoTotal.value = currentFolderVideos.value.length
+  currentViewingFolderId.value = folder.id
+  try {
+    const res = await request({
+      url: '/api/material/file/list/',
+      method: 'get',
+      params: { folderId: folder.id },
+    })
+    const data = Array.isArray(res?.data?.data) ? res.data.data : []
+    currentFolderVideos.value = data.map((item: any) => ({
+      id: item.id,
+      name: item.fileName || item.file_name || `文件-${item.id}`,
+      coverUrl: item.previewUrl || item.preview_url || '',
+      duration: item.duration ? `${item.duration}s` : '',
+      size: item.fileSize ? `${item.fileSize} B` : '',
+      source: 'uploaded',
+      createTime: formatDateTime(item.createTime || item.create_time || item.updateTime || item.update_time),
+      fileUrl: item.fileUrl || item.file_url || '',
+    }))
+    folderVideoTotal.value = currentFolderVideos.value.length
+  } catch (error) {
+    console.error('handleViewFolder failed:', error)
+    currentFolderVideos.value = []
+    folderVideoTotal.value = 0
+    ElMessage.error('加载文件夹视频失败')
+  }
 }
 
 const previewVideo = (_video: FolderVideo) => {
@@ -1958,9 +1960,20 @@ const previewVideo = (_video: FolderVideo) => {
 
 const handleDeleteFolderVideo = (video: FolderVideo) => {
   ElMessageBox.confirm(`确定删除视频「${video.name}」？`, '提示', { type: 'warning' })
-    .then(() => {
+    .then(async () => {
+      await request({
+        url: '/api/material/file/delete/',
+        method: 'post',
+        data: { id: video.id },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+      })
       const idx = currentFolderVideos.value.findIndex(v => v.id === video.id)
       if (idx > -1) currentFolderVideos.value.splice(idx, 1)
+      folderVideoTotal.value = currentFolderVideos.value.length
+      if (currentViewingFolderId.value != null) {
+        const folder = folderList.value.find(f => f.id === currentViewingFolderId.value)
+        if (folder) folder.videoCount = Math.max(0, folder.videoCount - 1)
+      }
       ElMessage.success('删除成功')
     }).catch(() => {})
 }
@@ -1993,7 +2006,13 @@ const handleEditFolder = (folder: ClipFolder) => {
 
 const handleDeleteFolder = (folder: ClipFolder) => {
   ElMessageBox.confirm(`确定删除文件夹「${folder.name}」？此操作不会删除实际文件`, '提示', { type: 'warning' })
-    .then(() => {
+    .then(async () => {
+      await request({
+        url: '/api/material/folder/delete/',
+        method: 'post',
+        data: { id: folder.id },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+      })
       for (const prod of accountProducts.value) {
         const idx = prod.folders.findIndex(f => f.id === folder.id)
         if (idx > -1) { prod.folders.splice(idx, 1); break }
@@ -2006,27 +2025,30 @@ const handleDeleteFolder = (folder: ClipFolder) => {
 const submitFolder = () => {
   if (!folderForm.productId) return ElMessage.warning('请选择所属产品')
   if (!folderForm.name.trim()) return ElMessage.warning('请输入文件夹名称')
-  if (!folderForm.path.trim()) return ElMessage.warning('请输入存储路径')
-  const prod = accountProducts.value.find(p => p.id === folderForm.productId)
-  if (!prod) return ElMessage.warning('找不到对应产品')
-  if (folderDialog.isEdit && folderDialog.editId != null) {
-    const folder = prod.folders.find(f => f.id === folderDialog.editId) ??
-      accountProducts.value.flatMap(p => p.folders).find(f => f.id === folderDialog.editId)
-    if (folder) { folder.name = folderForm.name; folder.path = folderForm.path; folder.remark = folderForm.remark }
-  } else {
-    prod.folders.push({
-      id: Date.now(),
-      name: folderForm.name,
-      path: folderForm.path,
-      videoCount: 0,
-      generatedCount: 0,
-      size: '0 MB',
-      updateTime: new Date().toLocaleDateString('zh-CN'),
-      remark: folderForm.remark,
-    })
+  const doSubmit = async () => {
+    if (folderDialog.isEdit && folderDialog.editId != null) {
+      await request({
+        url: '/api/material/folder/rename/',
+        method: 'post',
+        data: { id: folderDialog.editId, folderName: folderForm.name },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+      })
+    } else {
+      await request({
+        url: '/api/material/folder/create/',
+        method: 'post',
+        data: { parentId: 0, folderName: folderForm.name },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+      })
+    }
+    await loadMaterialFolders()
+    folderDialog.visible = false
+    ElMessage.success('保存成功')
   }
-  folderDialog.visible = false
-  ElMessage.success('保存成功')
+  doSubmit().catch((error) => {
+    console.error('submitFolder failed:', error)
+    ElMessage.error('保存文件夹失败')
+  })
 }
 
 // ===== 批量生成至文件夹 =====
@@ -2052,6 +2074,10 @@ const submitBatchGenerate = () => {
   ElMessage.success(`批量生成任务已提交，完成后将自动存入「${batchGenDialog.folder?.name}」`)
   batchGenDialog.visible = false
 }
+
+onMounted(() => {
+  loadMaterialFolders()
+})
 
 // ===== 选项数据（TODO: 从 API 获取）=====
 const humanOptions = ref([

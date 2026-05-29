@@ -2011,17 +2011,32 @@ const submitProject = async () => {
 }
 
 const submitSubTask = async () => {
-  // 必填选择校验：数字人、配音
-  if (!subTaskForm.digital_human_id) {
-    ElMessage.warning('请选择数字人后再保存')
+  const taskName = (subTaskForm.name || '').trim()
+  if (!taskName) {
+    ElMessage.warning('????????')
     return
   }
-  if (!subTaskForm.voice_id) {
-    ElMessage.warning('请选择配音后再保存')
+  if (!subTaskForm.language) {
+    ElMessage.warning('???????')
     return
+  }
+  if (subTaskForm.useRel) {
+    if (!subTaskForm.relId) {
+      ElMessage.warning('???????')
+      return
+    }
+  } else {
+    if (!subTaskForm.digital_human_id) {
+      ElMessage.warning('??????')
+      return
+    }
+    if (!subTaskForm.voice_id) {
+      ElMessage.warning('?????')
+      return
+    }
   }
 
-  // 获取计划ID（从projectList中找到当前计划）
+  // ????ID??projectList????????
   const plan = projectList.value.find((p: any) => p.id === currentProject.value.id)
   if (!plan) {
     ElMessage.error('计划信息获取失败')
@@ -2034,7 +2049,7 @@ const submitSubTask = async () => {
   
   // 构造请求参数
   const params: any = {
-    title: subTaskForm.name,
+    title: taskName,
     msg: subTaskForm.script,
     plan_id: plan.id,
     voice_id: subTaskForm.voice_id || '',
@@ -2057,6 +2072,10 @@ const submitSubTask = async () => {
   if (subtitleSelector === 1) {
     // 角标：子任务优先，回退到计划
     const cornerMarkId = subTaskForm.cornerMark || plan.cornerMark || ''
+    if (!cornerMarkId) {
+      ElMessage.warning('???????????')
+      return
+    }
     if (cornerMarkId) {
       const cornerMarkItem = cornerMarkOptions.value.find((item: any) => item.id === cornerMarkId)
       if (cornerMarkItem?.photoUrl) {

@@ -234,6 +234,7 @@ const props = defineProps<{
   frameBase64: string
   scriptText?: string
   cornerMarkUrl?: string
+  bannerOverlayBase64?: string
 }>()
 
 const emit = defineEmits<{
@@ -474,6 +475,7 @@ const requestBackendPreview = () => {
         frame_base64: props.frameBase64,
         preview_text: previewText.value,
         corner_mark_url: props.cornerMarkUrl || '',
+        banner_overlay_base64: props.bannerOverlayBase64 || '',
         subtitle_config: {
           font_size: config.font_size,
           margin_v: config.margin_v,
@@ -488,7 +490,7 @@ const requestBackendPreview = () => {
           bg_colour: config.bg_colour,
           blur_subtitles: config.bg_mode === 'blur',
         },
-      })
+      } as any)
       const data = res.data?.data || res.data
       console.log('[SubtitlePreview] 接口返回:', data)
       if (data?.frame_base64) {
@@ -521,6 +523,10 @@ watch(() => props.frameBase64, (val) => {
 
 // 监听角标 URL 变化 → 重新渲染
 watch(() => props.cornerMarkUrl, () => {
+  requestBackendPreview()
+})
+
+watch(() => props.bannerOverlayBase64, () => {
   requestBackendPreview()
 })
 
