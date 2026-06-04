@@ -1,8 +1,8 @@
-<template>
+﻿<template>
   <div class="generate-video p-6 bg-gray-50 min-h-full">
-    <!-- 列表页面 -->
+    <!-- 鍒楄〃椤甸潰 -->
     <div v-if="!showCreate" class="max-w-[1200px] mx-auto">
-      <!-- 顶部标题 -->
+      <!-- 椤堕儴鏍囬 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
         <div>
           <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
@@ -14,9 +14,9 @@
         </el-button>
       </div>
 
-      <!-- 任务列表 -->
+      <!-- 浠诲姟鍒楄〃 -->
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <!-- 搜索和批量操作 -->
+        <!-- 鎼滅储鍜屾壒閲忔搷浣?-->
         <div class="mb-6 flex items-center justify-between gap-4">
           <div class="flex items-center gap-3 flex-1">
             <el-input 
@@ -131,7 +131,7 @@
           </el-table-column>
         </el-table>
 
-        <!-- 分页 -->
+        <!-- 鍒嗛〉 -->
         <div class="mt-4 flex justify-end">
           <el-pagination
             v-model:current-page="videoTaskPage"
@@ -147,9 +147,9 @@
       </div>
     </div>
 
-    <!-- 创建/编辑页面 -->
+    <!-- 鍒涘缓/缂栬緫椤甸潰 -->
     <div v-else class="max-w-[1400px] mx-auto">
-      <!-- 顶部标题 -->
+      <!-- 椤堕儴鏍囬 -->
       <div class="bg-white px-5 py-3 rounded-xl shadow-sm relative border border-gray-100 mb-4">
         <div class="w-full">
           <el-button @click="showCreate = false" icon="el-icon-arrow-left" class="mb-2">返回列表</el-button>
@@ -161,11 +161,11 @@
       </div>
 
       <div class="flex gap-6">
-      <!-- 左侧制作区 -->
+      <!-- 宸︿晶鍒朵綔鍖?-->
       <div class="flex-1 space-y-4">
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 h-full">
           <el-form :model="videoForm" label-width="100px" label-position="top">
-                        <!-- 渠道与配置方式 -->
+                        <!-- 娓犻亾涓庨厤缃柟寮?-->
             <el-row :gutter="20">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
@@ -207,7 +207,7 @@
             <el-row :gutter="20" class="mt-2">
               <el-col :span="12">
                 <el-form-item class="!mb-2">
-                  <!-- 数字人选择器 -->
+                  <!-- 鏁板瓧浜洪€夋嫨鍣?-->
                   <div class="flex items-center gap-2">
                     <span class="text-red-500 text-base leading-none">*</span>
                     <el-input 
@@ -229,7 +229,7 @@
               </el-col>
                             <el-col :span="12">
                 <el-form-item class="!mb-2">
-                  <!-- 配音选择器 -->
+                  <!-- 閰嶉煶閫夋嫨鍣?-->
                   <div class="flex gap-2">
                     <span class="text-red-500 text-base leading-none self-center">*</span>
                     <el-input 
@@ -250,7 +250,7 @@
                     </el-input>
                     <el-button v-if="videoForm.voice && videoForm.voiceUrl && videoForm.mode === 0" type="primary" plain icon="el-icon-headset" @click="playVoice(videoForm.voiceUrl, videoForm.voice)">试听</el-button>
                   </div>
-                  <span v-if="videoForm.mode === 1" class="text-xs text-gray-400 ml-2">音频驱动模式下无需选择配音，系统将使用您上传的音频</span>
+                  <span v-if="videoForm.mode === 1" class="text-xs text-gray-400 ml-2">音频驱动模式下无需选择配音，系统将使用你上传的音频</span>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -258,7 +258,7 @@
                         <el-row v-if="videoForm.mode === 0" :gutter="20" class="mt-2">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
-                  <!-- 快捷预设选择器 -->
+                  <!-- 蹇嵎棰勮閫夋嫨鍣?-->
                   <div class="flex items-center gap-2">
                     <span class="text-transparent text-base leading-none">*</span>
                     <el-input 
@@ -300,7 +300,7 @@
                           </el-col>
                         </el-row>
 
-            <!-- 角标选择 -->
+            <!-- 瑙掓爣閫夋嫨 -->
                         <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
@@ -323,7 +323,7 @@
                         </template>
                       </el-input>
                     </div>
-                    <!-- 近期快速选择 -->
+                    <!-- 杩戞湡蹇€熼€夋嫨 -->
                     <div v-if="recentCornerMarks.length > 0" class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-xs text-gray-400 whitespace-nowrap">近期：</span>
                       <el-tooltip
@@ -349,27 +349,52 @@
               </el-col>
             </el-row>
 
-                        <el-row>
+            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
               <el-col :span="24">
-                <div class="text-[11px] text-gray-400 mb-2 italic">
-                    <i class="el-icon-info"></i> 说明：选择预设后将自动覆盖上方的形象和配音选择。
-                </div>
+                <el-form-item class="!mb-2">
+                  <div class="flex items-start gap-3">
+                    <div class="flex items-center gap-2 flex-1">
+                      <el-input
+                        :model-value="currentBannerOverlayName"
+                        placeholder="点击搜索选择横幅"
+                        readonly
+                        style="cursor: pointer;"
+                        clearable
+                        @clear="selectedBannerOverlayId = ''; selectedBannerOverlayBase64 = ''"
+                        @click="openBannerOverlaySelector"
+                        class="flex-1"
+                      >
+                        <template #prepend>选择横幅</template>
+                        <template #append>
+                          <el-button icon="el-icon-search" @click.stop="openBannerOverlaySelector" />
+                        </template>
+                      </el-input>
+                    </div>
+                  </div>
+                </el-form-item>
               </el-col>
             </el-row>
 
-            <!-- 标题部分 -->
+                        <el-row>
+              <el-col :span="24">
+                <div class="text-[11px] text-gray-400 mb-2 italic">
+                    <i class="el-icon-info"></i> 说明：选择预设后将自动覆盖上方的形象和配音选择。                </div>
+              </el-col>
+            </el-row>
+
+            <!-- 鏍囬閮ㄥ垎 -->
             <div class="mt-2">
               <el-form-item class="!mb-2">
                 <template #label>
                   <div class="flex items-center gap-2">
                     <span class="text-gray-700"><span class="text-red-500">*</span> 视频标题</span>
                     <el-button size="small" plain @click="fillDefaultTitle">默认</el-button>
-                    <span class="text-xs text-gray-400">默认以"数字人+配音+时间戳"命名</span>
+                    <span class="text-xs text-gray-400">默认以“数字人+配音+时间戳”命名</span>
                   </div>
                 </template>
                 <el-input 
                   v-model="videoForm.title" 
-                  placeholder="留空点击「默认」自动生成标题"
+                  placeholder="留空点击“默认”自动生成标题"
                   maxlength="100"
                   show-word-limit
                   clearable
@@ -377,10 +402,10 @@
               </el-form-item>
             </div>
 
-            <!-- 上传文件夹 -->
+            <!-- 涓婁紶鏂囦欢澶?-->
                         <div class="mt-2">
                           <el-form-item class="!mb-2">
-                            <template #label><span class="text-gray-700">视频上传文件夹 <span class="text-xs text-gray-400">（共享文件夹存储路径）</span></span></template>
+                            <template #label><span class="text-gray-700">视频上传文件夹<span class="text-xs text-gray-400">（共享文件夹存储路径）</span></span></template>
                             <el-input
                               v-model="videoForm.filename"
                               placeholder="请输入文件夹名称，留空则使用默认路径"
@@ -389,7 +414,7 @@
                           </el-form-item>
                         </div>
 
-                        <!-- 文案模式：文案部分 -->
+                        <!-- 鏂囨妯″紡锛氭枃妗堥儴鍒?-->
                         <div v-if="videoForm.mode === 0" class="mt-2">
                           <div class="flex items-center justify-between mb-2">
                             <span class="text-gray-600 text-sm font-bold flex items-center gap-1">
@@ -409,16 +434,16 @@
                             class="script-input"
                           />
                           <div class="flex justify-between items-center mt-3">
-                            <div class="text-[11px] text-gray-400">
-                               当前字数：<span class="text-blue-500 font-bold">{{ videoForm.script.length }}</span> / 2000
-                            </div>
+                              <div class="text-[11px] text-gray-400">
+                                当前字数：<span class="text-blue-500 font-bold">{{ videoForm.script.length }}</span> / 2000
+                              </div>
                             <el-button size="mini" plain type="success" :disabled="!videoForm.script" @click="openSaveScriptDialog" icon="el-icon-folder-add">
                               转存至文案库
                             </el-button>
                           </div>
                         </div>
 
-                        <!-- 音频模式：上传音频 -->
+                        <!-- 闊抽妯″紡锛氫笂浼犻煶棰?-->
                         <div v-if="videoForm.mode === 1" class="mt-2">
                           <el-form-item class="!mb-2">
                             <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 上传音频文件</span></template>
@@ -460,10 +485,10 @@
         </div>
       </div>
 
-      <!-- 右侧预览与结果区 -->
+      <!-- 鍙充晶棰勮涓庣粨鏋滃尯 -->
       <div class="w-[440px] space-y-4">
                 <!-- 预览效果 -->
-        <!-- 文案竖版：字幕预览（即时渲染） -->
+        <!-- 鏂囨竖版锛氬瓧骞曢瑙堬紙鍗虫椂娓叉煋锛?-->
                 <div v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
@@ -473,26 +498,26 @@
                     :frame-base64="subtitlePreviewFrameBase64"
                     :script-text="videoForm.script"
                     :corner-mark-url="currentCornerMarkUrl"
+                    :banner-overlay-base64="selectedBannerOverlayBase64"
                     @update:config="handleSubtitleConfigUpdate"
                   />
                 </div>
-                <!-- 其他情况（横版 / 音频模式 / 竖版未开字幕）：直接显示数字人封面图 -->
+                <!-- 鍏朵粬鎯呭喌锛堟í鐗?/ 闊抽妯″紡 / 竖版鏈紑瀛楀箷锛夛細鐩存帴鏄剧ず鏁板瓧浜哄皝闈㈠浘 -->
                 <div v-if="!(videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0)" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
                   <div class="w-full rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center bg-gray-50" style="height: 300px;">
-                    <img v-if="currentDigitalHumanImg" :key="'prev-' + videoForm.mode + '-' + videoForm.digitalHuman" :src="currentDigitalHumanImg" class="w-full h-full object-contain" alt="数字人预览" @error="(e: any) => { e.target.style.display = 'none' }">
+                    <img v-if="currentDigitalHumanImg" :key="'prev-' + videoForm.mode + '-' + videoForm.digitalHuman" :src="currentDigitalHumanImg" class="w-full h-full object-contain" alt="数字人预览" @error="(e) => { e.target.style.display = 'none' }">
                     <span v-else class="text-gray-300 text-sm">尚未选择形象</span>
                   </div>
                   <p v-if="videoForm.digitalHuman" class="text-xs text-gray-400 mt-2 text-center">{{ videoForm.digitalHuman }}</p>
                 </div>
 
-        <!-- 任务状态与历史 -->
+        <!-- 浠诲姟鐘舵€佷笌鍘嗗彶 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 min-h-[300px]">
            <h3 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
-             <el-icon class="text-green-500"><el-icon-clock /></el-icon>执行状态
-          </h3>
+             <el-icon class="text-green-500"><el-icon-clock /></el-icon>执行状态          </h3>
           
           <div v-if="isGenerating" class="py-10 text-center animate-fade-in">
              <el-progress type="circle" :percentage="genProgress" status="success" :stroke-width="10"></el-progress>
@@ -508,7 +533,7 @@
                    </div>
                    <div>
                       <h4 class="font-bold text-sm">视频生成成功</h4>
-                      <p class="text-[10px] opacity-70">生成耗时：2分15秒</p>
+                      <p class="text-[10px] opacity-70">生成耗时：约 15 秒</p>
                    </div>
                 </div>
              </div>
@@ -520,16 +545,16 @@
 
           <div v-else class="py-20 text-center text-gray-300">
              <i class="el-icon-magic-stick text-5xl opacity-30"></i>
-             <p class="mt-4 text-xs">配置后点击下方生成的按钮开始制作</p>
+             <p class="mt-4 text-xs">配置后点击下方生成按钮开始制作</p>
           </div>
         </div>
       </div>
       </div>
     </div>
 
-    <!-- 文案库/历史记录选择器 -->
+    <!-- 鏂囨搴?鍘嗗彶璁板綍閫夋嫨鍣?-->
     <el-dialog :title="scriptSelector.title" v-model="scriptSelector.visible" width="900px" append-to-body @open="onDialogOpen">
-      <!-- 库模式 -->
+      <!-- 搴撴ā寮?-->
       <div v-if="scriptSelector.mode === 'library'" class="space-y-4">
         <div class="mb-4 flex items-center gap-4">
           <el-input 
@@ -571,7 +596,7 @@
         </el-table>
       </div>
 
-      <!-- 历史模式 -->
+      <!-- 鍘嗗彶妯″紡 -->
       <div v-else class="space-y-4">
         <div class="mb-4">
           <el-input 
@@ -602,7 +627,7 @@
       </div>
     </el-dialog>
 
-    <!-- 保存到文案库弹窗 -->
+    <!-- 保存至文案库寮圭獥 -->
     <el-dialog title="保存至文案库" v-model="saveScriptDialog.visible" width="450px" append-to-body>
       <el-form :model="saveScriptDialog.form" label-width="80px">
         <el-form-item label="文案标题" required>
@@ -628,7 +653,7 @@
       </template>
     </el-dialog>
 
-    <!-- 数字人形象选择器 -->
+    <!-- 鏁板瓧浜哄舰璞￠€夋嫨鍣?-->
     <el-dialog title="选择数字人形象" v-model="humanSelectorDialog.visible" width="1000px" append-to-body>
       <div class="space-y-4">
         <div class="flex gap-2">
@@ -655,7 +680,7 @@
               <img 
                 :src="item.img" 
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                @error="(e: any) => e.target.src = 'https://via.placeholder.com/150x200?text=Error'"
+                @error="(e) => e.target.src = 'https://via.placeholder.com/150x200?text=Error'"
               >
             </div>
             <div class="mt-2">
@@ -673,7 +698,7 @@
       </div>
     </el-dialog>
 
-    <!-- 角标选择器 -->
+    <!-- 瑙掓爣閫夋嫨鍣?-->
     <el-dialog title="选择角标" v-model="cornerMarkSelectorDialog.visible" width="900px" append-to-body>
       <div class="space-y-4">
         <div class="flex items-center gap-2">
@@ -693,7 +718,7 @@
             class="relative cursor-pointer group text-center"
             @click="selectCornerMark(item)"
           >
-            <!-- 置顶角标标识 -->
+            <!-- 置顶瑙掓爣鏍囪瘑 -->
             <div v-if="pinnedCornerMarkIds.includes(item.id)" class="absolute top-2 left-2 z-10">
               <el-tag type="warning" size="small" effect="dark" class="!px-1.5 !text-[10px] !h-5 leading-5 shadow">
                 <i class="el-icon-s-flag mr-0.5"></i>置顶
@@ -738,7 +763,33 @@
       </div>
     </el-dialog>
 
-    <!-- 配音选择器 -->
+    <!-- 閰嶉煶閫夋嫨鍣?-->
+    <el-dialog title="选择横幅" v-model="bannerOverlaySelectorDialog.visible" width="900px" append-to-body>
+      <div class="space-y-4">
+        <div class="flex items-center gap-2">
+          <el-input placeholder="搜索横幅..." v-model="bannerOverlaySelectorDialog.search" size="small" style="width: 300px;" clearable>
+            <template #prefix><i class="el-icon-search"></i></template>
+          </el-input>
+        </div>
+        <div class="grid grid-cols-3 gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[700px] overflow-y-auto" @scroll="handleBannerOverlayScroll">
+          <div v-for="item in bannerOverlaySelectorDialog.displayList" :key="item.id" class="relative cursor-pointer group text-center" @click="selectBannerOverlay(item)">
+            <div class="aspect-auto rounded-lg overflow-hidden border-2 transition-all shadow-sm p-2 bg-white h-[260px] flex items-center justify-center"
+                 :class="String(selectedBannerOverlayId) === String(item.id) ? 'border-blue-500 shadow-lg shadow-blue-300/50' : 'border-blue-300 group-hover:border-blue-400 group-hover:shadow-md'">
+              <img :src="item.overlayUrl || item.outputUrl" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform" :alt="item.name">
+            </div>
+            <div class="mt-3">
+              <p class="text-sm text-gray-700 font-medium truncate text-center">{{ item.name }}</p>
+            </div>
+            <div v-if="String(selectedBannerOverlayId) === String(item.id)" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md">
+              <i class="el-icon-check text-white text-sm"></i>
+            </div>
+          </div>
+          <div v-if="bannerOverlaySelectorDialog.loading" class="col-span-3 text-center py-4 text-gray-400 text-sm">加载中...</div>
+          <div v-else-if="!bannerOverlaySelectorDialog.hasMore && bannerOverlaySelectorDialog.displayList.length > 0" class="col-span-3 text-center py-3 text-gray-400 text-xs">已全部加载</div>
+        </div>
+      </div>
+    </el-dialog>
+
     <el-dialog title="选择配音声音" v-model="voiceSelectorDialog.visible" width="800px" append-to-body>
       <div class="space-y-4">
         <div class="flex gap-2">
@@ -773,18 +824,17 @@
             ></el-button>
             <i v-if="videoForm.voice === item.name" class="el-icon-check text-blue-500 text-sm ml-1"></i>
           </div>
-          <!-- 加载更多占位（必须在grid内撑开整行） -->
+          <!-- 鍔犺浇鏇村鍗犱綅锛堝繀椤诲湪grid鍐呮拺寮€鏁磋锛?-->
           <div v-if="voiceSelectorDialog.loading" class="col-span-3 text-center py-4 text-gray-400 text-sm">
             加载中...
           </div>
           <div v-else-if="!voiceSelectorDialog.hasMore && voiceSelectorDialog.displayList.length > 0" class="col-span-3 text-center py-3 text-gray-400 text-xs">
-            已全部加载
-          </div>
+            已全部加载          </div>
         </div>
       </div>
     </el-dialog>
 
-    <!-- 快捷预设选择器 -->
+    <!-- 蹇嵎棰勮閫夋嫨鍣?-->
     <el-dialog title="选择快捷预设" v-model="relSelectorDialog.visible" width="1000px" append-to-body>
       <div class="space-y-4">
         <div class="flex gap-2">
@@ -817,22 +867,22 @@
               : 'border-blue-300 hover:border-blue-400 hover:shadow-md'"
             @click="selectRel(item)"
           >
-            <!-- 数字人封面图 -->
+            <!-- 鏁板瓧浜哄皝闈㈠浘 -->
             <div v-if="item.digitalHumanCoverUrl" class="w-3/4 mx-auto aspect-[3/4] overflow-hidden bg-gray-200 relative">
               <img 
                 :src="item.digitalHumanCoverUrl" 
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                @error="(e: any) => e.target.src = 'https://via.placeholder.com/150x200?text=Error'"
+                @error="(e) => e.target.src = 'https://via.placeholder.com/150x200?text=Error'"
               >
             </div>
-            <!-- 预设名称和试听 -->
+            <!-- 棰勮鍚嶇О鍜岃瘯鍚?-->
             <div class="p-3 bg-white">
               <p class="text-xs text-gray-700 font-medium line-clamp-2 mb-2">{{ item.name }}</p>
               <div class="flex items-center justify-center pt-2 border-t border-blue-200">
                 <el-button type="text" size="small" icon="el-icon-headset" class="!text-blue-500 !p-0" @click.stop="playVoice(item.voiceUrl, item.voice)">试听</el-button>
               </div>
             </div>
-            <!-- 选中标记 -->
+            <!-- 閫変腑鏍囪 -->
             <div v-if="videoForm.relId === item.id" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10">
               <i class="el-icon-check text-white text-sm"></i>
             </div>
@@ -844,14 +894,14 @@
       </div>
     </el-dialog>
 
-    <!-- 视频播放弹窗 -->
+    <!-- 瑙嗛鎾斁寮圭獥 -->
     <el-dialog title="视频详情预览" v-model="videoPreview.visible" width="1000px" append-to-body custom-class="video-preview-dialog">
        <div class="space-y-6">
           <!-- 视频预览 -->
           <div v-if="videoPreview.url" class="space-y-3">
              <div class="flex items-center justify-between">
                <h4 class="font-bold text-gray-800 text-base flex items-center gap-2">
-                 <span class="text-blue-500">🎬</span>视频内容
+                  <span class="text-blue-500">▶</span>视频内容
                </h4>
                <el-button type="primary" size="small" @click="downloadVideo" :icon="ElIcon.Download">
                  下载视频
@@ -862,10 +912,10 @@
              </div>
           </div>
           
-          <!-- 预览图 -->
+          <!-- 棰勮鍥?-->
           <div v-if="videoPreview.coverUrl" class="space-y-3">
              <h4 class="font-bold text-gray-800 text-base flex items-center gap-2">
-               <span class="text-yellow-500">🖼️</span>视频封面
+                <span class="text-yellow-500">🖼</span>视频封面
              </h4>
              <img :src="videoPreview.coverUrl" class="w-full max-h-[300px] object-contain rounded-lg border-2 border-yellow-100">
           </div>
@@ -874,7 +924,7 @@
           <div v-if="videoPreview.voiceUrl" class="space-y-3">
              <div class="flex items-center justify-between">
                <h4 class="font-bold text-gray-800 text-base flex items-center gap-2">
-                 <span class="text-green-500">🎵</span>配音试听
+                  <span class="text-green-500">🎧</span>配音试听
                </h4>
                <el-button type="success" size="small" @click="downloadAudio" :icon="ElIcon.Download">
                  下载音频
@@ -886,7 +936,7 @@
           </div>
        </div>
        
-       <!-- 对话框底部按钮 -->
+       <!-- 瀵硅瘽妗嗗簳閮ㄦ寜閽?-->
        <template #footer>
          <div class="flex justify-end gap-2">
            <el-button @click="videoPreview.visible = false">关闭</el-button>
@@ -904,15 +954,16 @@ import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
 import { createVideoTask, createAudioVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
-// --- 数据定义 ---
+// --- 鏁版嵁瀹氫箟 ---
 const taskStore = useTaskStore()
 
 // 页面状态
 const showCreate = ref(false)
 
-// 任务列表
+// 浠诲姟鍒楄〃
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
 const searchLabel = ref('')
@@ -935,23 +986,23 @@ const videoForm = reactive({
   channel: 'A2E',
   relId: '',
   digitalHuman: '',
-  digitalHumanExternalId: '',  // 数字人 externalId
+  digitalHumanExternalId: '',
   voice: '',
-  voiceExternalId: '',  // 配音 externalId
-  voiceUrl: '',  // 添加音频URL字段
+  voiceExternalId: '',
+  voiceUrl: '',
   script: '',
   language: 'zh',
-  subtitleSelector: 1,  // 字幕启用状态，默认开启（值为 1）
-  subtitleColor: 'yellow',  // 字幕颜色，直接默认使用黄色
-  videoType: 0 as 0 | 1,  // 0=竖版 9:16, 1=横版 16:9
-  mode: 0 as 0 | 1,  // 0=视频文案配置, 1=直接上传音频
-  cornerMark: '',  // 角标ID，可选
-  previewImg: '',  // 预设选择时的预览图
-  filename: '',   // 视频上传文件夹（共享文件夹存储路径）
-    label: ''  // 标签（由预设 title 回填）
+  subtitleSelector: 1,
+  subtitleColor: 'yellow',
+  videoType: 0 as 0 | 1,
+  mode: 0 as 0 | 1,
+  cornerMark: '',
+  previewImg: '',
+  filename: '',
+  label: ''
 })
 
-// 上传音频模式相关
+// 涓婁紶闊抽妯″紡鐩稿叧
 const audioUploadRef = ref<any>(null)
 const audioFile = ref<File | null>(null)
 const audioFileName = ref('')
@@ -959,7 +1010,7 @@ const audioFileName = ref('')
 const handleAudioChange = (uploadFile: any) => {
   audioFile.value = uploadFile.raw
   audioFileName.value = uploadFile.name
-  return false  // 阻止自动上传
+  return false  // 闃绘鑷姩涓婁紶
 }
 
 const handleAudioRemove = () => {
@@ -979,26 +1030,25 @@ const relList = ref<any[]>([])
 const voiceSearchInput = ref('')  // 配音搜索框
 const digitalHumanSearchInput = ref('')  // 数字人搜索框
 
-// 模拟数据 - 如果需要保留默认选项
+// 妯℃嫙鏁版嵁 - 濡傛灉闇€瑕佷繚鐣欓粯璁ら€夐」
 const defaultRelList = [
-  { id: 1, name: '夏季服装场景 (小美 + 甜美)', human: '小美', voice: '甜美女声' },
-  { id: 2, name: '专业测评场景 (阿强 + 磁性)', human: '阿强', voice: '磁性男声' }
+  { id: 1, name: '夏季服装场景（小美 + 甜美女声）', human: '小美', voice: '甜美女声' },
+  { id: 2, name: '专业测评场景（阿强 + 磁性男声）', human: '阿强', voice: '磁性男声' }
 ]
 
-// 数字人选项列表（从API获取）
+// 数字人选项列表（从 API 获取）
 const humanOptions = ref<any[]>([])
-const humanSearch = ref('')  // 数字人搜索框
+const humanSearch = ref('')  // 鏁板瓧浜烘悳绱㈡
 
-// 配音选项列表（从API获取）
+// 配音选项列表（从 API 获取）
 const voiceOptions = ref<any[]>([])
-const voiceSearch = ref('')  // 配音搜索框
-
-// 角标选项列表（从API获取）
+const voiceSearch = ref('')  // 閰嶉煶鎼滅储妗?
+// 角标选项列表（从 API 获取）
 const cornerMarkOptions = ref<any[]>([])
-// 近期使用的角标（后端接口就绪后赋值）
+// 杩戞湡浣跨敤鐨勮鏍囷紙鍚庣鎺ュ彛灏辩华鍚庤祴鍊硷級
 const recentCornerMarks = ref<any[]>([])
 
-// 将后端返回的 {id, name} 列表与本地 cornerMarkOptions 合并，补充 photoUrl
+// 灏嗗悗绔繑鍥炵殑 {id, name} 鍒楄〃涓庢湰鍦?cornerMarkOptions 鍚堝苟锛岃ˉ鍏?photoUrl
 const enrichRecentCornerMarks = async (list: { id: number | string; name: string }[]) => {
   return list.map((recent: any) => {
     const local = cornerMarkOptions.value.find((o: any) => String(o.id) === String(recent.id))
@@ -1010,26 +1060,24 @@ const enrichRecentCornerMarks = async (list: { id: number | string; name: string
   })
 }
 
-// 加载近期角标列表
+// 鍔犺浇杩戞湡瑙掓爣鍒楄〃
 const loadRecentCornerMarks = async () => {
   try {
     const res = await getRecentCornerMarks()
     const list = res.data?.data || res.data || []
     recentCornerMarks.value = await enrichRecentCornerMarks(list)
   } catch (e) {
-    console.error('加载近期角标失败:', e)
+    console.error('鍔犺浇杩戞湡瑙掓爣澶辫触:', e)
   }
 }
 
-// 搜索防抖计时器
 let humanSearchTimer: NodeJS.Timeout
 let voiceSearchTimer: NodeJS.Timeout
 
-const scriptLibrary = ref<any[]>([])  // 脚本库数据
-const scriptHistory = ref<any[]>([])  // 历史脚本数据
+const scriptLibrary = ref<any[]>([])
+const scriptHistory = ref<any[]>([])
 const videoTaskRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
-// 获取脚本库数据
 const fetchScriptLibrary = async () => {
   try {
     const res = await getScriptPaginateList(1, 100)
@@ -1043,17 +1091,17 @@ const fetchScriptLibrary = async () => {
       }))
     }
   } catch (error) {
-    console.error('获取脚本库失败:', error)
+    console.error('鑾峰彇鑴氭湰搴撳け璐?', error)
   }
 }
 
-// 获取历史脚本数据
+// 鑾峰彇鍘嗗彶鑴氭湰鏁版嵁
 const fetchScriptHistory = async () => {
   try {
     const res = await getScriptHistoryList(1, 100)
     if (res.data) {
       const data = res.data.data?.data || res.data.data || []
-      // 直接过滤，去掉重复的 taskId
+      // 鐩存帴杩囨护锛屽幓鎺夐噸澶嶇殑 taskId
       const seen = new Set()
       const uniqueData = data.filter((item: any) => {
         if (seen.has(item.taskId)) {
@@ -1071,15 +1119,15 @@ const fetchScriptHistory = async () => {
       }))
     }
   } catch (error) {
-    console.error('获取历史脚本失败:', error)
+    console.error('鑾峰彇鍘嗗彶鑴氭湰澶辫触:', error)
   }
 }
 
-// 获取角标列表
+// 鑾峰彇瑙掓爣鍒楄〃
 const fetchCornerMarks = async () => {
   try {
     const result = await getCornerMarkList()
-    console.log('角标列表API响应:', result)
+    console.log('瑙掓爣鍒楄〃API鍝嶅簲:', result)
     
     const cornerMarkData = result.data?.data || result.data || []
     cornerMarkOptions.value = cornerMarkData.map((item: any) => ({
@@ -1089,30 +1137,30 @@ const fetchCornerMarks = async () => {
       photoName: item.photoName,
       sort: item.sort ?? null
     }))
-    // 初始化置顶列表：sort不为null的按sort倒序
+    // 鍒濆鍖栫疆椤跺垪琛細sort涓嶄负null鐨勬寜sort鍊掑簭
     pinnedCornerMarkIds.value = cornerMarkOptions.value
       .filter((i: any) => i.sort !== null && i.sort !== undefined)
       .sort((a: any, b: any) => b.sort - a.sort)
       .map((i: any) => i.id)
-    console.log('加载的角标列表:', cornerMarkOptions.value)
+    console.log('鍔犺浇鐨勮鏍囧垪琛?', cornerMarkOptions.value)
   } catch (error) {
-    console.error('获取角标列表失败:', error)
+    console.error('鑾峰彇瑙掓爣鍒楄〃澶辫触:', error)
     ElMessage.error('加载角标列表失败')
   }
 }
 
-// --- 状态控制 ---
+// --- 鐘舵€佹帶鍒?---
 const isPlaying = ref(false)
 let currentAudio: HTMLAudioElement | null = null
 let currentAudioUrl = ''
 const isGenerating = ref(false)
 const genProgress = ref(0)
-const genStage = ref('准备就绪')
+const genStage = ref('鍑嗗灏辩华')
 const resultVideo = ref('')
 
 const scriptSelector = reactive({
   visible: false,
-  title: '文案库选择',
+  title: '鏂囨搴撻€夋嫨',
   search: '',
   mode: 'library' // 'library' or 'history'
 })
@@ -1129,10 +1177,10 @@ const humanSelectorDialog = reactive({
   hasMore: true
 })
 
-// 配音选择器滚动容器ref
+// 閰嶉煶閫夋嫨鍣ㄦ粴鍔ㄥ鍣╮ef
 const voiceScrollRef = ref<HTMLElement | null>(null)
 
-// 字幕预览相关
+// 瀛楀箷棰勮鐩稿叧
 const subtitlePreviewRef = ref<InstanceType<typeof SubtitlePreview> | null>(null)
 const subtitlePreviewFrameBase64 = ref('')
 const subtitleConfig = reactive({
@@ -1147,17 +1195,16 @@ const subtitleConfig = reactive({
 })
 
 /**
- * 通过后端代理将图片URL转 base64（绕过浏览器CORS）
- */
+ * 閫氳繃鍚庣浠ｇ悊灏嗗浘鐗嘦RL杞?base64锛堢粫杩囨祻瑙堝櫒CORS锛? */
 const fetchImageAsBase64 = async (url: string): Promise<string> => {
-  console.log('[getFrameBase64] 代理拉取封面:', url)
+  console.log('[getFrameBase64] 浠ｇ悊鎷夊彇灏侀潰:', url)
   const res = await downloadFileByProxy(url)
-  console.log('[getFrameBase64] 代理返回 blob size:', (res.data as Blob)?.size)
+  console.log('[getFrameBase64] 浠ｇ悊杩斿洖 blob size:', (res.data as Blob)?.size)
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => {
       const b64 = reader.result as string
-      console.log('[getFrameBase64] 转 base64 成功, 长度:', b64.length)
+      console.log('[getFrameBase64] 杞?base64 鎴愬姛, 闀垮害:', b64.length)
       resolve(b64)
     }
     reader.onerror = reject
@@ -1165,8 +1212,21 @@ const fetchImageAsBase64 = async (url: string): Promise<string> => {
   })
 }
 
+const bannerOverlayPaginateRequest = (page: number = 1, pageSize: number = 10, search: any = {}) => {
+  return request({
+    url: '/api/material/banner-overlay/paginate/',
+    method: 'post',
+    data: {
+      page,
+      pageSize,
+      ...(search && { search })
+    },
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+  })
+}
+
 /**
- * 优先用封面图URL转 base64；若无封面或失败，则提取视频首帧
+ * 浼樺厛鐢ㄥ皝闈㈠浘URL杞?base64锛涜嫢无犲皝闈㈡垨澶辫触锛屽垯鎻愬彇瑙嗛棣栧抚
  */
 const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<string> => {
   console.log('[getFrameBase64] coverUrl:', coverUrl, 'videoUrl:', videoUrl)
@@ -1175,23 +1235,23 @@ const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<strin
       const b64 = await fetchImageAsBase64(coverUrl)
       if (b64) return b64
     } catch (e) {
-      console.warn('[getFrameBase64] 封面转换失败，尝试视频首帧', e)
+      console.warn('[getFrameBase64] 封面转换失败，尝试提取视频首帧', e)
     }
   }
   if (videoUrl) {
-    console.log('[getFrameBase64] 走视频首帧路径')
+  console.log('[getFrameBase64] 走视频首帧路径')
     return await extractVideoFirstFrame(videoUrl)
   }
-  console.warn('[getFrameBase64] 两者均为空，返回空字符串')
+  console.warn('[getFrameBase64] cover 和 video 都为空，返回空字符串')
   return ''
 }
 
-// 获取当前选中的数字人视频URL
+// 鑾峰彇褰撳墠閫変腑鐨勬暟瀛椾汉瑙嗛URL
 const currentDigitalHumanVideoUrl = computed(() => {
   if (videoForm.digitalHuman) {
     const human = humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
     if (human?.videoUrl) return human.videoUrl
-    // 兜底：弹窗分页滚动加载出来的形象可能不在 humanOptions（首页）中
+    // 兜底：弹窗分页加载出的形象可能不在 humanOptions（首页）中
     const humanFromDialog = humanSelectorDialog.allList.find((h: any) => h.name === videoForm.digitalHuman)
     if (humanFromDialog?.videoUrl) return humanFromDialog.videoUrl
   }
@@ -1202,7 +1262,7 @@ const currentDigitalHumanVideoUrl = computed(() => {
   return ''
 })
 
-// 获取当前选中数字人的封面图（横版预览用）
+// 鑾峰彇褰撳墠閫変腑鏁板瓧浜虹殑灏侀潰鍥撅紙横版棰勮鐢級
 const currentDigitalHumanImg = computed(() => {
   if (videoForm.digitalHuman) {
     const human = humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
@@ -1219,7 +1279,7 @@ const currentDigitalHumanImg = computed(() => {
   return ''
 })
 
-// 获取当前选中角标的 URL（供预览组件实时叠加）
+// 获取当前选中角标 URL（供预览组件实时叠加）
 const currentCornerMarkUrl = computed(() => {
   if (!videoForm.cornerMark) return ''
   return cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl || ''
@@ -1230,7 +1290,26 @@ const currentCornerMarkName = computed(() => {
   return cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.name || ''
 })
 
-// 字幕配置更新回调
+const selectedBannerOverlayId = ref<string | number | ''>('')
+const selectedBannerOverlayBase64 = ref('')
+const bannerOverlayOptions = ref<any[]>([])
+const bannerOverlaySelectorDialog = reactive({
+  visible: false,
+  search: '',
+  allList: [] as any[],
+  displayList: [] as any[],
+  page: 1,
+  pageSize: 12,
+  loading: false,
+  hasMore: true
+})
+
+const currentBannerOverlayName = computed(() => {
+  if (!selectedBannerOverlayId.value) return ''
+  return bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))?.name || ''
+})
+
+// 瀛楀箷閰嶇疆鏇存柊鍥炶皟
 const handleSubtitleConfigUpdate = (newConfig: any) => {
   Object.assign(subtitleConfig, newConfig)
 }
@@ -1259,7 +1338,7 @@ const relSelectorDialog = reactive({
   hasMore: true
 })
 
-// 快捷预设显示名称
+// 蹇嵎棰勮鏄剧ず鍚嶇О
 const relName = ref('')
 
 // 角标选择器状态
@@ -1268,10 +1347,10 @@ const cornerMarkSelectorDialog = reactive({
   search: ''
 })
 
-// 置顶的角标 ID（按 sort 倒序，sort 越大越靠前）
+// 置顶鐨勮鏍?ID锛堟寜 sort 鍊掑簭锛宻ort 瓒婂ぇ瓒婇潬鍓嶏級
 const pinnedCornerMarkIds = ref<(string | number)[]>([])
 
-// 置顶排序后的角标列表
+// 置顶鎺掑簭鍚庣殑瑙掓爣鍒楄〃
 const sortedCornerMarkOptions = computed(() => {
   const filtered = cornerMarkOptions.value.filter(
     (i: any) => !cornerMarkSelectorDialog.search || i.name.includes(cornerMarkSelectorDialog.search)
@@ -1283,16 +1362,16 @@ const sortedCornerMarkOptions = computed(() => {
   return [...pinned, ...rest]
 })
 
-// 切换置顶状态（调用后端接口，接口同时处理置顶和取消置顶）
+// 切换置顶状态（调用后端接口，同时处理置顶和取消置顶）
 const togglePinCornerMark = async (id: string | number) => {
   try {
     const res = await toTopCornerMark(id)
     // 重新拉取列表以获取最新 sort 值
     await fetchCornerMarks()
     const isPinned = pinnedCornerMarkIds.value.includes(id)
-    ElMessage.success(isPinned ? '已置顶，排在最前' : '已取消置顶')
+    ElMessage.success(isPinned ? '已取消置顶' : '已置顶，排在最前')
   } catch (error) {
-    console.error('置顶操作失败:', error)
+    console.error('置顶操作澶辫触:', error)
     ElMessage.error('操作失败，请重试')
   }
 }
@@ -1310,8 +1389,7 @@ const videoPreview = reactive({
   title: ''
 })
 
-// 监听关键配置变化，重置配音状态
-// --- 逻辑处理 ---
+// 鐩戝惉鍏抽敭閰嶇疆鍙樺寲锛岄噸缃厤闊崇姸鎬?// --- 閫昏緫澶勭悊 ---
 
 const buildVideoTaskSearch = () => {
   const keyword = searchKeyword.value.trim()
@@ -1322,17 +1400,17 @@ const buildVideoTaskSearch = () => {
   return Object.keys(search).length > 0 ? search : undefined
 }
 
-// 加载视频任务列表
+// 鍔犺浇瑙嗛浠诲姟鍒楄〃
 const loadVideoTasks = async () => {
   try {
     const response = await getVideoTaskList(videoTaskPage.value, videoTaskPageSize.value, buildVideoTaskSearch())
-    console.log('API返回数据:', response)
+    console.log('API杩斿洖鏁版嵁:', response)
     
-    // 处理API返回的数据结构：response.data.data.data 是任务列表数组
+    // 处理 API 返回的数据结构：response.data.data.data 是任务列表数组
     let tasks = []
     if (response.data && response.data.data) {
       const data = response.data.data
-      // API返回格式：{ page, pageSize, total, data: [...] }
+      // API杩斿洖鏍煎紡锛歿 page, pageSize, total, data: [...] }
       if (Array.isArray(data.data)) {
         tasks = data.data
         videoTaskTotal.value = data.total || 0
@@ -1360,9 +1438,9 @@ const loadVideoTasks = async () => {
       baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || ''
     }))
     
-    console.log('加载的任务列表:', videoTaskList.value)
+    console.log('鍔犺浇鐨勪换鍔″垪琛?', videoTaskList.value)
   } catch (error) {
-    console.error('加载视频任务列表失败:', error)
+    console.error('鍔犺浇瑙嗛浠诲姟鍒楄〃澶辫触:', error)
   }
 }
 
@@ -1382,36 +1460,36 @@ const stopVideoTaskAutoRefresh = () => {
   }
 }
 
-// 加载数字人列表（仅加载第一页）
+// 鍔犺浇鏁板瓧浜哄垪琛紙浠呭姞杞界涓€椤碉級
 const loadDigitalHumanList = async (searchName?: string) => {
   try {
     const response = await getDigitalHumanPaginateList(1, 20, searchName ? { name: searchName } : {})
-    console.log('数字人列表API返回:', response)
+    console.log('鏁板瓧浜哄垪琛ˋPI杩斿洖:', response)
     
-    // 处理API返回的数据结构：response.data.data.data 是数字人列表数组
+    // 澶勭悊API杩斿洖鐨勬暟鎹粨鏋勶細response.data.data.data 鏄暟瀛椾汉鍒楄〃鏁扮粍
     if (response.data && response.data.data) {
       const data = response.data.data
       const humanList = data.data || data || []
       
-      // 映射API返回的数据到前端格式
+      // 鏄犲皠API杩斿洖鐨勬暟鎹埌鍓嶇鏍煎紡
       humanOptions.value = humanList.map((digital: any) => ({
         name: digital.digitalHumanName || digital.name,
         externalId: digital.externalId,
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
-        coverUrl: digital.coverUrl || '',   // 原始封面URL，用于字幕预览frame
+        coverUrl: digital.coverUrl || '',   // 鍘熷灏侀潰URL锛岀敤浜庡瓧骞曢瑙坒rame
         videoUrl: digital.videoUrl,
         gender: digital.gender
       }))
-      console.log('加载的数字人列表:', humanOptions.value)
+      console.log('鍔犺浇鐨勬暟瀛椾汉鍒楄〃:', humanOptions.value)
     }
   } catch (error) {
-    console.error('加载数字人列表失败:', error)
-    // 如果加载失败，使用默认数字人列表
+    console.error('鍔犺浇鏁板瓧浜哄垪琛ㄥけ璐?', error)
+    // 濡傛灉鍔犺浇澶辫触锛屼娇鐢ㄩ粯璁ゆ暟瀛椾汉鍒楄〃
     humanOptions.value = [
-      { name: '小美', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop' },
-      { name: '阿强', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop' },
-      { name: '露西', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
-      { name: '大白', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop' }
+      { name: '灏忕編', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop' },
+      { name: '闃垮己', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop' },
+      { name: '闇茶タ', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
+      { name: '澶х櫧', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop' }
     ]
   }
 }
@@ -1424,7 +1502,7 @@ const handleHumanSearch = () => {
   }, 300)
 }
 
-// 配音搜索处理函数（防抖）
+// 閰嶉煶鎼滅储澶勭悊鍑芥暟锛堥槻鎶栵級
 const handleVoiceSearch = () => {
   if (voiceSearchTimer) clearTimeout(voiceSearchTimer)
   voiceSearchTimer = setTimeout(() => {
@@ -1432,26 +1510,26 @@ const handleVoiceSearch = () => {
   }, 300)
 }
 
-// 提取音频URL 辅助函数 - 处理多种格式
+// 鎻愬彇闊抽URL 杈呭姪鍑芥暟 - 澶勭悊澶氱鏍煎紡
 const extractAudioUrl = (urlString: string): string => {
   if (!urlString) return ''
   
-  // 处理一般字符串URL
+  // 澶勭悊涓€鑸瓧绗︿覆URL
   if (typeof urlString === 'string' && urlString.startsWith('http')) {
     return urlString
   }
   
   // 处理 "['https://...']" 或 "[\"https://...\"]" 的格式
   if (urlString.includes('[') || urlString.includes('(')) {
-    // 使用正则提取 https 或 http 开头的URL
+    // 浣跨敤姝ｅ垯鎻愬彇 https 鎴?http 寮€澶寸殑URL
     const match = urlString.match(/https?:\/\/[^'"\]\)\s]+/)
     if (match && match[0]) {
-      console.log('从数组字符串中提取URL:', match[0])
+      console.log('浠庢暟缁勫瓧绗︿覆涓彁鍙朥RL:', match[0])
       return match[0]
     }
   }
   
-  // 作为最后的正则模式提取
+  // 浣滀负鏈€鍚庣殑姝ｅ垯妯″紡鎻愬彇
   const match = urlString.match(/https?:\/\/[^\s'"]+/)
   if (match && match[0]) {
     return match[0]
@@ -1460,40 +1538,40 @@ const extractAudioUrl = (urlString: string): string => {
   return urlString
 }
 
-// 加载配音列表（仅加载第一页）
+// 鍔犺浇閰嶉煶鍒楄〃锛堜粎鍔犺浇绗竴椤碉級
 const loadVoiceList = async (searchName?: string) => {
   try {
-    // 搜索时传入 language 参数，中文传 'zh'，泰语传 'th'
+    // 鎼滅储无朵紶鍏?language 鍙傛暟锛屼腑鏂囦紶 'zh'锛屾嘲璇紶 'th'
     const searchParams: any = {}
     if (searchName) searchParams.name = searchName
     searchParams.language = videoForm.language
     const response = await getVoicePaginateList(1, 20, searchParams)
-    console.log('配音列表API返回, language:', videoForm.language)
+    console.log('閰嶉煶鍒楄〃API杩斿洖, language:', videoForm.language)
     
-    // 处理API返回的数据结构：response.data.data.data 是配音列表数组
+    // 处理 API 返回的数据结构：response.data.data.data 为配音列表数组
     if (response.data && response.data.data) {
       const data = response.data.data
       const voiceList = data.data || data || []
       
-      // 映射API返回的数据到前端格式
+      // 鏄犲皠API杩斿洖鐨勬暟鎹埌鍓嶇鏍煎紡
       voiceOptions.value = voiceList.map((voice: any) => {
-        // 尝试多个字段名来获取音频URL，然后提取真实URL
+        // 灏濊瘯澶氫釜瀛楁鍚嶆潵鑾峰彇闊抽URL锛岀劧鍚庢彁鍙栫湡瀹濽RL
         const rawUrl = voice.url || voice.audio || voice.voiceUrl || voice.voice_url || voice.audioUrl || ''
         const audioUrl = extractAudioUrl(rawUrl)
-        console.log(`配音 ${voice.voiceName || voice.name} 的原始URL:`, rawUrl, '-> 提取后:', audioUrl)
+        console.log(`閰嶉煶 ${voice.voiceName || voice.name} 鐨勫師濮婾RL:`, rawUrl, '-> 鎻愬彇鍚?', audioUrl)
         return {
           name: voice.voiceName || voice.name,
           externalId: voice.externalId,
           url: audioUrl,
           language: voice.language || videoForm.language,
-          // 保留原始数据以备后续使用
+          // 淇濈暀鍘熷鏁版嵁浠ュ鍚庣画浣跨敤
           ...voice
         }
       })
-      console.log('加载的配音列表:', voiceOptions.value)
+      console.log('鍔犺浇鐨勯厤闊冲垪琛?', voiceOptions.value)
     }
   } catch (error) {
-    console.error('加载配音列表失败:', error)
+    console.error('鍔犺浇閰嶉煶鍒楄〃澶辫触:', error)
     // 如果加载失败，使用默认配音列表
     voiceOptions.value = [
       { name: '甜美女声', url: '' },
@@ -1504,30 +1582,30 @@ const loadVoiceList = async (searchName?: string) => {
   }
 }
 
-// 加载绑定关系列表
+// 鍔犺浇缁戝畾鍏崇郴鍒楄〃
 const loadBindingList = async (voiceName?: string, digitalHumanName?: string) => {
   try {
     const searchObj: any = {}
-    // 支持通过voiceName和digitalHumanName分别模糊查询
+    // 鏀寔閫氳繃voiceName鍜宒igitalHumanName鍒嗗埆妯＄硦鏌ヨ
     if (voiceName) {
       searchObj.voiceName = voiceName
     }
     if (digitalHumanName) {
       searchObj.digitalHumanName = digitalHumanName
     }
-    // 传入语言参数
+    // 浼犲叆璇█鍙傛暟
     searchObj.language = videoForm.language
     
     const response = await getBindingList(1, 50, searchObj)
-    console.log('绑定关系列表API返回:', response)
+    console.log('缁戝畾鍏崇郴鍒楄〃API杩斿洖:', response)
     
-    // 处理API返回的数据结构
+    // 处理 API 返回的数据结构
     if (response.data && response.data.data && response.data.data.data) {
       const bindingData = response.data.data.data
       
-      // 映射API返回的数据到前端格式
+      // 鏄犲皠API杩斿洖鐨勬暟鎹埌鍓嶇鏍煎紡
       relList.value = bindingData.map((binding: any) => {
-        // 尝试多个字段名来获取音频URL
+        // 灏濊瘯澶氫釜瀛楁鍚嶆潵鑾峰彇闊抽URL
         const voiceUrl = binding.voiceUrl || binding.voice_url || binding.url || binding.audio || ''
         return {
           id: binding.id,
@@ -1539,23 +1617,23 @@ const loadBindingList = async (voiceName?: string, digitalHumanName?: string) =>
           voiceId: binding.voiceId,
           digitalHumanId: binding.digitalHumanId,
           title: binding.title,
-          digitalHumanUrl: binding.digitalHumanUrl,  // 保存视频URL
-          digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,  // 数字人封面图
+          digitalHumanUrl: binding.digitalHumanUrl,  // 淇濆瓨瑙嗛URL
+          digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,  // 鏁板瓧浜哄皝闈㈠浘
           voiceUrl: voiceUrl,
-          // 保留原始数据
+          // 淇濈暀鍘熷鏁版嵁
           ...binding
         }
       })
-      console.log('加载的绑定关系列表:', relList.value)
+      console.log('鍔犺浇鐨勭粦瀹氬叧绯诲垪琛?', relList.value)
     }
   } catch (error) {
-    console.error('加载绑定关系列表失败:', error)
+    console.error('鍔犺浇缁戝畾鍏崇郴鍒楄〃澶辫触:', error)
     // 失败时使用默认数据
     relList.value = defaultRelList
   }
 }
 
-// 绑定关系搜索处理函数
+// 缁戝畾鍏崇郴鎼滅储澶勭悊鍑芥暟
 const handleBindingSearch = () => {
   loadBindingList(voiceSearchInput.value || undefined, digitalHumanSearchInput.value || undefined)
 }
@@ -1579,7 +1657,7 @@ watch(() => videoForm.voice, (newVal, oldVal) => {
   }
 })
 
-// 组件挂载时加载任务列表、数字人列表、配音列表和绑定关系列表
+// 缁勪欢鎸傝浇无跺姞杞戒换鍔″垪琛ㄣ€佹暟瀛椾汉鍒楄〃銆侀厤闊冲垪琛ㄥ拰缁戝畾鍏崇郴鍒楄〃
 onMounted(() => {
   loadVideoTasks()
   loadDigitalHumanList()
@@ -1594,22 +1672,21 @@ onUnmounted(() => {
   stopVideoTaskAutoRefresh()
 })
 
-// 当切换为横版时自动关闭字幕
+// 切换为横版时自动关闭字幕
 watch(() => videoForm.videoType, (val) => {
   if (val === 1) {
     videoForm.subtitleSelector = 0
   }
 })
 
-// 监听 mode 切换：清空数字人选择、预览图
-// 当切换为泰语时自动关闭字幕
+// 切换为泰语时自动关闭字幕
 watch(() => videoForm.language, (val) => {
   if (val === 'th') {
     videoForm.subtitleSelector = 0
   }
 })
 
-// 监听 mode 切换：清空数字人选择、预览图
+// 鐩戝惉 mode 鍒囨崲锛氭竻绌烘暟瀛椾汉閫夋嫨銆侀瑙堝浘
 watch(() => videoForm.mode, () => {
   videoForm.digitalHuman = ''
   videoForm.digitalHumanExternalId = ''
@@ -1641,7 +1718,7 @@ const handleViewVideo = (video: any) => {
 
 const handleDeleteVideo = async (id: any) => {
   try {
-    // 调用API删除视频任务
+    // 调用 API 删除视频任务
     await deleteVideoTask(id)
     ElMessage.success('视频已删除')
     // 从列表中移除
@@ -1661,19 +1738,19 @@ const getStatusLabel = (status: string | number) => {
     '3': '视频预备中',
     '4': '视频生成中',
     '5': '已完成',
-    '-1': '失败'
+    '-1': '澶辫触'
   }
   return statusMap[String(status)] || '未知'
 }
 
-// 获取任务状态类型（用于tag颜色）
+// 获取任务状态类型（用于 tag 颜色）
 const getStatusType = (status: string | number): 'success' | 'danger' | 'warning' | 'info' => {
   const statusStr = String(status)
-  if (statusStr === '5') return 'success'           // 已完成 - 绿色
-  if (statusStr === '-1') return 'danger'           // 失败 - 红色
-  if (statusStr === '0') return 'info'              // 等待中 - 灰色
-  if (statusStr === '4') return 'warning'           // 视频生成中 - 橙色
-  return 'info'                                      // 其他 - 灰色
+  if (statusStr === '5') return 'success'           // 宸插畬鎴?- 缁胯壊
+  if (statusStr === '-1') return 'danger'           // 澶辫触 - 绾㈣壊
+  if (statusStr === '0') return 'info'              // 绛夊緟涓?- 鐏拌壊
+  if (statusStr === '4') return 'warning'           // 瑙嗛鐢熸垚涓?- 姗欒壊
+  return 'info'                                      // 鍏朵粬 - 鐏拌壊
 }
 
 const fillDefaultTitle = () => {
@@ -1697,6 +1774,8 @@ const resetForm = () => {
   videoForm.subtitleSelector = 1
   videoForm.subtitleColor = 'yellow'
   videoForm.cornerMark = ''
+  selectedBannerOverlayId.value = ''
+  selectedBannerOverlayBase64.value = ''
   videoForm.filename = ''
     videoForm.label = ''
     videoForm.videoType = 0
@@ -1714,7 +1793,7 @@ const getHumanImg = (name: string) => humanOptions.value.find((h: any) => h.name
 
 const handleRelChange = async (val: any, selectedRel?: any) => {
   if (!val) {
-    // 清空预设选择
+    // 娓呯┖棰勮閫夋嫨
     videoForm.relId = ''
     relName.value = ''
     videoForm.previewImg = ''
@@ -1732,17 +1811,17 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
     videoForm.digitalHumanExternalId = rel.digitalHumanExternalId || ''
     videoForm.voiceExternalId = rel.voiceExternalId || ''
     
-    // 字幕预览：优先封面图URL，其次视频URL，通过后端代理转 base64
+    // 瀛楀箷棰勮锛氫紭鍏堝皝闈㈠浘URL锛屽叾娆¤棰慤RL锛岄€氳繃鍚庣浠ｇ悊杞?base64
     if (videoForm.subtitleSelector === 1) {
       const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
       subtitlePreviewFrameBase64.value = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
     }
-    // 表单缩略图（同样通过代理取视频首帧）
+    // 琛ㄥ崟缂╃暐鍥撅紙鍚屾牱閫氳繃浠ｇ悊鍙栬棰戦甯э級
     if (rel.digitalHumanUrl) {
       videoForm.previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
     }
     
-    ElMessage.success(`已应用联动配置: ${rel.digitalHumanName || rel.human} & ${rel.voiceName || rel.voice}`)
+    ElMessage.success(`已应用联动配置： ${rel.digitalHumanName || rel.human} & ${rel.voiceName || rel.voice}`)
   }
 }
 
@@ -1758,7 +1837,7 @@ const playVoice = (audioUrl: string, voiceName: string = '') => {
     return
   }
 
-  // 同一个音频：切换播放/暂停
+  // 鍚屼竴涓煶棰戯細鍒囨崲鎾斁/鏆傚仠
   if (currentAudio && currentAudioUrl === urlToPlay) {
     if (currentAudio.paused) {
       currentAudio.play().catch(() => {})
@@ -1770,7 +1849,7 @@ const playVoice = (audioUrl: string, voiceName: string = '') => {
     return
   }
 
-  // 不同音频：停止当前，播放新的
+  // 涓嶅悓闊抽锛氬仠姝㈠綋鍓嶏紝鎾斁鏂扮殑
   if (currentAudio) {
     ;(currentAudio as any)._aborted = true
     currentAudio.pause()
@@ -1814,10 +1893,10 @@ const playVoice = (audioUrl: string, voiceName: string = '') => {
   })
 }
 
-// 从视频首帧提取预览图
+// 浠庤棰戦甯ф彁鍙栭瑙堝浘
 const extractVideoFirstFrame = (videoUrl: string): Promise<string> => {
   return new Promise((resolve) => {
-    // 处理URL中可能包含的数组标记
+    // 澶勭悊URL涓彲鑳藉寘鍚殑鏁扮粍鏍囪
     let url = videoUrl
     if (url.startsWith("['")){      url = url.slice(2, -2)
     }
@@ -1838,7 +1917,7 @@ const extractVideoFirstFrame = (videoUrl: string): Promise<string> => {
     video.addEventListener('loadedmetadata', () => {
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
-      video.currentTime = Math.min(1, video.duration * 0.1)  // 取1秒或视频的10%位置
+      video.currentTime = Math.min(1, video.duration * 0.1)  // 鍙?绉掓垨瑙嗛鐨?0%浣嶇疆
     }, { once: true })
     
     video.addEventListener('seeked', () => {
@@ -1858,9 +1937,8 @@ const extractVideoFirstFrame = (videoUrl: string): Promise<string> => {
 
 const openScriptSelector = async (mode: string) => {
   scriptSelector.mode = mode
-  scriptSelector.title = mode === 'library' ? '从文案库导入' : '从历史记录选择'
-  scriptSelector.search = '' // 重置搜索框
-  // 根据 mode 加载数据
+  scriptSelector.title = mode === 'library' ? '浠庢枃妗堝簱导入' : '浠庡巻鍙茶褰曢€夋嫨'
+  scriptSelector.search = '' // 閲嶇疆鎼滅储妗?  // 鏍规嵁 mode 鍔犺浇鏁版嵁
   if (mode === 'library') {
     await fetchScriptLibrary()
   } else {
@@ -1874,7 +1952,7 @@ const onDialogOpen = () => {
   scriptSelector.search = ''
 }
 
-// 获取所有唯一的标签
+// 获取所有唯一标签
 const allScriptTags = computed(() => {
   const data = scriptSelector.mode === 'library' ? scriptLibrary.value : scriptHistory.value
   const tags = new Set<string>()
@@ -1894,7 +1972,7 @@ const filteredScripts = computed(() => {
     return data
   }
   
-  // 文案库按标签搜索，历史文案可以按所有字段搜索
+  // 文案库按标签搜索，历史文案可按所有字段搜索
   if (scriptSelector.mode === 'library') {
     return data.filter(item => 
       item.tags && item.tags.some((t: string) => t.toLowerCase().includes(s))
@@ -1909,9 +1987,9 @@ const filteredScripts = computed(() => {
   }
 })
 
-// 当前显示的形象（computed，确保实时响应）
+// 褰撳墠鏄剧ず鐨勫舰璞★紙computed锛岀‘淇濆疄无跺搷搴旓級
 const currentDisplayImg = computed(() => {
-  // 如果有 relId（预设被选中），显示预设的预览图
+  // 濡傛灉鏈?relId锛堥璁捐閫変腑锛夛紝鏄剧ず棰勮鐨勯瑙堝浘
   if (videoForm.relId && videoForm.previewImg) {
     return videoForm.previewImg
   }
@@ -1932,7 +2010,7 @@ const currentScripts = computed(() => {
     return sourceData
   }
   
-  // 根据模式搜索
+  // 鏍规嵁妯″紡鎼滅储
   if (scriptSelector.mode === 'library') {
     // 库模式：按标签搜索
     return sourceData.filter(item => {
@@ -1962,7 +2040,7 @@ const openSaveScriptDialog = () => {
   saveScriptDialog.form.tags = []
   saveScriptDialog.form.newTag = ''
   saveScriptDialog.visible = true
-  // 打开后重新加载脚本库
+  // 鎵撳紑鍚庨噸鏂板姞杞借剼鏈簱
   fetchScriptLibrary()
 }
 
@@ -1983,18 +2061,17 @@ const confirmSaveScript = async () => {
     })
     ElMessage.success('已存入文案库')
     saveScriptDialog.visible = false
-    // 重新加载脚本库
-    await fetchScriptLibrary()
+    // 閲嶆柊鍔犺浇鑴氭湰搴?    await fetchScriptLibrary()
   } catch (error) {
     ElMessage.error('保存失败')
     console.error(error)
   }
 }
 
-// A2E 流程处理
-// 渲染流程模拟
+// A2E 娴佺▼澶勭悊
+// 娓叉煋娴佺▼妯℃嫙
 const startGeneration = async () => {
-  // 防止重复点击
+  // 闃叉閲嶅鐐瑰嚮
   if (isGenerating.value) {
     return
   }
@@ -2003,7 +2080,7 @@ const startGeneration = async () => {
     return ElMessage.warning('请先完整配置标题和数字人')
   }
   
-  // 文案模式还需要配音
+  // 文案模式需要配音
   if (videoForm.mode === 0 && !videoForm.voice) {
     return ElMessage.warning('请选择配音')
   }
@@ -2016,7 +2093,7 @@ const startGeneration = async () => {
     return ElMessage.warning('请上传音频文件')
   }
   
-    // 竖屏文案模式且开启字幕时校验角标必填
+    // 绔栧睆鏂囨妯″紡涓斿紑鍚瓧骞曟椂鏍￠獙瑙掓爣蹇呭～
   if (videoForm.videoType !== 1 && videoForm.mode === 0 && videoForm.subtitleSelector === 1 && !videoForm.cornerMark) {
     return ElMessage.warning('请选择角标')
   }
@@ -2024,7 +2101,7 @@ const startGeneration = async () => {
   isGenerating.value = true
   resultVideo.value = ''
   genProgress.value = 0
-  genStage.value = '正在上传素材...'
+  genStage.value = '姝ｅ湪涓婁紶绱犳潗...'
 
   try {
         let digitalHumanId: string
@@ -2032,37 +2109,37 @@ const startGeneration = async () => {
 
     if (videoForm.mode === 0) {
       if (videoForm.relId) {
-        // 使用绑定预设：直接从 relList 取 voiceExternalId / digitalHumanExternalId
+        // 浣跨敤缁戝畾棰勮锛氱洿鎺ヤ粠 relList 鍙?voiceExternalId / digitalHumanExternalId
         const rel = relList.value.find((r: any) => r.id === videoForm.relId)
         digitalHumanId = rel?.digitalHumanExternalId || videoForm.digitalHumanExternalId || videoForm.digitalHuman
         voiceId = rel?.voiceExternalId || videoForm.voiceExternalId || videoForm.voice
-        console.log('[提交-绑定预设] rel:', rel?.name, '| digitalHumanExternalId:', digitalHumanId, '| voiceExternalId:', voiceId)
+        console.log('[鎻愪氦-缁戝畾棰勮] rel:', rel?.name, '| digitalHumanExternalId:', digitalHumanId, '| voiceExternalId:', voiceId)
       } else {
-        // 单独选择：取各自列表的 externalId
+        // 鍗曠嫭閫夋嫨锛氬彇鍚勮嚜鍒楄〃鐨?externalId
         digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
         voiceId = videoForm.voiceExternalId || voiceOptions.value.find((voice: any) => voice.name === videoForm.voice)?.externalId || videoForm.voice
-        console.log('[提交-单独选择] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId, '| voice:', videoForm.voice, '| externalId:', voiceId)
+        console.log('[鎻愪氦-鍗曠嫭閫夋嫨] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId, '| voice:', videoForm.voice, '| externalId:', voiceId)
       }
     } else {
-      // 音频模式：只取数字人 ID
+      // 闊抽妯″紡锛氬彧鍙栨暟瀛椾汉 ID
       digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
-      console.log('[提交-音频模式] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId)
+      console.log('[鎻愪氦-闊抽妯″紡] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId)
     }
     
-    // 确定语言（如果是自动，则默认zh）
+    // 确定语言（自动时默认 zh）
     const language = videoForm.language
     
-        // 创建FormData对象
+        // 鍒涘缓FormData瀵硅薄
     const formData = new FormData()
     
-    // 添加视频方向参数
+    // 添加视频方向鍙傛暟
     formData.append('type', String(videoForm.videoType))
     
-    // 映射表单字段到API参数（使用snake_case）
+    // 映射表单字段到 API 参数（snake_case）
     formData.append('title', videoForm.title)
     if (videoForm.label) formData.append('label', videoForm.label)
     
-    // 文案模式传 msg，音频模式传音频文件
+    // 鏂囨妯″紡浼?msg锛岄煶棰戞ā寮忎紶闊抽鏂囦欢
     if (videoForm.mode === 0) {
       formData.append('msg', videoForm.script)
     } else if (audioFile.value) {
@@ -2070,13 +2147,18 @@ const startGeneration = async () => {
     }
     
         if (videoForm.filename) formData.append('filename', videoForm.filename)
-    // 文案模式传配音ID，音频模式不传
+    // 文案模式传配音 ID，音频模式不传
     if (videoForm.mode === 0 && voiceId) {
       formData.append('voice_id', voiceId)
     }
     formData.append('digital_human_id', digitalHumanId)
     formData.append('language', language)
     formData.append('speechRate', '1')
+    const selectedBannerOverlay = bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))
+    const bannerOverlayUrl = selectedBannerOverlay?.outputUrl || ''
+    if (bannerOverlayUrl) {
+      formData.append('banner_overlay_url', bannerOverlayUrl)
+    }
     
     // 横版模式下强制关闭字幕
     const effectiveSubtitle = videoForm.videoType === 1 ? 0 : (videoForm.mode === 1 ? 0 : videoForm.subtitleSelector)
@@ -2093,7 +2175,7 @@ const startGeneration = async () => {
         }
       }
 
-      // 附加字幕样式配置
+      // 闄勫姞瀛楀箷鏍峰紡閰嶇疆
       formData.append('subtitle_config', JSON.stringify({
         font_name: subtitleConfig.font_name,
         font_size: subtitleConfig.font_size,
@@ -2110,7 +2192,7 @@ const startGeneration = async () => {
       }))
     }
 
-    console.log('提交的表单数据：', {
+    console.log('鎻愪氦鐨勮〃鍗曟暟鎹細', {
       title: videoForm.title,
       label: videoForm.label,
       msg: videoForm.script,
@@ -2123,49 +2205,51 @@ const startGeneration = async () => {
       corner_mark_id: (videoForm.subtitleSelector === 1 && videoForm.cornerMark) || undefined,
       corner_mark_url: (videoForm.subtitleSelector === 1 && videoForm.cornerMark && cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl) || undefined,
       subtitle_config: videoForm.subtitleSelector === 1 ? { ...subtitleConfig } : undefined
+      ,
+      banner_overlay_url: bannerOverlayUrl || undefined
     })
 
-        // 同步到全局通知中心（暂未启用）
+        // 鍚屾鍒板叏灞€閫氱煡涓績锛堟殏鏈惎鐢級
     // taskStore.addTask({
     //   taskType: 'VIDEO_TASK',
-    //   subTitle: `正在制作：${videoForm.title}`,
+    //   subTitle: `姝ｅ湪鍒朵綔锛?{videoForm.title}`,
     //   status: 'running',
     //   image: getHumanImg(videoForm.digitalHuman)
     // })
 
     let response
     if (videoForm.mode === 0) {
-      // 文案模式：调用原创建视频任务接口
+      // 鏂囨妯″紡锛氳皟鐢ㄥ師创建视频浠诲姟鎺ュ彛
       response = await createVideoTask(formData)
-      console.log('文案模式提交完成:', response)
+      console.log('鏂囨妯″紡鎻愪氦瀹屾垚:', response)
     } else {
-      // 音频文件已在上面 formData 中传了 audioFile，无需重复上传
+      // 闊抽鏂囦欢宸插湪涓婇潰 formData 涓紶浜?audioFile锛屾棤闇€閲嶅涓婁紶
       const lang = videoForm.language === 'zh' ? 'zh-CN' : 'th-TH'
       formData.append('language', lang)
-      // 竖屏音频模式可传角标
+      // 绔栧睆闊抽妯″紡鍙紶瑙掓爣
       if (videoForm.videoType !== 1 && videoForm.cornerMark) {
         const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
         if (selectedCornerMark?.photoUrl) {
           formData.append('corner_mark_url', selectedCornerMark.photoUrl)
         }
       }
-      console.log('音频模式提交数据:', Object.fromEntries(formData.entries()))
+      console.log('闊抽妯″紡鎻愪氦鏁版嵁:', Object.fromEntries(formData.entries()))
       response = await createAudioVideoTask(formData)
-      console.log('音频模式提交完成:', response)
+      console.log('闊抽妯″紡鎻愪氦瀹屾垚:', response)
     }
     
     if (response && response.data) {
-      // 提交成功，立即返回列表并清空表单
+      // 鎻愪氦鎴愬姛锛岀珛鍗宠繑鍥炲垪琛ㄥ苟娓呯┖琛ㄥ崟
       ElMessage.success('任务已提交，请在列表中查看生成进度')
       isGenerating.value = false
       resetForm()
       showCreate.value = false
     } else {
-      throw new Error('任务创建失败')
+      throw new Error('浠诲姟鍒涘缓澶辫触')
     }
   } catch (error) {
     isGenerating.value = false
-    console.error('视频生成失败:', error)
+    console.error('瑙嗛鐢熸垚澶辫触:', error)
     ElMessage.error(`视频生成失败: ${error instanceof Error ? error.message : '未知错误'}`)
   }
 }
@@ -2184,9 +2268,9 @@ const downloadVideo = async () => {
   }
   
   try {
-    console.log('开始下载视频:', videoPreview.url)
+    console.log('寮€濮嬩笅杞借棰?', videoPreview.url)
     
-    // 方法1：尝试用fetch下载
+    // 鏂规硶1锛氬皾璇曠敤fetch涓嬭浇
     try {
       const response = await fetch(videoPreview.url)
       if (response.ok) {
@@ -2204,11 +2288,11 @@ const downloadVideo = async () => {
           ElMessage.success('下载已开始')
         }, 2000)
       } else {
-        throw new Error('fetch返回非200状态码')
+        throw new Error('fetch杩斿洖闈?00鐘舵€佺爜')
       }
     } catch (fetchError) {
-      console.log('fetch失败，尝试直接跳转下载:', fetchError)
-      // 方法2：直接用window.location.href跳转下载
+      console.log('fetch澶辫触锛屽皾璇曠洿鎺ヨ烦杞笅杞?', fetchError)
+      // 鏂规硶2锛氱洿鎺ョ敤window.location.href璺宠浆涓嬭浇
       const link = document.createElement('a')
       link.href = videoPreview.url
       link.download = `video-${new Date().getTime()}.mp4`
@@ -2222,7 +2306,7 @@ const downloadVideo = async () => {
       }, 1000)
     }
   } catch (error) {
-    console.error('下载视频失败:', error)
+    console.error('下载视频澶辫触:', error)
     ElMessage.error('下载失败，请重试')
   }
 }
@@ -2236,9 +2320,9 @@ const downloadAudio = async () => {
   }
   
   try {
-    console.log('开始下载音频:', videoPreview.voiceUrl)
+    console.log('寮€濮嬩笅杞介煶棰?', videoPreview.voiceUrl)
     
-    // 方法1：尝试用fetch下载
+    // 鏂规硶1锛氬皾璇曠敤fetch涓嬭浇
     try {
       const response = await fetch(videoPreview.voiceUrl)
       if (response.ok) {
@@ -2256,11 +2340,11 @@ const downloadAudio = async () => {
           ElMessage.success('下载已开始')
         }, 2000)
       } else {
-        throw new Error('fetch返回非200状态码')
+        throw new Error('fetch杩斿洖闈?00鐘舵€佺爜')
       }
     } catch (fetchError) {
-      console.log('fetch失败，尝试直接跳转下载:', fetchError)
-      // 方法2：直接用window.location.href跳转下载
+      console.log('fetch澶辫触锛屽皾璇曠洿鎺ヨ烦杞笅杞?', fetchError)
+      // 鏂规硶2锛氱洿鎺ョ敤window.location.href璺宠浆涓嬭浇
       const link = document.createElement('a')
       link.href = videoPreview.voiceUrl
       link.download = `audio-${new Date().getTime()}.mp3`
@@ -2274,7 +2358,7 @@ const downloadAudio = async () => {
       }, 1000)
     }
   } catch (error) {
-    console.error('下载音频失败:', error)
+    console.error('下载音频澶辫触:', error)
     ElMessage.error('下载失败，请重试')
   }
 }
@@ -2283,18 +2367,18 @@ const downloadResult = () => {
   ElMessage.success('正在导出视频文件...')
 }
 
-// 搜索视频
+// 鎼滅储瑙嗛
 const handleSearch = async () => {
   try {
     videoTaskPage.value = 1
     await loadVideoTasks()
   } catch (error) {
-    console.error('搜索失败:', error)
+    console.error('鎼滅储澶辫触:', error)
     ElMessage.error('搜索失败，请重试')
   }
 }
 
-// 将 TOS 外部地址转成代理路径，解决 CORS
+// 灏?TOS 澶栭儴鍦板潃杞垚浠ｇ悊璺緞锛岃В鍐?CORS
 const toProxyUrl = (url: string) => {
   if (url && url.includes('tos-cn-beijing.volces.com')) {
     return url.replace(/^https?:\/\/[^/]+/, '/tos-proxy')
@@ -2337,7 +2421,7 @@ const batchDownloadVideos = async () => {
           successCount++
         })
         .catch(error => {
-          console.error(`下载视频失败: ${video.title}`, error)
+          console.error(`下载视频澶辫触: ${video.title}`, error)
           failedCount++
         })
     )
@@ -2345,11 +2429,11 @@ const batchDownloadVideos = async () => {
     // 等待所有下载完成
     await Promise.all(downloadPromises)
 
-    // 生成 ZIP 文件
+    // 鐢熸垚 ZIP 鏂囦欢
     ElMessage.info('正在生成压缩包...')
     const zipBlob = await zip.generateAsync({ type: 'blob' })
 
-    // 下载 ZIP 文件
+    // 涓嬭浇 ZIP 鏂囦欢
     const url = window.URL.createObjectURL(zipBlob)
     const a = document.createElement('a')
     a.href = url
@@ -2369,7 +2453,7 @@ const batchDownloadVideos = async () => {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
     }
   } catch (error) {
-    console.error('ZIP打包失败:', error)
+    console.error('ZIP鎵撳寘澶辫触:', error)
     ElMessage.error('打包文件失败，请重试')
   }
 }
@@ -2409,7 +2493,7 @@ const batchDownloadAudios = async () => {
           successCount++
         })
         .catch(error => {
-          console.error(`下载音频失败: ${video.title}`, error)
+          console.error(`下载音频澶辫触: ${video.title}`, error)
           failedCount++
         })
     )
@@ -2422,11 +2506,11 @@ const batchDownloadAudios = async () => {
       return
     }
 
-    // 生成 ZIP 文件
+    // 鐢熸垚 ZIP 鏂囦欢
     ElMessage.info('正在生成压缩包...')
     const zipBlob = await zip.generateAsync({ type: 'blob' })
 
-    // 下载 ZIP 文件
+    // 涓嬭浇 ZIP 鏂囦欢
     const url = window.URL.createObjectURL(zipBlob)
     const a = document.createElement('a')
     a.href = url
@@ -2446,15 +2530,15 @@ const batchDownloadAudios = async () => {
       ElMessage.info(`${invalidCount} 个音频跳过（未完成或无URL）`)
     }
   } catch (error) {
-    console.error('ZIP打包失败:', error)
+    console.error('ZIP鎵撳寘澶辫触:', error)
     ElMessage.error('打包文件失败，请重试')
   }
 }
 
-// --- 数字人选择器 ---
+// --- 鏁板瓧浜洪€夋嫨鍣?---
 const openHumanSelector = async () => {
   humanSelectorDialog.visible = true
-  // 重置分页
+  // 閲嶇疆鍒嗛〉
   humanSelectorDialog.allList = []
   humanSelectorDialog.displayList = []
   humanSelectorDialog.page = 1
@@ -2468,7 +2552,7 @@ const openHumanSelector = async () => {
 const loadMoreHumans = async () => {
   humanSelectorDialog.loading = true
   try {
-    // 从API加载下一页数字人数据，传入视频方向参数
+    // 从 API 加载下一页数字人数据，并传入视频方向参数
     const searchParams: any = {}
     if (humanSelectorDialog.search) searchParams.name = humanSelectorDialog.search
     searchParams.type = videoForm.videoType
@@ -2486,12 +2570,12 @@ const loadMoreHumans = async () => {
         return
       }
       
-      // 映射API返回的数据到前端格式
+      // 鏄犲皠API杩斿洖鐨勬暟鎹埌鍓嶇鏍煎紡
       const newItems = humanList.map((digital: any) => ({
         name: digital.digitalHumanName || digital.name,
         externalId: digital.externalId,
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
-        coverUrl: digital.coverUrl || '',   // 原始封面URL，用于字幕预览frame
+        coverUrl: digital.coverUrl || '',   // 鍘熷灏侀潰URL锛岀敤浜庡瓧骞曢瑙坒rame
         videoUrl: digital.videoUrl,
         gender: digital.gender
       }))
@@ -2500,20 +2584,20 @@ const loadMoreHumans = async () => {
       humanSelectorDialog.displayList = humanSelectorDialog.allList
       humanSelectorDialog.page++
       
-      // 如果本页获取的数据少于pageSize，说明已经到底了
+      // 濡傛灉鏈〉鑾峰彇鐨勬暟鎹皯浜巔ageSize锛岃鏄庡凡缁忓埌搴曚簡
       if (humanList.length < humanSelectorDialog.pageSize) {
         humanSelectorDialog.hasMore = false
       }
     }
   } catch (error) {
-    console.error('加载数字人失败:', error)
+    console.error('鍔犺浇鏁板瓧浜哄け璐?', error)
     ElMessage.error('加载数字人失败')
   } finally {
     humanSelectorDialog.loading = false
   }
 }
 
-// 滚动到底部时自动加载
+// 婊氬姩鍒板簳閮ㄦ椂鑷姩鍔犺浇
 const handleHumanScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   // 距离底部小于 100px 时自动加载
@@ -2527,16 +2611,15 @@ const selectHuman = async (item: any) => {
   videoForm.digitalHuman = item.name
   videoForm.digitalHumanExternalId = item.externalId || ''
   videoForm.previewImg = item.img
-  // 统一刷新预览
+  // 缁熶竴鍒锋柊棰勮
   refreshPreview(item)
   humanSelectorDialog.visible = false
   ElMessage.success('已选择数字人')
 }
 
 /**
- * 统一刷新预览效果
- * - 文案竖版开字幕：后端即时渲染（SubtitlePreview）
- * - 其他情况：直接显示封面图
+ * 缁熶竴鍒锋柊预览效果
+ * - 鏂囨竖版寮€瀛楀箷锛氬悗绔嵆无舵覆鏌擄紙SubtitlePreview锛? * - 鍏朵粬鎯呭喌锛氱洿鎺ユ樉绀哄皝闈㈠浘
  */
 const refreshPreview = async (item?: any) => {
   const digitalHuman = item || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
@@ -2546,13 +2629,23 @@ const refreshPreview = async (item?: any) => {
   if (videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0) {
     subtitlePreviewFrameBase64.value = await getFrameBase64(digitalHuman.coverUrl || '', digitalHuman.videoUrl || '')
   }
-  // 其他情况封面预览依赖 currentDigitalHumanImg 计算属性自动更新，无需额外操作
+  // 鍏朵粬鎯呭喌灏侀潰棰勮渚濊禆 currentDigitalHumanImg 璁＄畻灞炴€ц嚜鍔ㄦ洿鏂帮紝无犻渶棰濆操作
 }
 
-// --- 角标选择器 ---
+// --- 瑙掓爣閫夋嫨鍣?---
 const openCornerMarkSelector = () => {
   cornerMarkSelectorDialog.visible = true
   cornerMarkSelectorDialog.search = ''
+}
+
+const openBannerOverlaySelector = async () => {
+  bannerOverlaySelectorDialog.visible = true
+  bannerOverlaySelectorDialog.allList = []
+  bannerOverlaySelectorDialog.displayList = []
+  bannerOverlaySelectorDialog.page = 1
+  bannerOverlaySelectorDialog.search = ''
+  bannerOverlaySelectorDialog.hasMore = true
+  await loadMoreBannerOverlays()
 }
 
 const selectCornerMark = async (item: any) => {
@@ -2563,14 +2656,78 @@ const selectCornerMark = async (item: any) => {
     await recordRecentCornerMark(item.id)
     await loadRecentCornerMarks()
   } catch (e) {
-    console.error('记录角标使用失败:', e)
+    console.error('璁板綍瑙掓爣浣跨敤澶辫触:', e)
   }
 }
 
-// --- 配音选择器 ---
+const loadMoreBannerOverlays = async () => {
+  bannerOverlaySelectorDialog.loading = true
+  try {
+    const searchParams: any = {}
+    if (bannerOverlaySelectorDialog.search) searchParams.title = bannerOverlaySelectorDialog.search
+    const response = await bannerOverlayPaginateRequest(
+      bannerOverlaySelectorDialog.page,
+      bannerOverlaySelectorDialog.pageSize,
+      searchParams
+    )
+    const root = response?.data?.data ?? {}
+    const records = Array.isArray(root?.records) ? root.records : (Array.isArray(root?.data) ? root.data : [])
+    if (records.length === 0) {
+      bannerOverlaySelectorDialog.hasMore = false
+      return
+    }
+    const newItems = records.map((item: any) => ({
+      id: item.id,
+      name: item.title || item.name || `妯箙#${item.id}`,
+      overlayUrl: item.overlayUrl || item.overlay_url || '',
+      outputUrl: item.outputUrl || item.output_url || '',
+      ...item
+    }))
+    bannerOverlaySelectorDialog.allList.push(...newItems)
+    bannerOverlaySelectorDialog.displayList = bannerOverlaySelectorDialog.allList
+    bannerOverlayOptions.value = bannerOverlaySelectorDialog.allList
+    bannerOverlaySelectorDialog.page++
+    if (records.length < bannerOverlaySelectorDialog.pageSize) {
+      bannerOverlaySelectorDialog.hasMore = false
+    }
+  } catch (error) {
+    console.error('加载横幅失败:', error)
+    ElMessage.error('加载横幅失败')
+  } finally {
+    bannerOverlaySelectorDialog.loading = false
+  }
+}
+
+const handleBannerOverlayScroll = (e: any) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target
+  if (scrollHeight - scrollTop - clientHeight < 100 && bannerOverlaySelectorDialog.hasMore && !bannerOverlaySelectorDialog.loading) {
+    loadMoreBannerOverlays()
+  }
+}
+
+const selectBannerOverlay = async (item: any) => {
+  selectedBannerOverlayId.value = item.id
+  bannerOverlaySelectorDialog.visible = false
+  const pickedUrl = item.outputUrl || item.overlayUrl || ''
+  if (!pickedUrl) {
+    selectedBannerOverlayBase64.value = ''
+    ElMessage.warning('该横幅缺少可用图片地址')
+    return
+  }
+  try {
+    selectedBannerOverlayBase64.value = await fetchImageAsBase64(pickedUrl)
+    ElMessage.success('已选择横幅')
+  } catch (error) {
+    console.error('妯箙杞琤ase64澶辫触:', error)
+    selectedBannerOverlayBase64.value = ''
+    ElMessage.error('横幅读取失败，请重试')
+  }
+}
+
+// --- 閰嶉煶閫夋嫨鍣?---
 const openVoiceSelector = async () => {
   voiceSelectorDialog.visible = true
-  // 重置分页
+  // 閲嶇疆鍒嗛〉
   voiceSelectorDialog.allList = []
   voiceSelectorDialog.displayList = []
   voiceSelectorDialog.page = 1
@@ -2584,7 +2741,7 @@ const openVoiceSelector = async () => {
 const loadMoreVoices = async () => {
   voiceSelectorDialog.loading = true
   try {
-    // 加载配音时传入 language 参数
+    // 鍔犺浇閰嶉煶无朵紶鍏?language 鍙傛暟
     const searchParams: any = {}
     if (voiceSelectorDialog.search) searchParams.name = voiceSelectorDialog.search
     searchParams.language = videoForm.language
@@ -2628,7 +2785,7 @@ const loadMoreVoices = async () => {
   }
 }
 
-// 滚动到底部时自动加载更多配音
+// 婊氬姩鍒板簳閮ㄦ椂鑷姩鍔犺浇鏇村閰嶉煶
 const handleVoiceScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   if (scrollHeight - scrollTop - clientHeight < 100 && voiceSelectorDialog.hasMore && !voiceSelectorDialog.loading) {
@@ -2645,10 +2802,10 @@ const selectVoice = (item: any) => {
   ElMessage.success('已选择配音')
 }
 
-// --- 快捷预设选择器 ---
+// --- 蹇嵎棰勮閫夋嫨鍣?---
 const openRelSelector = async () => {
   relSelectorDialog.visible = true
-  // 重置分页
+  // 閲嶇疆鍒嗛〉
   relSelectorDialog.allList = []
   relSelectorDialog.displayList = []
   relSelectorDialog.page = 1
@@ -2662,7 +2819,7 @@ const openRelSelector = async () => {
 const loadMoreRels = async () => {
   relSelectorDialog.loading = true
   try {
-    // 加载预设时传入 language 参数
+    // 鍔犺浇棰勮无朵紶鍏?language 鍙傛暟
     const searchParams: any = {}
     if (relSelectorDialog.search) {
       searchParams.title = relSelectorDialog.search
@@ -2716,7 +2873,7 @@ const loadMoreRels = async () => {
   }
 }
 
-// 滚动到底部时自动加载更多预设
+// 婊氬姩鍒板簳閮ㄦ椂鑷姩鍔犺浇鏇村棰勮
 const handleRelScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   if (scrollHeight - scrollTop - clientHeight < 100 && relSelectorDialog.hasMore && !relSelectorDialog.loading) {
@@ -2726,7 +2883,7 @@ const handleRelScroll = (e: any) => {
 
 const selectRel = async (item: any) => {
   console.log('[selectRel] item:', item)
-  // 调用 handleRelChange 处理预设选择逻辑
+  // 璋冪敤 handleRelChange 澶勭悊棰勮閫夋嫨閫昏緫
   await handleRelChange(item.id, item)
   relSelectorDialog.visible = false
 }
@@ -2742,7 +2899,7 @@ const clearRelSelection = () => {
 
 // 监听搜索框变化
 watch(() => humanSelectorDialog.search, (newVal) => {
-  // 重置分页，重新从API加载搜索结果
+  // 閲嶇疆鍒嗛〉锛岄噸鏂颁粠API鍔犺浇鎼滅储缁撴灉
   humanSelectorDialog.allList = []
   humanSelectorDialog.displayList = []
   humanSelectorDialog.page = 1
@@ -2751,7 +2908,7 @@ watch(() => humanSelectorDialog.search, (newVal) => {
 })
 
 watch(() => voiceSelectorDialog.search, (newVal) => {
-  // 重置分页，重新从API加载搜索结果
+  // 閲嶇疆鍒嗛〉锛岄噸鏂颁粠API鍔犺浇鎼滅储缁撴灉
   voiceSelectorDialog.allList = []
   voiceSelectorDialog.displayList = []
   voiceSelectorDialog.page = 1
@@ -2760,7 +2917,7 @@ watch(() => voiceSelectorDialog.search, (newVal) => {
 })
 
 watch(() => relSelectorDialog.search, (newVal) => {
-  // 重置分页，重新从API加载搜索结果
+  // 閲嶇疆鍒嗛〉锛岄噸鏂颁粠API鍔犺浇鎼滅储缁撴灉
   relSelectorDialog.allList = []
   relSelectorDialog.displayList = []
   relSelectorDialog.page = 1
@@ -2768,6 +2925,13 @@ watch(() => relSelectorDialog.search, (newVal) => {
   loadMoreRels()
 })
 
+watch(() => bannerOverlaySelectorDialog.search, () => {
+  bannerOverlaySelectorDialog.allList = []
+  bannerOverlaySelectorDialog.displayList = []
+  bannerOverlaySelectorDialog.page = 1
+  bannerOverlaySelectorDialog.hasMore = true
+  loadMoreBannerOverlays()
+})
 </script>
 
 <style scoped>
@@ -2785,7 +2949,7 @@ watch(() => relSelectorDialog.search, (newVal) => {
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-/* 搜索框优化 */
+/* 鎼滅储妗嗕紭鍖?*/
 .search-input :deep(.el-input__wrapper) {
   background-color: #f0f9ff;
   border: 2px solid #bfdbfe;
@@ -2837,3 +3001,11 @@ watch(() => relSelectorDialog.search, (newVal) => {
   border-radius: 0 0 12px 12px;
 }
 </style>
+
+
+
+
+
+
+
+
