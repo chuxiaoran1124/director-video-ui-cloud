@@ -1192,6 +1192,57 @@ export function createCornerMarkTask(data: FormData) {
     })
 }
 
+// 创建视频角标任务（直传模式 - 单文件）
+export function createCornerMarkTaskDirectSingle(data: {
+  file_name: string
+  file_size: number
+  content_type?: string
+  sourcePhotoUrl: string
+  title?: string
+}) {
+  return request({
+    url: '/api/material/corner-mark/direct/create',
+    method: 'post',
+    data,
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+  })
+}
+
+// 批量创建视频角标任务（直传模式 - 文件夹多文件）
+export function createCornerMarkDirectBatch(data: {
+  files: {
+    name: string
+    size: number
+    content_type?: string
+    relative_path?: string
+  }[]
+  sourcePhotoUrl: string
+  title?: string
+}) {
+  return request({
+    url: '/api/material/corner-mark/direct/batch-create',
+    method: 'post',
+    data,
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+  })
+}
+
+// 确认 MinIO 上传完成
+export function confirmCornerMarkUpload(data: {
+  files: {
+    file_id: string | number
+    object_name: string
+    file_size: number
+  }[]
+}) {
+  return request({
+    url: '/api/material/corner-mark/direct/upload-confirm',
+    method: 'post',
+    data,
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+  })
+}
+
 /**
  * 批量创建视频角标任务（文件夹上传�?
  */

@@ -332,18 +332,48 @@
             <el-button type="primary" @click="openCornerMarkSelector">选择角标</el-button>
           </div>
         </el-form-item>
+
+        <!-- 批量上传进度 -->
+        <div
+          v-if="uploadProgress.visible"
+          class="mt-4 p-4 rounded-lg bg-blue-50 border border-blue-200"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-medium text-gray-700">
+              正在上传视频到 MinIO
+            </div>
+            <div class="text-xs text-gray-500">
+              {{ uploadProgress.done }}/{{ uploadProgress.total }}
+            </div>
+          </div>
+
+          <el-progress
+            :percentage="uploadProgress.percent"
+            :stroke-width="18"
+            :status="uploadProgress.failed > 0 ? 'warning' : undefined"
+          />
+
+          <div class="mt-2 text-xs text-gray-500">
+            已上传 {{ uploadProgress.success }} 个，
+            失败 {{ uploadProgress.failed }} 个，
+            剩余 {{ uploadProgress.remaining }} 个
+          </div>
+
+          <div v-if="uploadProgress.currentFileName" class="mt-1 text-xs text-gray-400 truncate">
+            当前文件：{{ uploadProgress.currentFileName }}
+          </div>
+        </div>
       </el-form>
 
       <template #footer>
         <el-button @click="dialogVisible = false" :disabled="submitting">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="submitting"
-          :disabled="submitting || !hasUploadPayload || !form.cornerMarkImageUrl || titleValidating || (form.title.trim() !== '' && titleState === 'invalid')"
-          @click="handleSubmit"
-        >
-          开始添加角标
-        </el-button>
+          <el-button
+            type="primary"
+            :loading="submitting"
+            @click="handleSubmit"
+          >
+            开始添加角标
+          </el-button>
       </template>
     </el-dialog>
 
@@ -490,8 +520,9 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import JSZip from 'jszip'
 import {
-  createCornerMarkTask,
-  createCornerMarkBatchTask,
+  createCornerMarkTaskDirectSingle,
+  createCornerMarkDirectBatch,
+  confirmCornerMarkUpload,
   checkCornerMarkTaskTitle,
   getCornerMarkTaskList,
   getCornerMarkBatchTaskList,
@@ -569,6 +600,36 @@ const form = reactive({
   cornerMarkImageUrl: '',
   cornerMarkName: ''
 })
+
+const uploadProgress = reactive({
+  visible: false,
+  total: 0,
+  success: 0,
+  failed: 0,
+  done: 0,
+  percent: 0,
+  currentFileName: '',
+  remaining: 0
+})
+
+const resetUploadProgress = () => {
+  uploadProgress.visible = false
+  uploadProgress.total = 0
+  uploadProgress.success = 0
+  uploadProgress.failed = 0
+  uploadProgress.done = 0
+  uploadProgress.percent = 0
+  uploadProgress.currentFileName = ''
+  uploadProgress.remaining = 0
+}
+
+const updateUploadProgress = () => {
+  uploadProgress.done = uploadProgress.success + uploadProgress.failed
+  uploadProgress.remaining = Math.max(uploadProgress.total - uploadProgress.done, 0)
+  uploadProgress.percent = uploadProgress.total
+    ? Math.round((uploadProgress.done / uploadProgress.total) * 100)
+    : 0
+}
 
 const folderInputRef = ref<HTMLInputElement | null>(null)
 const hasUploadPayload = computed(() => form.mode === 'single' ? !!form.file : form.files.length > 0)
@@ -782,6 +843,48 @@ const formatFileSize = (size: number) => {
   return (size / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+const uploadToMinio = async (file: File, uploadUrl: string): Promise<void> => {
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`MinIO 上传失败，HTTP ${response.status}`)
+  }
+}
+
+// ===== 新增上传函数：带进度监听 =====
+const uploadToMinioWithProgress = (file: File, uploadUrl: string, onProgress: (loaded: number, total: number) => void): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', uploadUrl, true)
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+
+    // 上传进度
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.loaded, event.total)
+      }
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve()
+      } else {
+        reject(new Error(`MinIO 上传失败，HTTP ${xhr.status}`))
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('MinIO 上传请求出错'))
+    xhr.onabort = () => reject(new Error('MinIO 上传被取消'))
+    xhr.send(file)
+  })
+}
+
 // --- Submit ---
 const handleSubmit = async () => {
   if (submitting.value) return
@@ -789,54 +892,202 @@ const handleSubmit = async () => {
   if (!form.cornerMarkImageUrl) return ElMessage.warning('请选择角标图片')
 
   const t = form.title.trim()
+
   if (t) {
     if (titleValidating.value) return ElMessage.warning('标题校验中，请稍候')
     if (titleState.value === 'idle') await validateTitle(t)
-    if (titleState.value === 'invalid') return ElMessage.warning('标题已存在，请更换标题或使用推荐名称')
+    if (titleState.value === 'invalid') {
+      return ElMessage.warning('标题已存在，请更换标题或使用推荐名称')
+    }
   }
 
   submitting.value = true
+
   try {
     if (form.mode === 'folder') {
-      const formData = new FormData()
-      form.files.forEach((file) => formData.append('files', file))
-      formData.append('sourcePhotoUrl', form.cornerMarkImageUrl)
-      if (t) formData.append('title', t)
+      const filesPayload = form.files.map((file) => ({
+        name: file.name,
+        size: file.size,
+        content_type: file.type || 'application/octet-stream',
+        relative_path: (file as any).webkitRelativePath || file.name
+      }))
 
-      const res = await createCornerMarkBatchTask(formData)
-      const code = res.data?.code
-      if (code === 0 || code === 200) {
-        ElMessage.success('批量任务已提交，正在处理中')
-        dialogVisible.value = false
-        listViewMode.value = 'batch'
-        pagination.currentPage = 1
-        await loadCurrentList()
-      } else {
-        ElMessage.error(res.data?.msg || res.data?.message || '批量提交失败，请稍后重试')
+      const createRes = await createCornerMarkDirectBatch({
+        files: filesPayload,
+        sourcePhotoUrl: form.cornerMarkImageUrl,
+        ...(t && { title: t })
+      })
+
+      const createCode = createRes.data?.code
+
+      if (createCode !== 0 && createCode !== 200) {
+        throw new Error(createRes.data?.msg || createRes.data?.message || '创建批量上传任务失败')
       }
+
+      const taskList = createRes.data?.data?.tasks || []
+
+      if (!taskList.length) {
+        throw new Error('后端未返回上传任务列表')
+      }
+
+      const taskMap = new Map<
+        string,
+        {
+          file_id: string | number
+          object_name: string
+          upload_url: string
+        }
+      >()
+
+      taskList.forEach((item: any) => {
+        const key = item.relative_path || item.file_name
+        taskMap.set(key, {
+          file_id: item.file_id,
+          object_name: item.object_name,
+          upload_url: item.upload_url
+        })
+      })
+
+      const uploadedFiles: {
+        file_id: string | number
+        object_name: string
+        file_size: number
+      }[] = []
+
+      const uploadErrors: string[] = []
+
+      uploadProgress.visible = true
+      uploadProgress.total = form.files.length
+      uploadProgress.success = 0
+      uploadProgress.failed = 0
+      uploadProgress.done = 0
+      uploadProgress.percent = 0
+      uploadProgress.remaining = form.files.length
+      uploadProgress.currentFileName = ''
+
+      for (const file of form.files) {
+        const key = (file as any).webkitRelativePath || file.name
+        const info = taskMap.get(key)
+
+        uploadProgress.currentFileName = file.name
+
+        if (!info) {
+          uploadErrors.push(`${file.name}: 未找到上传凭证`)
+          uploadProgress.failed++
+          updateUploadProgress()
+          continue
+        }
+
+        try {
+          await uploadToMinioWithProgress(file, info.upload_url, (loaded, total) => {
+            uploadProgress.currentFileName = file.name
+          })
+
+          uploadedFiles.push({
+            file_id: info.file_id,
+            object_name: info.object_name,
+            file_size: file.size
+          })
+
+          uploadProgress.success++
+          updateUploadProgress()
+        } catch (error: any) {
+          uploadErrors.push(`${file.name}: ${error?.message || '上传失败'}`)
+          uploadProgress.failed++
+          updateUploadProgress()
+        }
+      }
+
+      uploadProgress.currentFileName = ''
+
+      if (!uploadedFiles.length) {
+        throw new Error(`所有文件上传失败：${uploadErrors.join('；')}`)
+      }
+
+      const confirmRes = await confirmCornerMarkUpload({
+        files: uploadedFiles
+      })
+
+      const confirmCode = confirmRes.data?.code
+
+      if (confirmCode !== 0 && confirmCode !== 200) {
+        throw new Error(confirmRes.data?.msg || confirmRes.data?.message || '确认上传失败')
+      }
+
+      const msgParts = [`成功上传 ${uploadedFiles.length} 个视频`]
+
+      if (uploadErrors.length > 0) {
+        msgParts.push(`${uploadErrors.length} 个失败`)
+      }
+
+      ElMessage.success(msgParts.join('，') + '，正在处理中')
+
+      dialogVisible.value = false
+      listViewMode.value = 'batch'
+      pagination.currentPage = 1
+      await loadCurrentList()
       return
     }
 
-    const formData = new FormData()
-    formData.append('file', form.file as File)
-    formData.append('sourcePhotoUrl', form.cornerMarkImageUrl)
-    if (t) formData.append('title', t)
-    const res = await createCornerMarkTask(formData)
-    const code = res.data?.code
-    if (code === 0 || code === 200) {
-      ElMessage.success('任务已提交，正在处理中')
-      dialogVisible.value = false
-      pagination.currentPage = 1
-      await loadCurrentList()
-    } else {
-      ElMessage.error(res.data?.msg || res.data?.message || '提交失败，请稍后重试')
+    const file = form.file as File
+
+    const createRes = await createCornerMarkTaskDirectSingle({
+      file_name: file.name,
+      file_size: file.size,
+      content_type: file.type || 'application/octet-stream',
+      sourcePhotoUrl: form.cornerMarkImageUrl,
+      ...(t && { title: t })
+    })
+
+    const createCode = createRes.data?.code
+
+    if (createCode !== 0 && createCode !== 200) {
+      throw new Error(createRes.data?.msg || createRes.data?.message || '创建上传任务失败')
     }
+
+    const createData = createRes.data?.data || {}
+    const { file_id, object_name, upload_url } = createData
+
+    if (!file_id || !object_name || !upload_url) {
+      throw new Error('后端返回上传参数不完整')
+    }
+
+    await uploadToMinioWithProgress(file, upload_url, (loaded, total) => {
+      uploadProgress.visible = true
+      uploadProgress.total = 1
+      uploadProgress.currentFileName = file.name
+      uploadProgress.percent = Math.round((loaded / total) * 100)
+    })
+
+    const confirmRes = await confirmCornerMarkUpload({
+      files: [
+        {
+          file_id,
+          object_name,
+          file_size: file.size
+        }
+      ]
+    })
+
+    const confirmCode = confirmRes.data?.code
+
+    if (confirmCode !== 0 && confirmCode !== 200) {
+      throw new Error(confirmRes.data?.msg || confirmRes.data?.message || '确认上传失败')
+    }
+
+    ElMessage.success('视频已上传，正在处理中')
+    dialogVisible.value = false
+    pagination.currentPage = 1
+    await loadCurrentList()
   } catch (error: any) {
     console.error('创建角标任务失败:', error)
     ElMessage.error(error?.message || '提交失败，请稍后重试')
   } finally {
-    submitting.value = false
-  }
+      submitting.value = false
+      if (!dialogVisible.value) {
+        resetUploadProgress()
+      }
+    }
 }
 
 // --- Delete ---
@@ -1107,7 +1358,7 @@ const handleSizeChange = (val: number) => { pagination.pageSize = val; paginatio
 const handleCurrentChange = (val: number) => { pagination.currentPage = val; loadCurrentList() }
 
 // --- Helpers ---
-const openDialog = () => { resetForm(); dialogVisible.value = true }
+const openDialog = () => { resetForm(); resetUploadProgress();dialogVisible.value = true }
 
 const resetForm = () => {
   form.mode = 'single'
