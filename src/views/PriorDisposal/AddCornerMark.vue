@@ -1227,7 +1227,7 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
           return res.blob()
         })
         .then((blob) => {
-          const fileName = `${item.title || `item-${item.id}`}.mp4`
+          const fileName = `${item.title || `item-${item.id}`}-1.mp4`
           zip.file(fileName, blob)
           successCount++
         })
@@ -1291,7 +1291,7 @@ const handleBatchDownload = async () => {
           return res.blob()
         })
         .then(blob => {
-          const fileName = `${row.title || 'corner-mark'}-${row.id}.mp4`
+          const fileName = `${row.title || 'corner-mark'}-${row.id}-1.mp4`
           zip.file(fileName, blob)
           successCount++
         })
