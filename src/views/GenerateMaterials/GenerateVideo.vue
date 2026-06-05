@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="generate-video p-6 bg-gray-50 min-h-full">
     <!-- 鍒楄〃椤甸潰 -->
-    <div v-if="!showCreate" class="max-w-[1200px] mx-auto">
+    <div v-if="!showCreate" class="max-w-[1500px] mx-auto">
       <!-- 椤堕儴鏍囬 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
         <div>
@@ -58,10 +58,12 @@
           </div>
         </div>
 
+        <div class="overflow-x-auto">
         <el-table 
           :data="filteredVideoList" 
           border 
-          style="width: 100%" 
+          style="width: 100%"
+          class="min-w-[1350px]"
           header-cell-class-name="bg-gray-50 font-bold text-gray-700"
           @selection-change="selectedVideos = $event"
         >
@@ -130,6 +132,7 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
 
         <!-- 鍒嗛〉 -->
         <div class="mt-4 flex justify-end">
