@@ -784,6 +784,33 @@ import { useTaskStore } from '/@/store/modules/task'
 import { createPlanVideo, createPlanVideoTask, deletePlanVideoTask, deletePlanVideo, getPlanVideoList, getScriptPaginateList, getScriptHistoryList, createScript, getDigitalHumanList, getVoiceList, getBindingList, startPlanVideoTask, startAllPlanTasks, getCornerMarkList, toTopCornerMark } from '/@/api/material/index'
 import request from '/@/utils/request'
 
+const DEFAULT_PLAN_SUBTITLE_CONFIG = {
+  font_name: '竹言体',
+  font_size: 18,
+  margin_v: 74,
+  primary_colour: '#FFFF00',
+  outline: 1,
+  outline_colour: '#000000',
+  bold: 1,
+  bg_mode: 'none',
+  bg_height: 60,
+  bg_colour: 'rgba(0,0,0,0.5)',
+  blur_subtitles: false,
+  blur_strength: 15,
+}
+
+const buildPlanSubtitlePayload = (subtitleSelector: number, cornerMarkId?: string | number) => {
+  const processTypes: string[] = []
+  if (Number(subtitleSelector) === 1) processTypes.push('subtitle')
+  if (cornerMarkId) processTypes.push('corner_mark')
+  if (processTypes.length === 0) return undefined
+
+  return {
+    process_types: processTypes,
+    subtitle_config: Number(subtitleSelector) === 1 ? { ...DEFAULT_PLAN_SUBTITLE_CONFIG } : null,
+  }
+}
+
 // --- 数据定义 ---
 const taskStore = useTaskStore()
 const viewMode = ref('list') // 'list' 或 'detail'
@@ -1986,6 +2013,14 @@ const submitProject = async () => {
     }
   }
 
+  const projectSubtitlePayload = buildPlanSubtitlePayload(
+    Number(params.subtitleSelector || 0),
+    params.corner_mark_id
+  )
+  if (projectSubtitlePayload) {
+    params.subtitle_config = JSON.stringify(projectSubtitlePayload)
+  }
+
   // 运行方式配置 (runMode: 1=手动执行, 2=自动执行)
   params.runMode = projectForm.executionMode === 'manual' ? 1 : 2
   if (projectForm.executionMode === 'scheduled' && projectForm.scheduledTime) {
@@ -2149,6 +2184,14 @@ const submitSubTask = async () => {
         params.corner_mark_url = cornerMarkItem.photoUrl
       }
     }
+  }
+
+  const taskSubtitlePayload = buildPlanSubtitlePayload(
+    Number(subtitleSelector || 0),
+    params.corner_mark_id
+  )
+  if (taskSubtitlePayload) {
+    params.subtitle_config = JSON.stringify(taskSubtitlePayload)
   }
 
   // 添加ID（如果是更新）

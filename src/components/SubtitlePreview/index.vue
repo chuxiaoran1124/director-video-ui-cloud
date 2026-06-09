@@ -44,7 +44,7 @@
       </div>
 
       <!-- 详细设置（默认折叠） -->
-      <div v-show="showDetailSettings" class="space-y-3">
+      <div v-show="showDetailSettings && enableSubtitle" class="space-y-3">
 
       <!-- 字体选择 -->
       <div>
@@ -235,11 +235,21 @@ const props = defineProps<{
   scriptText?: string
   cornerMarkUrl?: string
   bannerOverlayBase64?: string
+  processTypes?: string[]
+  enableSubtitle?: boolean
+  initialConfig?: Record<string, any> | null
 }>()
 
 const emit = defineEmits<{
   (e: 'update:config', value: any): void
 }>()
+
+const normalizedProcessTypes = computed(() => {
+  const types = Array.isArray(props.processTypes) ? props.processTypes : []
+  return types.map((item) => String(item))
+})
+
+const enableSubtitle = computed(() => props.enableSubtitle !== false)
 
 // 预览图尺寸（CSS显示）
 const displayWidth = 270
@@ -322,6 +332,15 @@ const boldSwitch = ref(true)
 const handleBoldChange = (val: boolean) => {
   config.bold = val ? 1 : 0
   requestBackendPreview()
+}
+
+const applyExternalConfig = async (newConfig?: Record<string, any> | null) => {
+  if (!newConfig || typeof newConfig !== 'object') return
+  Object.assign(config, newConfig)
+  boldSwitch.value = config.bold === 1
+  if (config.font_name) {
+    await loadFont(config.font_name)
+  }
 }
 
 // ====== 字幕模板 ======
@@ -471,25 +490,28 @@ const requestBackendPreview = () => {
   previewDebounceTimer = setTimeout(async () => {
     loading.value = true
     try {
+      const subtitlePayload = enableSubtitle.value ? {
+        font_size: config.font_size,
+        margin_v: config.margin_v,
+        primary_colour: config.primary_colour,
+        outline: config.outline,
+        outline_colour: config.outline_colour,
+        bold: config.bold,
+        font_name: config.font_name,
+        bg_mode: config.bg_mode,
+        bg_height: config.bg_height,
+        blur_strength: config.blur_strength,
+        bg_colour: config.bg_colour,
+        blur_subtitles: config.bg_mode === 'blur',
+      } : null
+
       const res = await getSubtitlePreviewFrame({
         frame_base64: props.frameBase64,
-        preview_text: previewText.value,
+        preview_text: enableSubtitle.value ? previewText.value : '',
         corner_mark_url: props.cornerMarkUrl || '',
         banner_overlay_base64: props.bannerOverlayBase64 || '',
-        subtitle_config: {
-          font_size: config.font_size,
-          margin_v: config.margin_v,
-          primary_colour: config.primary_colour,
-          outline: config.outline,
-          outline_colour: config.outline_colour,
-          bold: config.bold,
-          font_name: config.font_name,
-          bg_mode: config.bg_mode,
-          bg_height: config.bg_height,
-          blur_strength: config.blur_strength,
-          bg_colour: config.bg_colour,
-          blur_subtitles: config.bg_mode === 'blur',
-        },
+        process_types: normalizedProcessTypes.value,
+        subtitle_config: subtitlePayload,
       } as any)
       const data = res.data?.data || res.data
       console.log('[SubtitlePreview] 接口返回:', data)
@@ -514,7 +536,7 @@ const requestBackendPreview = () => {
 // 暴露方法供父组件调用
 const getConfig = () => ({ ...config })
 
-defineExpose({ getConfig })
+defineExpose({ getConfig, setConfig: applyExternalConfig })
 
 // 监听 frameBase64 变化 → 重新请求渲染
 watch(() => props.frameBase64, (val) => {
@@ -551,6 +573,15 @@ watch(() => props.scriptText, (newText) => {
       previewText.value = firstSentence.substring(0, 20)
     }
   }
+}, { immediate: true })
+
+watch(() => props.enableSubtitle, () => {
+  requestBackendPreview()
+})
+
+watch(() => props.initialConfig, async (val) => {
+  await applyExternalConfig(val)
+  requestBackendPreview()
 }, { immediate: true })
 
 // 挂载后加载字体（仅供下拉框字体样式预览）和用户模板

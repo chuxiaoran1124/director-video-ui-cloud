@@ -60,14 +60,16 @@
 
         <div class="overflow-x-auto">
         <el-table 
+          ref="videoTableRef"
           :data="filteredVideoList" 
+          row-key="id"
           border 
           style="width: 100%"
           class="min-w-[1350px]"
           header-cell-class-name="bg-gray-50 font-bold text-gray-700"
-          @selection-change="selectedVideos = $event"
+          @selection-change="handleVideoSelectionChange"
         >
-          <el-table-column type="selection" width="55" align="center" />
+          <el-table-column type="selection" width="55" align="center" :reserve-selection="true" />
           <el-table-column label="视频预览" width="140" align="center">
             <template #default="scope">
               <div v-if="scope.row.videoCoverUrl" class="relative group cursor-pointer" @click="handleViewVideo(scope.row)">
@@ -304,12 +306,11 @@
                         </el-row>
 
             <!-- 瑙掓爣閫夋嫨 -->
-                        <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
+                        <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                                     <div class="flex items-start gap-3">
                     <div class="flex items-center gap-2 flex-1">
-                      <span v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1" class="text-red-500 text-base leading-none self-center">*</span>
                       <el-input
                         :model-value="currentCornerMarkName"
                         placeholder="点击搜索选择角标"
@@ -352,7 +353,7 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
+            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                   <div class="flex items-start gap-3">
@@ -492,7 +493,7 @@
       <div class="w-[440px] space-y-4">
                 <!-- 预览效果 -->
         <!-- 鏂囨竖版锛氬瓧骞曢瑙堬紙鍗虫椂娓叉煋锛?-->
-                <div v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                <div v-if="shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
@@ -502,11 +503,14 @@
                     :script-text="videoForm.script"
                     :corner-mark-url="currentCornerMarkUrl"
                     :banner-overlay-base64="selectedBannerOverlayBase64"
+                    :process-types="previewProcessTypes"
+                    :enable-subtitle="shouldApplySubtitle"
+                    :initial-config="subtitleConfig"
                     @update:config="handleSubtitleConfigUpdate"
                   />
                 </div>
                 <!-- 鍏朵粬鎯呭喌锛堟í鐗?/ 闊抽妯″紡 / 竖版鏈紑瀛楀箷锛夛細鐩存帴鏄剧ず鏁板瓧浜哄皝闈㈠浘 -->
-                <div v-if="!(videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0)" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                <div v-if="!shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
@@ -967,10 +971,12 @@ const taskStore = useTaskStore()
 const showCreate = ref(false)
 
 // 浠诲姟鍒楄〃
+const videoTableRef = ref<any>(null)
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
 const searchLabel = ref('')
 const selectedVideos = ref<any[]>([])
+const selectedVideoIds = ref<Array<string | number>>([])
 const videoTaskPage = ref(1)
 const videoTaskPageSize = ref(20)
 const videoTaskTotal = ref(0)
@@ -982,6 +988,34 @@ const splitLabel = (labelValue: string | string[] | null | undefined) => {
   if (!labelValue) return []
   if (Array.isArray(labelValue)) return labelValue.filter((t: string) => !!String(t).trim())
   return String(labelValue).split('|').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+}
+
+const handleVideoSelectionChange = (rows: any[]) => {
+  const currentPageIds = new Set(videoTaskList.value.map((item: any) => item.id))
+  const nextSelectedIds = selectedVideoIds.value.filter((id) => !currentPageIds.has(id))
+  const pageSelectedIds = rows.map((item: any) => item.id)
+  selectedVideoIds.value = [...nextSelectedIds, ...pageSelectedIds]
+
+  const selectedIdSet = new Set(selectedVideoIds.value)
+  selectedVideos.value = [
+    ...selectedVideos.value.filter((item: any) => !currentPageIds.has(item.id) && selectedIdSet.has(item.id)),
+    ...videoTaskList.value.filter((item: any) => selectedIdSet.has(item.id)),
+  ]
+}
+
+const restoreVideoSelection = async () => {
+  await nextTick()
+  const table = videoTableRef.value
+  if (!table) return
+
+  const selectedIdSet = new Set(selectedVideoIds.value)
+  table.clearSelection()
+  videoTaskList.value.forEach((item: any) => {
+    if (selectedIdSet.has(item.id)) {
+      table.toggleRowSelection(item, true)
+    }
+  })
+  selectedVideos.value = videoTaskList.value.filter((item: any) => selectedIdSet.has(item.id))
 }
 
 const videoForm = reactive({
@@ -1186,16 +1220,28 @@ const voiceScrollRef = ref<HTMLElement | null>(null)
 // 瀛楀箷棰勮鐩稿叧
 const subtitlePreviewRef = ref<InstanceType<typeof SubtitlePreview> | null>(null)
 const subtitlePreviewFrameBase64 = ref('')
-const subtitleConfig = reactive({
+const DEFAULT_SUBTITLE_CONFIG = {
   font_size: 18,
   margin_v: 74,
   primary_colour: '#FFFF00',
   outline: 1,
   outline_colour: '#000000',
   bold: 1,
+  font_name: '竹言体',
+  bg_mode: 'none',
+  bg_height: 60,
+  bg_colour: 'rgba(0,0,0,0.5)',
   blur_subtitles: false,
   blur_strength: 15
-})
+}
+const subtitleConfig = reactive({ ...DEFAULT_SUBTITLE_CONFIG })
+
+const getRecentSubtitleConfig = () => {
+  return request({
+    url: '/api/material/video/subtitle-config/recent/',
+    method: 'get',
+  })
+}
 
 /**
  * 閫氳繃鍚庣浠ｇ悊灏嗗浘鐗嘦RL杞?base64锛堢粫杩囨祻瑙堝櫒CORS锛? */
@@ -1312,9 +1358,49 @@ const currentBannerOverlayName = computed(() => {
   return bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))?.name || ''
 })
 
+const shouldApplySubtitle = computed(() => {
+  if (videoForm.mode !== 0 || videoForm.videoType !== 0 || videoForm.language === 'th') return false
+  return videoForm.subtitleSelector === 1
+})
+
+const shouldEnableSubtitlePipeline = computed(() => {
+  if (videoForm.mode !== 0 || videoForm.videoType !== 0 || videoForm.language === 'th') return false
+  return shouldApplySubtitle.value || !!videoForm.cornerMark || !!selectedBannerOverlayId.value
+})
+
+const effectiveSubtitleSelector = computed(() => (shouldEnableSubtitlePipeline.value ? 1 : 0))
+
+const shouldShowSubtitlePreview = computed(() => shouldEnableSubtitlePipeline.value)
+
+const previewProcessTypes = computed(() => {
+  const processTypes: string[] = []
+  if (shouldApplySubtitle.value) processTypes.push('subtitle')
+  if (videoForm.cornerMark) processTypes.push('corner_mark')
+  if (selectedBannerOverlayId.value) processTypes.push('banner_overlay')
+  return processTypes
+})
+
 // 瀛楀箷閰嶇疆鏇存柊鍥炶皟
 const handleSubtitleConfigUpdate = (newConfig: any) => {
   Object.assign(subtitleConfig, newConfig)
+}
+
+const loadRecentSubtitleConfig = async () => {
+  try {
+    const res = await getRecentSubtitleConfig()
+    const data = res.data?.data ?? res.data
+    if (data && typeof data === 'object') {
+      Object.assign(subtitleConfig, { ...DEFAULT_SUBTITLE_CONFIG, ...data })
+      await nextTick()
+      await (subtitlePreviewRef.value as any)?.setConfig?.({ ...subtitleConfig })
+      return
+    }
+  } catch (error) {
+    console.error('加载最近字幕配置失败:', error)
+  }
+  Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
+  await nextTick()
+  await (subtitlePreviewRef.value as any)?.setConfig?.({ ...subtitleConfig })
 }
 
 // 配音选择器状态
@@ -1440,6 +1526,14 @@ const loadVideoTasks = async () => {
       taskStatus: task.taskStatus || '0',
       baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || ''
     }))
+
+    const availableIds = new Set(videoTaskList.value.map((item: any) => item.id))
+    const offPageSelections = selectedVideos.value.filter((item: any) => !availableIds.has(item.id))
+    selectedVideos.value = [
+      ...offPageSelections,
+      ...videoTaskList.value.filter((item: any) => selectedVideoIds.value.includes(item.id)),
+    ]
+    await restoreVideoSelection()
     
     console.log('鍔犺浇鐨勪换鍔″垪琛?', videoTaskList.value)
   } catch (error) {
@@ -1689,6 +1783,14 @@ watch(() => videoForm.language, (val) => {
   }
 })
 
+watch(() => shouldShowSubtitlePreview.value, async (val) => {
+  if (val) {
+    await refreshPreview()
+  } else {
+    subtitlePreviewFrameBase64.value = ''
+  }
+})
+
 // 鐩戝惉 mode 鍒囨崲锛氭竻绌烘暟瀛椾汉閫夋嫨銆侀瑙堝浘
 watch(() => videoForm.mode, () => {
   videoForm.digitalHuman = ''
@@ -1700,6 +1802,7 @@ watch(() => videoForm.mode, () => {
 watch(showCreate, (val) => {
   if (val) {
     stopVideoTaskAutoRefresh()
+    loadRecentSubtitleConfig()
   } else {
     loadVideoTasks()
     startVideoTaskAutoRefresh()
@@ -1724,8 +1827,11 @@ const handleDeleteVideo = async (id: any) => {
     // 调用 API 删除视频任务
     await deleteVideoTask(id)
     ElMessage.success('视频已删除')
+    selectedVideoIds.value = selectedVideoIds.value.filter((selectedId) => selectedId !== id)
+    selectedVideos.value = selectedVideos.value.filter((item: any) => item.id !== id)
     // 从列表中移除
     videoTaskList.value = videoTaskList.value.filter(v => v.id !== id)
+    await restoreVideoSelection()
   } catch (error) {
     ElMessage.error('删除视频失败')
     console.error('删除视频任务失败:', error)
@@ -1815,7 +1921,7 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
     videoForm.voiceExternalId = rel.voiceExternalId || ''
     
     // 瀛楀箷棰勮锛氫紭鍏堝皝闈㈠浘URL锛屽叾娆¤棰慤RL锛岄€氳繃鍚庣浠ｇ悊杞?base64
-    if (videoForm.subtitleSelector === 1) {
+    if (shouldShowSubtitlePreview.value) {
       const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
       subtitlePreviewFrameBase64.value = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
     }
@@ -2096,11 +2202,6 @@ const startGeneration = async () => {
     return ElMessage.warning('请上传音频文件')
   }
   
-    // 绔栧睆鏂囨妯″紡涓斿紑鍚瓧骞曟椂鏍￠獙瑙掓爣蹇呭～
-  if (videoForm.videoType !== 1 && videoForm.mode === 0 && videoForm.subtitleSelector === 1 && !videoForm.cornerMark) {
-    return ElMessage.warning('请选择角标')
-  }
-
   isGenerating.value = true
   resultVideo.value = ''
   genProgress.value = 0
@@ -2163,13 +2264,18 @@ const startGeneration = async () => {
       formData.append('banner_overlay_url', bannerOverlayUrl)
     }
     
-    // 横版模式下强制关闭字幕
-    const effectiveSubtitle = videoForm.videoType === 1 ? 0 : (videoForm.mode === 1 ? 0 : videoForm.subtitleSelector)
+    const processTypes: string[] = []
+    if (shouldApplySubtitle.value) processTypes.push('subtitle')
+    if (videoForm.cornerMark) processTypes.push('corner_mark')
+    if (bannerOverlayUrl) processTypes.push('banner_overlay')
+
+    // 字幕开关 / 角标 / 横幅 三者只要任一配置，即走统一后处理能力
+    const effectiveSubtitle = effectiveSubtitleSelector.value
     formData.append('subtitleSelector', String(effectiveSubtitle))
     if (effectiveSubtitle === 1) {
       formData.append('colour', 'yellow')
       
-      // 只有开启字幕时才添加角标参数
+      // 角标与字幕不再强绑定，只要选择了就提交
       if (videoForm.cornerMark) {
         formData.append('corner_mark_id', videoForm.cornerMark)
         const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
@@ -2178,8 +2284,7 @@ const startGeneration = async () => {
         }
       }
 
-      // 闄勫姞瀛楀箷鏍峰紡閰嶇疆
-      formData.append('subtitle_config', JSON.stringify({
+      const subtitlePayload = shouldApplySubtitle.value ? {
         font_name: subtitleConfig.font_name,
         font_size: subtitleConfig.font_size,
         margin_v: subtitleConfig.margin_v,
@@ -2192,6 +2297,11 @@ const startGeneration = async () => {
         bg_colour: subtitleConfig.bg_colour,
         blur_subtitles: subtitleConfig.blur_subtitles,
         blur_strength: subtitleConfig.blur_strength
+      } : null
+
+      formData.append('subtitle_config', JSON.stringify({
+        process_types: processTypes,
+        subtitle_config: subtitlePayload
       }))
     }
 
@@ -2203,11 +2313,15 @@ const startGeneration = async () => {
       digital_human_id: digitalHumanId,
       language: language,
       speechRate: '1',
-      subtitleSelector: videoForm.subtitleSelector,
-      colour: videoForm.subtitleSelector === 1 ? 'yellow' : undefined,
-      corner_mark_id: (videoForm.subtitleSelector === 1 && videoForm.cornerMark) || undefined,
-      corner_mark_url: (videoForm.subtitleSelector === 1 && videoForm.cornerMark && cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl) || undefined,
-      subtitle_config: videoForm.subtitleSelector === 1 ? { ...subtitleConfig } : undefined
+      subtitleSelector: effectiveSubtitle,
+      process_types: processTypes,
+      colour: effectiveSubtitle === 1 ? 'yellow' : undefined,
+      corner_mark_id: videoForm.cornerMark || undefined,
+      corner_mark_url: (videoForm.cornerMark && cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl) || undefined,
+      subtitle_config: effectiveSubtitle === 1 ? {
+        process_types: processTypes,
+        subtitle_config: shouldApplySubtitle.value ? { ...subtitleConfig } : null
+      } : undefined
       ,
       banner_overlay_url: bannerOverlayUrl || undefined
     })
@@ -2628,8 +2742,8 @@ const refreshPreview = async (item?: any) => {
   const digitalHuman = item || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
   if (!digitalHuman) return
   
-  // 文案竖版且开启字幕时，请求后端即时渲染
-  if (videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0) {
+  // 文案竖版且启用了字幕能力时，请求后端即时渲染
+  if (shouldShowSubtitlePreview.value) {
     subtitlePreviewFrameBase64.value = await getFrameBase64(digitalHuman.coverUrl || '', digitalHuman.videoUrl || '')
   }
   // 鍏朵粬鎯呭喌灏侀潰棰勮渚濊禆 currentDigitalHumanImg 璁＄畻灞炴€ц嚜鍔ㄦ洿鏂帮紝无犻渶棰濆操作
@@ -2655,6 +2769,9 @@ const selectCornerMark = async (item: any) => {
   videoForm.cornerMark = item.id
   cornerMarkSelectorDialog.visible = false
   ElMessage.success(`已选择角标: ${item.name}`)
+  if (shouldShowSubtitlePreview.value) {
+    await refreshPreview()
+  }
   try {
     await recordRecentCornerMark(item.id)
     await loadRecentCornerMarks()
@@ -2719,6 +2836,9 @@ const selectBannerOverlay = async (item: any) => {
   }
   try {
     selectedBannerOverlayBase64.value = await fetchImageAsBase64(pickedUrl)
+    if (shouldShowSubtitlePreview.value) {
+      await refreshPreview()
+    }
     ElMessage.success('已选择横幅')
   } catch (error) {
     console.error('妯箙杞琤ase64澶辫触:', error)
