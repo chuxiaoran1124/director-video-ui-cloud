@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="generate-video p-6 bg-gray-50 min-h-full">
     <!-- 列表页面 -->
-    <div v-if="!showCreate" class="max-w-[1200px] mx-auto">
+    <div v-if="!showCreate" class="max-w-[1500px] mx-auto">
       <!-- 顶部标题 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
         <div>
@@ -58,10 +58,12 @@
           </div>
         </div>
 
+        <div class="overflow-x-auto">
         <el-table 
           :data="filteredVideoList" 
           border 
-          style="width: 100%" 
+          style="width: 100%"
+          class="min-w-[1350px]"
           header-cell-class-name="bg-gray-50 font-bold text-gray-700"
           @selection-change="selectedVideos = $event"
         >
@@ -130,6 +132,7 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
 
         <!-- 分页 -->
         <div class="mt-4 flex justify-end">
@@ -833,23 +836,38 @@
     <!-- 蹇嵎预设选择器-->
     <el-dialog title="选择快捷预设" v-model="relSelectorDialog.visible" width="1000px" append-to-body>
       <div class="space-y-4">
-        <div class="flex gap-2">
-          <el-input 
-            v-model="relSelectorDialog.search"
-            placeholder="输入预设信息..."
-            style="max-width: 600px"
-            clearable
-          >
-            <template #prepend>搜索预设</template>
-          </el-input>
-          <el-button 
-            type="danger"
-            plain
-            @click="clearRelSelection"
-          >
-            清空选择
-          </el-button>
-        </div>
+        <div class="flex gap-2 flex-wrap">
+            <el-input
+              v-model="relSelectorDialog.voiceSearch"
+              placeholder="输入声音名称搜索"
+              style="width: 220px"
+              clearable
+            >
+              <template #prepend>声音</template>
+            </el-input>
+
+            <el-input
+              v-model="relSelectorDialog.digitalHumanSearch"
+              placeholder="输入数字人名称搜索"
+              style="width: 220px"
+              clearable
+            >
+              <template #prepend>数字人</template>
+            </el-input>
+
+            <el-input
+              v-model="relSelectorDialog.tagSearch"
+              placeholder="输入标签搜索"
+              style="width: 220px"
+              clearable
+            >
+              <template #prepend>标签</template>
+            </el-input>
+
+            <el-button type="danger" plain @click="clearRelSelection">
+              清空选择
+            </el-button>
+          </div>
         <div 
           class="grid grid-cols-5 gap-x-5 gap-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[800px] overflow-y-auto"
           @scroll="handleRelScroll"
@@ -1325,7 +1343,9 @@ const voiceSelectorDialog = reactive({
 // 快捷预设选择器状态
 const relSelectorDialog = reactive({
   visible: false,
-  search: '',
+  voiceSearch: '',
+  digitalHumanSearch: '',
+  tagSearch: '',
   allList: [] as any[],
   displayList: [] as any[],
   page: 1,
@@ -2798,43 +2818,57 @@ const selectVoice = (item: any) => {
   ElMessage.success('已选择配音')
 }
 
-// --- 蹇嵎预设选择器---
 const openRelSelector = async () => {
   relSelectorDialog.visible = true
-  // 重置分页
   relSelectorDialog.allList = []
   relSelectorDialog.displayList = []
   relSelectorDialog.page = 1
-  relSelectorDialog.search = ''
+  relSelectorDialog.voiceSearch = ''
+  relSelectorDialog.digitalHumanSearch = ''
+  relSelectorDialog.tagSearch = ''
   relSelectorDialog.hasMore = true
-  if (relSelectorDialog.displayList.length === 0) {
-    await loadMoreRels()
-  }
+  await loadMoreRels()
 }
 
 const loadMoreRels = async () => {
+  if (relSelectorDialog.loading || !relSelectorDialog.hasMore) return
+
   relSelectorDialog.loading = true
   try {
-    // 加载预设时传入 language 参数
     const searchParams: any = {}
-    if (relSelectorDialog.search) {
-      searchParams.title = relSelectorDialog.search
+
+    if (relSelectorDialog.voiceSearch) {
+      searchParams.voiceName = relSelectorDialog.voiceSearch
     }
+
+    if (relSelectorDialog.digitalHumanSearch) {
+      searchParams.digitalHumanName = relSelectorDialog.digitalHumanSearch
+    }
+
+    if (relSelectorDialog.tagSearch) {
+      searchParams.title = relSelectorDialog.tagSearch
+    }
+
     searchParams.language = videoForm.language
-    const response = await getBindingList(relSelectorDialog.page, relSelectorDialog.pageSize, searchParams)
-    
+
+    const response = await getBindingList(
+      relSelectorDialog.page,
+      relSelectorDialog.pageSize,
+      searchParams
+    )
+
     if (response.data && response.data.data) {
       const data = response.data.data
       const bindingList = data.data || []
-      
+
       if (bindingList.length === 0) {
         relSelectorDialog.hasMore = false
-        relSelectorDialog.loading = false
         return
       }
-      
+
       const newItems = bindingList.map((binding: any) => {
         const voiceUrl = binding.voiceUrl || binding.voice_url || binding.url || binding.audio || ''
+
         return {
           id: binding.id,
           name: `${binding.voiceName} + ${binding.digitalHumanName}`,
@@ -2847,16 +2881,16 @@ const loadMoreRels = async () => {
           title: binding.title,
           digitalHumanUrl: binding.digitalHumanUrl,
           digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,
-          voiceUrl: voiceUrl,
+          voiceUrl,
           language: binding.language || videoForm.language,
           ...binding
         }
       })
-      
+
       relSelectorDialog.allList.push(...newItems)
       relSelectorDialog.displayList = relSelectorDialog.allList
       relSelectorDialog.page++
-      
+
       if (bindingList.length < relSelectorDialog.pageSize) {
         relSelectorDialog.hasMore = false
       }
@@ -2889,7 +2923,11 @@ const clearRelSelection = () => {
   relName.value = ''
   videoForm.previewImg = ''
   videoForm.label = ''
-  relSelectorDialog.search = ''
+
+  relSelectorDialog.voiceSearch = ''
+  relSelectorDialog.digitalHumanSearch = ''
+  relSelectorDialog.tagSearch = ''
+
   ElMessage.success('已清空预设选择')
 }
 
@@ -2912,14 +2950,20 @@ watch(() => voiceSelectorDialog.search, (newVal) => {
   loadMoreVoices()
 })
 
-watch(() => relSelectorDialog.search, (newVal) => {
-  // 重置分页，重新从API加载搜索结果
-  relSelectorDialog.allList = []
-  relSelectorDialog.displayList = []
-  relSelectorDialog.page = 1
-  relSelectorDialog.hasMore = true
-  loadMoreRels()
-})
+watch(
+  () => [
+    relSelectorDialog.voiceSearch,
+    relSelectorDialog.digitalHumanSearch,
+    relSelectorDialog.tagSearch
+  ],
+  () => {
+    relSelectorDialog.allList = []
+    relSelectorDialog.displayList = []
+    relSelectorDialog.page = 1
+    relSelectorDialog.hasMore = true
+    loadMoreRels()
+  }
+)
 
 watch(() => bannerOverlaySelectorDialog.search, () => {
   bannerOverlaySelectorDialog.allList = []

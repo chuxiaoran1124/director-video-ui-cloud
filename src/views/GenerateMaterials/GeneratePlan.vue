@@ -133,7 +133,7 @@
         <div class="flex flex-wrap gap-6">
           <div v-for="task in currentProject.subTasks" :key="task.id" 
                class="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.3%-16px)] group relative bg-white border border-gray-100 rounded-xl p-4 hover:shadow-lg transition-all border-l-4 flex flex-col min-h-[280px]"
-               :class="Number(task.taskStatus) === 5 ? 'border-l-green-500' : 'border-l-blue-500'">
+               :class="Number(task.taskStatus) === 5 ? 'border-l-green-500' : (Number(task.taskStatus) < 0 || task.errorMessage ? 'border-l-red-500' : 'border-l-blue-500')">
             
             <div class="flex justify-between items-start mb-4">
               <div>
@@ -165,7 +165,7 @@
             <!-- 执行结果/错误展示区域 (固定高度或弹性以对齐按钮) -->
             <div class="flex-grow">
               <!-- 执行中状态：显示进度条 -->
-              <div v-if="Number(task.taskStatus) !== 0 && Number(task.taskStatus) !== 5" class="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <div v-if="Number(task.taskStatus) > 0 && Number(task.taskStatus) !== 5" class="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
                 <div class="flex items-center justify-between mb-2">
                   <span class="text-xs text-gray-600 font-medium">{{ task.status }}</span>
                   <span class="text-xs text-gray-400">{{ task.statusPercent }}%</span>
@@ -198,7 +198,7 @@
               </div>
 
               <!-- 失败状态 -->
-              <div v-if="Number(task.taskStatus) > 5 || task.errorMessage" class="mb-4 bg-red-50 rounded-lg p-3 border border-red-100 animate-fade-in">
+              <div v-if="Number(task.taskStatus) < 0 || Number(task.taskStatus) > 5 || task.errorMessage" class="mb-4 bg-red-50 rounded-lg p-3 border border-red-100 animate-fade-in">
                 <div class="flex items-center gap-2 text-red-700 mb-2">
                   <i class="el-icon-warning-outline"></i>
                   <span class="text-xs font-bold">执行失败</span>
@@ -350,12 +350,12 @@
                   plain
                   @click="openRelSelector"
                 >
-                  {{ relList.find((r: any) => r.id === subTaskForm.relId)?.displayName || '选择预设绑定关系' }}
+                  {{ findRelById(subTaskForm.relId)?.displayName || '选择预设绑定关系' }}
                 </el-button>
                 <div v-if="subTaskForm.relId" class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3">
                   <img 
-                    v-if="relList.find((r: any) => r.id === subTaskForm.relId)?.humanImg"
-                    :src="relList.find((r: any) => r.id === subTaskForm.relId)?.humanImg"
+                    v-if="findRelById(subTaskForm.relId)?.humanImg"
+                    :src="findRelById(subTaskForm.relId)?.humanImg"
                     class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                   >
                   <div>
@@ -854,7 +854,7 @@ const projectDialog = reactive({ visible: false, title: '新建生成计划' })
 const projectForm = reactive<any>({
   id: null,
   name: '',
-  language: '',
+  language: 'zh',
   script: '',
   executionMode: 'manual',
   scheduledTime: '',
@@ -867,7 +867,7 @@ const subTaskDialog = reactive({ visible: false, title: '编辑子任务' })
 const subTaskForm = reactive<any>({ 
   id: null, 
   name: '',  // 标题
-  language: 'auto',
+  language: 'zh',
   script: '',  // 字幕/脚本内容
   subtitleSelector: 0,
   colour: 'yellow',
@@ -1136,6 +1136,9 @@ const getStatusType = (status: string) => {
 // 获取任务状态标签和颜色
 const getTaskStatusInfo = (taskStatus: number | string) => {
   const status = Number(taskStatus)
+  if (status < 0) {
+    return { label: '执行失败', type: 'danger', percent: 0 }
+  }
   const statusMap: any = {
     0: { label: '未开始', type: 'info', percent: 0 },
     1: { label: '等待中', type: 'warning', percent: 10 },
@@ -1150,6 +1153,9 @@ const getTaskStatusInfo = (taskStatus: number | string) => {
 const getHumanImg = (name: string) => {
   return humanOptions.value.find((h: any) => h.name === name)?.img || ''
 }
+
+const hasValue = (value: any) => value !== '' && value !== null && value !== undefined
+const findRelById = (id: any) => relList.value.find((r: any) => String(r.id) === String(id))
 
 // 视频预览
 const previewVideo = (url?: string) => {
@@ -1277,7 +1283,7 @@ const downloadAudio = (task: any) => {
 
 // 绑定关系切换逻辑
 const handleRelChange = (val: any) => {
-  const rel = relList.value.find((r: any) => r.id === val)
+  const rel = findRelById(val)
   if (rel) {
     subTaskForm.digitalHuman = rel.human
     subTaskForm.voice = rel.voice
@@ -1373,6 +1379,7 @@ const selectVoice = (item: any) => {
 const selectRel = (item: any) => {
   // 预设ID
   subTaskForm.relId = item.id
+  subTaskForm.useRel = true
   
   // 数字人信息 - 优先使用externalId
   subTaskForm.digital_human_id = item.digitalHumanExternalId || item.externalId || item.digitalHumanId || item.id || ''
@@ -1582,6 +1589,7 @@ const loadSubTaskList = async (planId: number | string) => {
         const resolvedScript = item.msg ?? currentProject.value.script ?? ''
         return {
           id: item.id,
+          relId: item.relId || item.rel_id || item.bindingId || item.binding_id || '',
           name: item.title || '',
           script: resolvedScript,
           digitalHuman: item.digitalHumanName || '',
@@ -1621,7 +1629,7 @@ const handleAddProject = () => {
   projectDialog.title = '新建生成计划'
   projectForm.id = null
   projectForm.name = ''
-  projectForm.language = ''
+  projectForm.language = 'zh'
   projectForm.script = ''
   projectForm.executionMode = 'manual'
   projectForm.scheduledTime = ''
@@ -1647,7 +1655,7 @@ const handleEditProject = (row: any) => {
 
   // 如果没有这些字段则初始化
   if (!projectForm.executionMode) projectForm.executionMode = 'manual'
-  if (!projectForm.language) projectForm.language = ''
+  if (!projectForm.language) projectForm.language = 'zh'
   if (typeof projectForm.subtitleSelector === 'undefined') projectForm.subtitleSelector = 1
   if (!projectForm.colour) projectForm.colour = 'yellow'
   projectDialog.visible = true
@@ -1728,13 +1736,13 @@ const handleAddSubTask = (project: any) => {
   subTaskDialog.title = '添加子任务'
   subTaskForm.id = null
   subTaskForm.name = ''
-  subTaskForm.language = project.language || 'auto'
+  subTaskForm.language = project.language || 'zh'
   // 新增默认继承计划设置
   subTaskForm.script = project.script ?? ''
   subTaskForm.subtitleSelector = Number(project.subtitleSelector ?? 1)
   subTaskForm.colour = 'yellow'
   subTaskForm.cornerMark = project.cornerMark ?? ''
-  subTaskForm.useRel = true
+  subTaskForm.useRel = relList.value.length > 0
   subTaskForm.relId = ''
   // 数字人相关
   subTaskForm.digital_human_id = ''
@@ -1756,7 +1764,8 @@ const handleAddSubTask = (project: any) => {
 const handleEditSubTask = (task: any, project: any) => {
   subTaskDialog.title = '编辑子任务'
   Object.assign(subTaskForm, task)
-  subTaskForm.useRel = !!task.relId
+  subTaskForm.relId = task.relId || task.rel_id || task.bindingId || task.binding_id || subTaskForm.relId || ''
+  subTaskForm.useRel = hasValue(subTaskForm.relId)
   // 回绑逻辑：子任务有值用子任务，缺失则继承计划
   subTaskForm.script = task.script ?? task.msg ?? project.script ?? ''
   subTaskForm.subtitleSelector = Number(task.subtitleSelector ?? project.subtitleSelector ?? 1)
@@ -2013,25 +2022,77 @@ const submitProject = async () => {
 const submitSubTask = async () => {
   const taskName = (subTaskForm.name || '').trim()
   if (!taskName) {
-    ElMessage.warning('????????')
+    ElMessage.warning('请输入子任务名称')
     return
   }
   if (!subTaskForm.language) {
-    ElMessage.warning('???????')
+    ElMessage.warning('请选择视频语言')
     return
   }
+
+  const selectedRel = findRelById(subTaskForm.relId)
+  const hasRelSelection =
+    hasValue(subTaskForm.relId) ||
+    hasValue(subTaskForm.digital_human_id) ||
+    hasValue(subTaskForm.voice_id) ||
+    (hasValue(subTaskForm.digitalHuman) && hasValue(subTaskForm.voice))
+
   if (subTaskForm.useRel) {
-    if (!subTaskForm.relId) {
-      ElMessage.warning('???????')
+    if (!hasRelSelection) {
+      console.warn('绑定关系校验失败:', {
+        useRel: subTaskForm.useRel,
+        relId: subTaskForm.relId,
+        digital_human_id: subTaskForm.digital_human_id,
+        voice_id: subTaskForm.voice_id,
+        digitalHuman: subTaskForm.digitalHuman,
+        voice: subTaskForm.voice,
+      })
+      ElMessage.warning('当前为“选择绑定关系”模式，请先选择绑定关系，或切换到“手动自由选择”')
       return
+    }
+
+    if (selectedRel) {
+      if (!hasValue(subTaskForm.digital_human_id)) {
+        subTaskForm.digital_human_id = selectedRel.digitalHumanExternalId || selectedRel.externalId || selectedRel.digitalHumanId || selectedRel.id || ''
+      }
+      if (!hasValue(subTaskForm.digital_human_name)) {
+        subTaskForm.digital_human_name = selectedRel.human || selectedRel.name || ''
+      }
+      if (!hasValue(subTaskForm.digital_human_cover_url)) {
+        subTaskForm.digital_human_cover_url = selectedRel.humanImg || ''
+      }
+      if (!hasValue(subTaskForm.voice_id)) {
+        subTaskForm.voice_id = selectedRel.voiceExternalId || selectedRel.voiceId || ''
+      }
+      if (!hasValue(subTaskForm.voice_name)) {
+        subTaskForm.voice_name = selectedRel.voice || ''
+      }
+      if (!hasValue(subTaskForm.voice_url)) {
+        subTaskForm.voice_url = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
+      }
+      if (!hasValue(subTaskForm.base_voice_url)) {
+        subTaskForm.base_voice_url = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
+      }
+      if (!hasValue(subTaskForm.digitalHuman)) {
+        subTaskForm.digitalHuman = selectedRel.human || selectedRel.name || ''
+      }
+      if (!hasValue(subTaskForm.voice)) {
+        subTaskForm.voice = selectedRel.voice || ''
+      }
+      if (!hasValue(subTaskForm.humanImg)) {
+        subTaskForm.humanImg = selectedRel.humanImg || ''
+      }
+      if (!hasValue(subTaskForm.voiceAudio)) {
+        subTaskForm.voiceAudio = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
+      }
     }
   } else {
-    if (!subTaskForm.digital_human_id) {
-      ElMessage.warning('??????')
+    if (!hasValue(subTaskForm.digital_human_id)) {
+      ElMessage.warning('请选择数字人')
       return
     }
-    if (!subTaskForm.voice_id) {
-      ElMessage.warning('?????')
+    if (!hasValue(subTaskForm.voice_id)) {
+      ElMessage.warning('请选择配音')
       return
     }
   }
@@ -2067,13 +2128,18 @@ const submitSubTask = async () => {
     colour: colour,
     user_group: 'default'
   }
+
+  if (hasValue(subTaskForm.relId)) {
+    params.rel_id = subTaskForm.relId
+    params.binding_id = subTaskForm.relId
+  }
   
   // 只有开启字幕时才处理和提交角标
   if (subtitleSelector === 1) {
     // 角标：子任务优先，回退到计划
     const cornerMarkId = subTaskForm.cornerMark || plan.cornerMark || ''
     if (!cornerMarkId) {
-      ElMessage.warning('???????????')
+      ElMessage.warning('当前已开启字幕生成，请先选择角标，或先在计划里配置默认角标')
       return
     }
     if (cornerMarkId) {
@@ -2159,7 +2225,7 @@ const loadProjectList = async () => {
         runMode: item.runMode ?? item.run_mode ?? '1',
         runTime: item.runTime ?? item.run_time ?? '',
         taskStatus: item.taskStatus,
-        status: item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
+        status: Number(item.taskStatus) < 0 ? '执行失败' : item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
         taskCount: Number(item.size ?? item.taskCount ?? (Array.isArray(item.subTasks) ? item.subTasks.length : 0)),
         language: item.language || '',
         script: item.msg || '',
@@ -2210,7 +2276,7 @@ const handleSearch = async () => {
         runMode: item.runMode ?? item.run_mode ?? '1',
         runTime: item.runTime ?? item.run_time ?? '',
         taskStatus: item.taskStatus,
-        status: item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
+        status: Number(item.taskStatus) < 0 ? '执行失败' : item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
         taskCount: Number(item.size ?? item.taskCount ?? (Array.isArray(item.subTasks) ? item.subTasks.length : 0)),
         language: item.language || '',
         script: item.msg || '',
