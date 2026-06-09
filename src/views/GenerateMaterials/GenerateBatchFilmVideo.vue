@@ -817,7 +817,11 @@
                   <el-tag type="info" size="small" effect="plain">{{ selectedTreeNode.folderData?.path }}</el-tag>
                 </div>
                 <div class="flex items-center gap-2">
-                  <el-button size="small" @click="handleMockSyncFolderVideos">
+                  <el-button
+                    size="small"
+                    :loading="syncingFolderId === selectedTreeNode.folderData?.id"
+                    @click="handleSyncFolderVideos"
+                  >
                     <el-icon class="mr-1"><Connection /></el-icon>同步
                   </el-button>
                   <el-input
@@ -1509,7 +1513,7 @@ import {
   Document, DArrowRight, Tickets, MoreFilled, ArrowLeft, QuestionFilled, InfoFilled,
   Search, User,
 } from '@element-plus/icons-vue'
-
+import { syncWindowsShareFolder } from '/@/api/material'
 // ===== 类型定义 =====
 interface SegmentError {
   message: string
@@ -3050,8 +3054,36 @@ const handleFolderPageSizeChange = () => {
   loadCurrentFolderVideos()
 }
 
-const handleMockSyncFolderVideos = () => {
-  ElMessage.info('同步功能待后端接入')
+const syncingFolderId = ref<number | string | null>(null)
+
+const handleSyncFolderVideos = async () => {
+  const folder = selectedTreeNode.value?.folderData
+
+  if (!folder?.id) {
+    return ElMessage.warning('请先选择要同步的文件夹')
+  }
+
+  try {
+    syncingFolderId.value = folder.id
+
+    await syncWindowsShareFolder({
+      folder_id: folder.id,
+      folder_real_path: folder.rawPath || folder.path,
+    })
+
+    ElMessage.success('同步成功')
+
+    await loadMaterialFolders()
+
+    currentViewingFolderId.value = folder.id
+    folderVideoPage.value = 1
+    await loadCurrentFolderVideos()
+  } catch (error) {
+    console.error('sync folder failed:', error)
+    ElMessage.error('同步失败')
+  } finally {
+    syncingFolderId.value = null
+  }
 }
 
 watch(folderSearch, () => {

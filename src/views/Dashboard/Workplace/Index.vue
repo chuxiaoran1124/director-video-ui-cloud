@@ -42,6 +42,7 @@
             </el-button>
           </div>
 
+          
           <el-date-picker
             v-model="selectedRange"
             class="range-picker"
@@ -79,13 +80,30 @@
     <el-row :gutter="16" class="content-grid">
       <el-col :xs="24" :xl="16">
         <el-card class="glass-card trend-card" shadow="never">
+
           <template #header>
-            <div class="section-head">
+            <div class="section-head trend-section-head">
               <div>
                 <h2>产出趋势</h2>
-                <p>按天观察生成数量、时长和失败波动</p>
+                <p>按天观察不同统计类型的人员趋势</p>
               </div>
-              <el-tag effect="light" round>近 {{ rangeDays }} 天</el-tag>
+
+              <div class="trend-tools">
+                <el-select
+                  v-model="statType"
+                  class="trend-stat-select"
+                  placeholder="请选择统计类型"
+                >
+                  <el-option
+                    v-for="item in statTypeOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+
+                <el-tag effect="light" round>近 {{ rangeDays }} 天</el-tag>
+              </div>
             </div>
           </template>
 
@@ -97,7 +115,7 @@
             <div class="section-head">
               <div>
                 <h2>使用人排行</h2>
-                <p>选定区间内每位使用人的产出、时长、失败和前期处理</p>
+                <p>按生成视频数排序，统计每位使用人的视频时长、形象训练、音频训练和联合训练</p>
               </div>
               <el-tag type="success" effect="light" round>TOP {{ Math.min(3, userRanking.length) }}</el-tag>
             </div>
@@ -261,12 +279,236 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { echarts, ECOption } from '/@/components/Echart'
+import request from '/@/utils/request'
+import {
+  getVideoDurationStats,
+  getBindingStats,
+  getDigitalHumanStats,
+  getVoiceStats,
+  getFailedTaskStats
+} from '/@/api/material'
 
 type TaskType = 'generate' | 'human' | 'voice' | 'both'
 type TaskResult = 'success' | 'failed'
 type RangePresetKey = '7d' | '14d' | '30d' | 'custom'
+type StatType = 'duration' | 'binding' | 'digitalHuman' | 'voice' | 'failed'
+const statType = ref<StatType>('duration')
+
+const statTypeOptions = [
+  { label: '视频时长', value: 'duration' },
+  { label: '绑定关系', value: 'binding' },
+  { label: '数字人', value: 'digitalHuman' },
+  { label: '声音', value: 'voice' },
+  { label: '失败任务', value: 'failed' }
+]
+
+const apiMap = {
+  duration: getVideoDurationStats,
+  binding: getBindingStats,
+  digitalHuman: getDigitalHumanStats,
+  voice: getVoiceStats
+}
+
+const titleMap = {
+  duration: '视频时长统计',
+  binding: '绑定关系统计',
+  digitalHuman: '数字人统计',
+  voice: '声音统计'
+}
+
+
+const backendStats = ref({
+  videoDuration: 0,
+  videoCount: 0,
+  bindingCount: 0,
+  digitalHumanCount: 0,
+  voiceCount: 0,
+  failedCount: 0
+})
+const backendUserRanking = ref<UserSummary[]>([])
+
+const sumOptionSeries = (option: any) => {
+  const series = option?.series || []
+  return series.reduce((total: number, item: any) => {
+    const data = item?.data || []
+    return total + data.reduce((sum: number, value: any) => {
+      return sum + Number(value || 0)
+    }, 0)
+  }, 0)
+}
+
+const sumSeriesData = (seriesItem: any) => {
+  return (seriesItem?.data || []).reduce((sum: number, value: any) => {
+    return sum + Number(value || 0)
+  }, 0)
+}
+
+const countSeriesPositiveDays = (seriesItem: any) => {
+  return (seriesItem?.data || []).filter((value: any) => Number(value || 0) > 0).length
+}
+
+const buildUserRankingFromOptions = (
+  durationOption: any,
+  bindingOption: any,
+  digitalHumanOption: any,
+  voiceOption: any,
+  failedOption: any
+) => {
+  const userMap = new Map<string, UserSummary>()
+
+  const ensureUser = (name: string) => {
+    if (!userMap.has(name)) {
+      userMap.set(name, {
+        user: name,
+        team: '默认分组',
+        generatedCount: 0,
+        durationMinutes: 0,
+        failedCount: 0,
+        humanCount: 0,
+        voiceCount: 0,
+        bothCount: 0,
+        totalCount: 0,
+        successRate: 100
+      })
+    }
+
+    return userMap.get(name)!
+  }
+
+  ;(durationOption?.series || []).forEach((item: any) => {
+    const user = ensureUser(item.name || '未知用户')
+
+    const durationSeconds = sumSeriesData(item)
+
+    // 生成视频数量：目前先按“有视频时长的日期数量”算
+    // 如果后端以后能返回真实视频 count，这里再换成真实 count
+    user.generatedCount += countSeriesPositiveDays(item)
+
+    // 后端 video_duration 如果是秒，这里转分钟
+    user.durationMinutes += Math.round(durationSeconds / 60)
+  })
+
+  ;(digitalHumanOption?.series || []).forEach((item: any) => {
+    const user = ensureUser(item.name || '未知用户')
+    user.humanCount += sumSeriesData(item)
+  })
+
+  ;(voiceOption?.series || []).forEach((item: any) => {
+    const user = ensureUser(item.name || '未知用户')
+    user.voiceCount += sumSeriesData(item)
+  })
+
+  ;(bindingOption?.series || []).forEach((item: any) => {
+    const user = ensureUser(item.name || '未知用户')
+    user.bothCount += sumSeriesData(item)
+  })
+
+  ;(failedOption?.series || []).forEach((item: any) => {
+  const user = ensureUser(item.name || '未知用户')
+  user.failedCount += sumSeriesData(item)
+  })
+
+const rows = Array.from(userMap.values()).map(item => {
+  const successRate =
+    item.generatedCount > 0
+      ? Math.max(
+          0,
+          Math.round(
+            ((item.generatedCount - item.failedCount) / item.generatedCount) * 100
+          )
+        )
+      : 100
+
+  return {
+    ...item,
+    totalCount:
+      item.generatedCount +
+      item.humanCount +
+      item.voiceCount +
+      item.bothCount,
+    successRate
+  }
+})
+
+  return rows.sort((left, right) => {
+    return (
+      right.generatedCount - left.generatedCount ||
+      right.durationMinutes - left.durationMinutes ||
+      right.totalCount - left.totalCount
+    )
+  })
+}
+
+const beautifyTrendOption = (option: any) => {
+  return {
+    ...option,
+
+    // 不用后端 title，避免和 legend 挤一起
+    title: {
+      show: false
+    },
+
+    legend: {
+      type: 'scroll',
+      top: 4,
+      left: 0,
+      right: 0,
+      itemWidth: 10,
+      itemHeight: 10,
+      pageIconColor: '#2563eb',
+      pageTextStyle: {
+        color: '#64748b'
+      },
+      textStyle: {
+        color: '#475569',
+        fontSize: 12
+      }
+    },
+
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: 42,
+      top: 82,
+      containLabel: true
+    },
+
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      }
+    },
+
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 0,
+        end: 100
+      },
+      {
+        type: 'slider',
+        height: 18,
+        bottom: 8,
+        start: 0,
+        end: 100
+      }
+    ],
+
+    series: (option?.series || []).map((item: any) => ({
+      ...item,
+      type: 'line',
+      smooth: true,
+      symbolSize: 6,
+      lineStyle: {
+        width: 2
+      }
+    }))
+  }
+}
 
 interface DashboardRecord {
   dateKey: string
@@ -295,16 +537,6 @@ interface UserSummary {
 const layoutStore = useLayoutStore()
 const currentUser = computed(() => layoutStore.getUserInfo.name || '管理员')
 
-const users = [
-  { user: '王磊', team: '内容一组' },
-  { user: '林悦', team: '内容一组' },
-  { user: '周晨', team: '内容二组' },
-  { user: '陈思', team: '内容二组' },
-  { user: '赵一鸣', team: '训练支持' },
-  { user: '刘清', team: '训练支持' }
-]
-
-const taskTypes: TaskType[] = ['generate', 'human', 'voice', 'both']
 const presetOptions: Array<{ key: RangePresetKey; label: string; days: number }> = [
   { key: '7d', label: '近 7 天', days: 7 },
   { key: '14d', label: '近 14 天', days: 14 },
@@ -323,7 +555,8 @@ const formatDateKey = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth
 const formatDisplayDate = (dateKey: string) => dateKey.replace(/-/g, '.')
 const formatShortDate = (dateKey: string) => dateKey.slice(5).replace('-', '/')
 const parseDateKey = (dateKey: string) => new Date(`${dateKey}T00:00:00`)
-const formatNumber = (value: number) => new Intl.NumberFormat('zh-CN').format(value)
+const formatNumber = (value: number) => new Intl.NumberFormat('zh-CN').format(value || 0)
+
 const formatDuration = (minutes: number) => {
   if (!minutes) return '0分'
   const hours = Math.floor(minutes / 60)
@@ -331,10 +564,12 @@ const formatDuration = (minutes: number) => {
   if (!hours) return `${remainder}分`
   return remainder ? `${hours}小时${pad(remainder)}分` : `${hours}小时`
 }
+
 const formatRate = (numerator: number, denominator: number) => {
   if (!denominator) return 0
   return Math.round((numerator / denominator) * 100)
 }
+
 const enumerateDateKeys = (startKey: string, endKey: string) => {
   const dates: string[] = []
   let cursor = parseDateKey(startKey)
@@ -351,37 +586,9 @@ const enumerateDateKeys = (startKey: string, endKey: string) => {
 const today = startOfDay(new Date())
 const selectedRange = ref<[Date, Date]>([shiftDays(today, -13), cloneDate(today)])
 const activePreset = ref<RangePresetKey>('14d')
+const loading = ref(false)
 
-const buildRecords = (): DashboardRecord[] => {
-  const records: DashboardRecord[] = []
-
-  for (let dayOffset = 0; dayOffset < 30; dayOffset += 1) {
-    const dateKey = formatDateKey(shiftDays(today, -dayOffset))
-
-    users.forEach((user, index) => {
-      const seed = dayOffset * 17 + index * 11
-      const taskType = taskTypes[(seed + index) % taskTypes.length]
-      const failed = taskType === 'generate' ? seed % 11 === 0 : seed % 19 === 0
-      const generatedVideos = taskType === 'generate' ? (seed % 4 === 0 ? 2 : 1) : 0
-      const durationMinutes = taskType === 'generate' && !failed ? 10 + ((seed % 18) * (generatedVideos || 1)) : 0
-
-      records.push({
-        dateKey,
-        user: user.user,
-        team: user.team,
-        taskType,
-        result: failed ? 'failed' : 'success',
-        taskCount: 1,
-        generatedVideos: failed ? 0 : generatedVideos,
-        durationMinutes
-      })
-    })
-  }
-
-  return records
-}
-
-const allRecords = buildRecords()
+const allRecords = ref<DashboardRecord[]>([])
 
 const applyPreset = (key: RangePresetKey) => {
   activePreset.value = key
@@ -405,21 +612,104 @@ const rangeKeys = computed(() => {
 const rangeLabel = computed(() => `${formatDisplayDate(rangeKeys.value.startKey)} - ${formatDisplayDate(rangeKeys.value.endKey)}`)
 const rangeDays = computed(() => enumerateDateKeys(rangeKeys.value.startKey, rangeKeys.value.endKey).length)
 
+const fetchDashboardData = async () => {
+  try {
+    loading.value = true
+
+    const xAxis = enumerateDateKeys(
+      rangeKeys.value.startKey,
+      rangeKeys.value.endKey
+    )
+
+  const [durationRes, bindingRes, digitalHumanRes, voiceRes, failedRes] = await Promise.all([
+    getVideoDurationStats({ xAxis, title: '视频时长统计' }),
+    getBindingStats({ xAxis, title: '绑定关系统计' }),
+    getDigitalHumanStats({ xAxis, title: '数字人统计' }),
+    getVoiceStats({ xAxis, title: '声音统计' }),
+    getFailedTaskStats({ xAxis, title: '失败任务统计' })
+  ])
+
+    const durationOption = durationRes.data?.data || durationRes.data
+    const bindingOption = bindingRes.data?.data || bindingRes.data
+    const digitalHumanOption = digitalHumanRes.data?.data || digitalHumanRes.data
+    const voiceOption = voiceRes.data?.data || voiceRes.data
+    const failedOption = failedRes.data?.data || failedRes.data
+    const durationSeconds = sumOptionSeries(durationOption)
+
+   backendStats.value = {
+      videoCount: (durationOption?.series || []).reduce((total: number, item: any) => {
+        return total + (item?.data || []).filter((value: any) => Number(value || 0) > 0).length
+      }, 0),
+
+      videoDuration: Math.round(durationSeconds / 60),
+
+      bindingCount: sumOptionSeries(bindingOption),
+      digitalHumanCount: sumOptionSeries(digitalHumanOption),
+      voiceCount: sumOptionSeries(voiceOption),
+      failedCount: failedOption?.totalCount || sumOptionSeries(failedOption)
+   }
+
+    backendUserRanking.value = buildUserRankingFromOptions(
+      durationOption,
+      bindingOption,
+      digitalHumanOption,
+      voiceOption,
+      failedOption
+    )
+
+    const optionMap: Record<StatType, any> = {
+      duration: durationOption,
+      binding: bindingOption,
+      digitalHuman: digitalHumanOption,
+      voice: voiceOption,
+      failed: failedOption
+    }
+
+    await nextTick()
+
+    if (trendChartRef.value) {
+      if (!trendChart) {
+        trendChart = echarts.init(trendChartRef.value)
+      }
+
+      trendChart.setOption(
+        beautifyTrendOption(optionMap[statType.value]),
+        true
+      )
+    }
+  } catch (error) {
+    console.error('看板统计数据获取失败：', error)
+    ElMessage.error('获取看板数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const filteredRecords = computed(() =>
-  allRecords.filter(item => item.dateKey >= rangeKeys.value.startKey && item.dateKey <= rangeKeys.value.endKey)
+  allRecords.value.filter(item => item.dateKey >= rangeKeys.value.startKey && item.dateKey <= rangeKeys.value.endKey)
 )
 
-const totalTasks = computed(() => filteredRecords.value.reduce((sum, item) => sum + item.taskCount, 0))
-const totalGeneratedVideos = computed(() => filteredRecords.value.reduce((sum, item) => sum + item.generatedVideos, 0))
-const totalDurationMinutes = computed(() => filteredRecords.value.reduce((sum, item) => sum + item.durationMinutes, 0))
-const failedCount = computed(() => filteredRecords.value.filter(item => item.result === 'failed').length)
-const humanCount = computed(() => filteredRecords.value.filter(item => item.taskType === 'human').length)
-const voiceCount = computed(() => filteredRecords.value.filter(item => item.taskType === 'voice').length)
-const bothCount = computed(() => filteredRecords.value.filter(item => item.taskType === 'both').length)
-const preprocessTotal = computed(() => humanCount.value + voiceCount.value + bothCount.value)
-const avgDurationMinutes = computed(() => (totalGeneratedVideos.value ? Math.round(totalDurationMinutes.value / totalGeneratedVideos.value) : 0))
-const failureRate = computed(() => formatRate(failedCount.value, totalTasks.value))
-const successRate = computed(() => 100 - failureRate.value)
+const totalGeneratedVideos = computed(() => backendStats.value.videoCount)
+const totalDurationMinutes = computed(() => backendStats.value.videoDuration)
+const humanCount = computed(() => backendStats.value.digitalHumanCount)
+const voiceCount = computed(() => backendStats.value.voiceCount)
+const bothCount = computed(() => backendStats.value.bindingCount)
+const preprocessTotal = computed(() =>
+  humanCount.value + voiceCount.value + bothCount.value
+)
+const totalTasks = computed(() =>
+  totalGeneratedVideos.value + preprocessTotal.value
+)
+const failedCount = computed(() => backendStats.value.failedCount)
+const avgDurationMinutes = computed(() => totalGeneratedVideos.value ? Math.round(totalDurationMinutes.value / totalGeneratedVideos.value) : 0)
+const failureRate = computed(() =>
+  formatRate(failedCount.value, totalGeneratedVideos.value)
+)
+const successRate = computed(() =>
+  totalGeneratedVideos.value
+    ? Math.max(0, 100 - failureRate.value)
+    : 100
+)
 const typeTotal = computed(() => totalGeneratedVideos.value + humanCount.value + voiceCount.value + bothCount.value)
 
 const summaryCards = computed(() => [
@@ -457,33 +747,7 @@ const summaryCards = computed(() => [
   }
 ])
 
-const userRanking = computed<UserSummary[]>(() => {
-  return users
-    .map(user => {
-      const rows = filteredRecords.value.filter(item => item.user === user.user)
-      const generatedCount = rows.reduce((sum, item) => sum + item.generatedVideos, 0)
-      const durationMinutes = rows.reduce((sum, item) => sum + item.durationMinutes, 0)
-      const failed = rows.filter(item => item.result === 'failed').length
-      const human = rows.filter(item => item.taskType === 'human').length
-      const voice = rows.filter(item => item.taskType === 'voice').length
-      const both = rows.filter(item => item.taskType === 'both').length
-
-      return {
-        user: user.user,
-        team: user.team,
-        generatedCount,
-        durationMinutes,
-        failedCount: failed,
-        humanCount: human,
-        voiceCount: voice,
-        bothCount: both,
-        totalCount: rows.length,
-        successRate: formatRate(rows.length - failed, rows.length)
-      }
-    })
-    .sort((left, right) => right.generatedCount - left.generatedCount || right.durationMinutes - left.durationMinutes)
-})
-
+const userRanking = computed<UserSummary[]>(() => backendUserRanking.value)
 const trendRows = computed(() => {
   const dateKeys = enumerateDateKeys(rangeKeys.value.startKey, rangeKeys.value.endKey)
   const bucket = new Map<string, { generated: number; duration: number; failed: number }>()
@@ -525,6 +789,7 @@ const stageRows = computed(() => {
     { key: 'both', label: '联合训练', desc: '形象与音频同时训练', value: bothCount.value, color: '#8b5cf6' },
     { key: 'failed', label: '失败任务', desc: '失败的总任务数', value: failedCount.value, color: '#ef4444' }
   ]
+
   const maxValue = Math.max(...rows.map(item => item.value), 1)
 
   return rows.map(item => ({
@@ -548,18 +813,14 @@ const createTrendOption = (): ECOption => {
     color: ['#ef4444', '#2563eb', '#14b8a6'],
     tooltip: {
       trigger: 'axis',
-      axisPointer: {
-        type: 'cross'
-      }
+      axisPointer: { type: 'cross' }
     },
     legend: {
       top: 4,
       right: 4,
       itemWidth: 10,
       itemHeight: 10,
-      textStyle: {
-        color: '#64748b'
-      }
+      textStyle: { color: '#64748b' }
     },
     grid: {
       left: '3%',
@@ -571,14 +832,8 @@ const createTrendOption = (): ECOption => {
     xAxis: {
       type: 'category',
       data: trendRows.value.map(item => item.label),
-      axisTick: {
-        show: false
-      },
-      axisLine: {
-        lineStyle: {
-          color: '#dbe3f0'
-        }
-      },
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#dbe3f0' } },
       axisLabel: {
         color: '#64748b',
         fontSize: 12
@@ -588,24 +843,14 @@ const createTrendOption = (): ECOption => {
       {
         type: 'value',
         name: '视频数',
-        axisLabel: {
-          color: '#64748b'
-        },
-        splitLine: {
-          lineStyle: {
-            color: 'rgba(148, 163, 184, 0.18)'
-          }
-        }
+        axisLabel: { color: '#64748b' },
+        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.18)' } }
       },
       {
         type: 'value',
         name: '分钟',
-        axisLabel: {
-          color: '#64748b'
-        },
-        splitLine: {
-          show: false
-        }
+        axisLabel: { color: '#64748b' },
+        splitLine: { show: false }
       }
     ],
     series: [
@@ -629,12 +874,8 @@ const createTrendOption = (): ECOption => {
           width: 3,
           color: '#2563eb'
         },
-        areaStyle: {
-          color: gradient
-        },
-        itemStyle: {
-          color: '#2563eb'
-        }
+        areaStyle: { color: gradient },
+        itemStyle: { color: '#2563eb' }
       },
       {
         name: '视频时长',
@@ -648,26 +889,20 @@ const createTrendOption = (): ECOption => {
           type: 'dashed',
           color: '#14b8a6'
         },
-        itemStyle: {
-          color: '#14b8a6'
-        }
+        itemStyle: { color: '#14b8a6' }
       }
     ]
   }
 }
 
 const createPieOption = (): ECOption => ({
-  tooltip: {
-    trigger: 'item'
-  },
+  tooltip: { trigger: 'item' },
   legend: {
     bottom: 0,
     left: 'center',
     itemWidth: 10,
     itemHeight: 10,
-    textStyle: {
-      color: '#64748b'
-    }
+    textStyle: { color: '#64748b' }
   },
   series: [
     {
@@ -691,22 +926,13 @@ const createPieOption = (): ECOption => ({
       data: typeBreakdown.value.map(item => ({
         name: item.label,
         value: item.value,
-        itemStyle: {
-          color: item.color
-        }
+        itemStyle: { color: item.color }
       }))
     }
   ]
 })
 
 const renderCharts = () => {
-  if (trendChartRef.value) {
-    if (!trendChart) {
-      trendChart = echarts.init(trendChartRef.value)
-    }
-    trendChart.setOption(createTrendOption(), true)
-  }
-
   if (pieChartRef.value) {
     if (!pieChart) {
       pieChart = echarts.init(pieChartRef.value)
@@ -720,10 +946,14 @@ const handleResize = () => {
   pieChart?.resize()
 }
 
+watch([rangeKeys, statType], async () => {
+  await fetchDashboardData()
+}, { deep: true, immediate: true })
+
 watch([trendRows, typeBreakdown], async () => {
   await nextTick()
   renderCharts()
-}, { deep: true, immediate: true })
+}, { deep: true })
 
 onMounted(async () => {
   await nextTick()
@@ -737,7 +967,6 @@ onBeforeUnmount(() => {
   pieChart?.dispose()
 })
 </script>
-
 <style scoped>
 .workplace-dashboard {
   position: relative;
@@ -1273,6 +1502,40 @@ onBeforeUnmount(() => {
   }
 
   .top-pill {
+    width: 100%;
+  }
+}
+
+.trend-section-head {
+  align-items: center;
+}
+
+.trend-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trend-stat-select {
+  width: 180px;
+}
+
+:deep(.trend-card .el-card__body) {
+  padding-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .trend-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trend-tools {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .trend-stat-select {
     width: 100%;
   }
 }
