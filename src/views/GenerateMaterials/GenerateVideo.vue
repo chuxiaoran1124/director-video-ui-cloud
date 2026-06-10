@@ -41,6 +41,13 @@
             </el-input>
           </div>
           <div class="flex items-center gap-2">
+            <div class="queue-hint">
+              <div class="text-xs text-gray-400">今日排队</div>
+              <div v-if="videoWaitingInfo.waitingTotal > 0" class="text-sm font-semibold text-gray-700">
+                当前还有 <span class="text-amber-600">{{ videoWaitingInfo.waitingTotal }}</span> 个等待任务
+              </div>
+              <div v-else class="text-sm font-semibold text-gray-700">当前没有等待任务</div>
+            </div>
             <el-button 
               type="primary" 
               :disabled="selectedVideos.length === 0"
@@ -60,14 +67,16 @@
 
         <div class="overflow-x-auto">
         <el-table 
+          ref="videoTableRef"
           :data="filteredVideoList" 
+          row-key="id"
           border 
           style="width: 100%"
           class="min-w-[1350px]"
           header-cell-class-name="bg-gray-50 font-bold text-gray-700"
-          @selection-change="selectedVideos = $event"
+          @selection-change="handleVideoSelectionChange"
         >
-          <el-table-column type="selection" width="55" align="center" />
+          <el-table-column type="selection" width="55" align="center" :reserve-selection="true" />
           <el-table-column label="视频预览" width="140" align="center">
             <template #default="scope">
               <div v-if="scope.row.videoCoverUrl" class="relative group cursor-pointer" @click="handleViewVideo(scope.row)">
@@ -93,9 +102,18 @@
           </el-table-column>
           <el-table-column label="任务状态" width="140" align="center">
             <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.taskStatus)" :effect="scope.row.taskStatus === '5' ? 'light' : 'plain'">
-                {{ getStatusLabel(scope.row.taskStatus) }}
-              </el-tag>
+              <div class="flex flex-col items-center gap-1">
+                <el-tag :type="getStatusType(scope.row.taskStatus)" :effect="scope.row.taskStatus === '5' ? 'light' : 'plain'">
+                  {{ getStatusLabel(scope.row.taskStatus) }}
+                </el-tag>
+                <span
+                  v-if="scope.row.taskStatus === '5'"
+                  class="text-xs"
+                  :class="scope.row.isDownloaded === 1 ? 'text-green-600' : 'text-gray-400'"
+                >
+                  {{ scope.row.isDownloaded === 1 ? '素材已下载' : '素材未下载' }}
+                </span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="标签" min-width="180" align="center">
@@ -155,7 +173,7 @@
       <!-- 顶部标题 -->
       <div class="bg-white px-5 py-3 rounded-xl shadow-sm relative border border-gray-100 mb-4">
         <div class="w-full">
-          <el-button @click="showCreate = false" icon="el-icon-arrow-left" class="mb-2">返回列表</el-button>
+          <el-button @click="handleBackToList" icon="el-icon-arrow-left" class="mb-2">返回列表</el-button>
           <div class="text-center">
             <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
             <p class="text-xs text-gray-400 mt-0.5">快速配置并制作单个高质量视频素材</p>
@@ -301,12 +319,11 @@
                         </el-row>
 
             <!-- 角标选择 -->
-                        <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
+            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                                     <div class="flex items-start gap-3">
                     <div class="flex items-center gap-2 flex-1">
-                      <span v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1" class="text-red-500 text-base leading-none self-center">*</span>
                       <el-input
                         :model-value="currentCornerMarkName"
                         placeholder="点击搜索选择角标"
@@ -349,7 +366,7 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1 && (videoForm.mode === 0 ? videoForm.subtitleSelector === 1 : true)">
+            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                   <div class="flex items-start gap-3">
@@ -468,18 +485,30 @@
                           </el-form-item>
                         </div>
 
-            <div class="mt-4 flex flex-col items-center border-t border-gray-50 pt-4 gap-4">
-               <el-button 
-                 type="primary" 
-                 size="large" 
-                 class="!w-48 !h-12 !font-bold rounded-xl shadow-lg shadow-blue-100"
-                 :loading="isGenerating"
-                 :disabled="isGenerating"
-                 icon="el-icon-video-play"
-                 @click="startGeneration"
-               >
-                 {{ isGenerating ? '正在生成视频...' : '立即生成视频' }}
-               </el-button>
+            <div class="mt-4 flex flex-col items-center border-t border-gray-50 pt-4 gap-3">
+               <div class="flex items-center gap-4">
+                 <el-button 
+                   type="primary" 
+                   size="large" 
+                   class="!w-48 !h-12 !font-bold rounded-xl shadow-lg shadow-blue-100"
+                   :loading="isGenerating && submitDispatchMode === 'immediate'"
+                   :disabled="isGenerating"
+                   icon="el-icon-video-play"
+                   @click="startGeneration('immediate')"
+                 >
+                   {{ generationButtonText }}
+                 </el-button>
+                 <el-button
+                   size="large"
+                   class="!w-48 !h-12 !font-bold rounded-xl border-orange-300 text-orange-500 hover:!text-orange-600 hover:!border-orange-400"
+                   :loading="isGenerating && submitDispatchMode === 'overnight'"
+                   :disabled="isGenerating"
+                   @click="startGeneration('overnight')"
+                 >
+                   {{ overnightGenerationButtonText }}
+                 </el-button>
+               </div>
+               <p class="text-xs text-gray-400">通宵预排会在每日 22:00 至次日 09:00 窗口内进入生成，用于分流。</p>
             </div>
           </el-form>
         </div>
@@ -487,9 +516,8 @@
 
       <!-- 右侧预览与结果区 -->
       <div class="w-[440px] space-y-4">
-                <!-- 预览效果 -->
-        <!-- 文案竖版：字幕预览（即时渲染）-->
-                <div v-if="videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <!-- 预览效果 -->
+        <div v-show="shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
@@ -499,20 +527,22 @@
                     :script-text="videoForm.script"
                     :corner-mark-url="currentCornerMarkUrl"
                     :banner-overlay-base64="selectedBannerOverlayBase64"
+                    :process-types="previewProcessTypes"
+                    :enable-subtitle="shouldApplySubtitle"
+                    :initial-config="subtitleConfig"
                     @update:config="handleSubtitleConfigUpdate"
                   />
-                </div>
-                <!-- 其他情况（横版 / 音频模式 / 竖版未开字幕）：直接显示数字人封面图 -->
-                <div v-if="!(videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0)" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        </div>
+        <div v-show="!shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
-                  <div class="w-full rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center bg-gray-50" style="height: 300px;">
-                    <img v-if="currentDigitalHumanImg" :key="'prev-' + videoForm.mode + '-' + videoForm.digitalHuman" :src="currentDigitalHumanImg" class="w-full h-full object-contain" alt="数字人预览" @error="(e) => { e.target.style.display = 'none' }">
+                  <div class="mx-auto w-[270px] h-[480px] rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center bg-gray-50">
+                    <img v-if="currentDigitalHumanImg" :key="'prev-' + videoForm.mode + '-' + videoForm.digitalHuman" :src="currentDigitalHumanImg" class="w-full h-full object-cover" alt="数字人预览" @error="(e) => { e.target.style.display = 'none' }">
                     <span v-else class="text-gray-300 text-sm">尚未选择形象</span>
                   </div>
                   <p v-if="videoForm.digitalHuman" class="text-xs text-gray-400 mt-2 text-center">{{ videoForm.digitalHuman }}</p>
-                </div>
+        </div>
 
         <!-- 任务状态与历史 -->
         <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 min-h-[300px]">
@@ -522,7 +552,7 @@
           <div v-if="isGenerating" class="py-10 text-center animate-fade-in">
              <el-progress type="circle" :percentage="genProgress" status="success" :stroke-width="10"></el-progress>
              <p class="mt-4 text-sm font-bold text-gray-600">{{ genStage }}</p>
-             <p class="text-xs text-gray-400 mt-2">素材上传中 -> 逻辑合成 -> 最终渲染</p>
+             <p class="text-xs text-gray-400 mt-2">{{ generationProgressHint }}</p>
           </div>
 
           <div v-else-if="resultVideo" class="animate-fade-in">
@@ -833,7 +863,7 @@
       </div>
     </el-dialog>
 
-    <!-- 蹇嵎预设选择器-->
+    <!-- 快捷预设选择器 -->
     <el-dialog title="选择快捷预设" v-model="relSelectorDialog.visible" width="1000px" append-to-body>
       <div class="space-y-4">
         <div class="flex gap-2 flex-wrap">
@@ -967,7 +997,7 @@ import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, createAudioVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
@@ -978,13 +1008,20 @@ const taskStore = useTaskStore()
 const showCreate = ref(false)
 
 // 任务列表
+// 浠诲姟鍒楄〃
+const videoTableRef = ref<any>(null)
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
 const searchLabel = ref('')
 const selectedVideos = ref<any[]>([])
+const selectedVideoIds = ref<Array<string | number>>([])
 const videoTaskPage = ref(1)
 const videoTaskPageSize = ref(20)
 const videoTaskTotal = ref(0)
+const videoWaitingInfo = reactive({
+  waitingTotal: 0,
+  waitingBefore: 0
+})
 const filteredVideoList = computed(() => {
   return videoTaskList.value
 })
@@ -993,6 +1030,34 @@ const splitLabel = (labelValue: string | string[] | null | undefined) => {
   if (!labelValue) return []
   if (Array.isArray(labelValue)) return labelValue.filter((t: string) => !!String(t).trim())
   return String(labelValue).split('|').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+}
+
+const handleVideoSelectionChange = (rows: any[]) => {
+  const currentPageIds = new Set(videoTaskList.value.map((item: any) => item.id))
+  const nextSelectedIds = selectedVideoIds.value.filter((id) => !currentPageIds.has(id))
+  const pageSelectedIds = rows.map((item: any) => item.id)
+  selectedVideoIds.value = [...nextSelectedIds, ...pageSelectedIds]
+
+  const selectedIdSet = new Set(selectedVideoIds.value)
+  selectedVideos.value = [
+    ...selectedVideos.value.filter((item: any) => !currentPageIds.has(item.id) && selectedIdSet.has(item.id)),
+    ...videoTaskList.value.filter((item: any) => selectedIdSet.has(item.id)),
+  ]
+}
+
+const restoreVideoSelection = async () => {
+  await nextTick()
+  const table = videoTableRef.value
+  if (!table) return
+
+  const selectedIdSet = new Set(selectedVideoIds.value)
+  table.clearSelection()
+  videoTaskList.value.forEach((item: any) => {
+    if (selectedIdSet.has(item.id)) {
+      table.toggleRowSelection(item, true)
+    }
+  })
+  selectedVideos.value = videoTaskList.value.filter((item: any) => selectedIdSet.has(item.id))
 }
 
 const videoForm = reactive({
@@ -1105,7 +1170,7 @@ const fetchScriptLibrary = async () => {
       }))
     }
   } catch (error) {
-    console.error('获取脚本库失璐?', error)
+    console.error('获取脚本库失败:', error)
   }
 }
 
@@ -1156,7 +1221,7 @@ const fetchCornerMarks = async () => {
       .filter((i: any) => i.sort !== null && i.sort !== undefined)
       .sort((a: any, b: any) => b.sort - a.sort)
       .map((i: any) => i.id)
-    console.log('加载的角标列琛?', cornerMarkOptions.value)
+    console.log('加载的角标列表:', cornerMarkOptions.value)
   } catch (error) {
     console.error('获取角标列表失败:', error)
     ElMessage.error('加载角标列表失败')
@@ -1171,6 +1236,29 @@ const isGenerating = ref(false)
 const genProgress = ref(0)
 const genStage = ref('准备就绪')
 const resultVideo = ref('')
+const submitDispatchMode = ref<'immediate' | 'overnight'>('immediate')
+const generationButtonText = computed(() => {
+  if (!isGenerating.value || submitDispatchMode.value !== 'immediate') {
+    return videoForm.mode === 1 ? '上传音频并创建视频' : '立即生成视频'
+  }
+  return videoForm.mode === 1 ? '上传音频并创建中...' : '正在生成视频...'
+})
+const overnightGenerationButtonText = computed(() => {
+  if (!isGenerating.value || submitDispatchMode.value !== 'overnight') {
+    return '通宵预排'
+  }
+  return videoForm.mode === 1 ? '加入通宵预排中...' : '创建通宵预排中...'
+})
+const generationProgressHint = computed(() => {
+  if (submitDispatchMode.value === 'overnight') {
+    return videoForm.mode === 1
+      ? '音频上传中 -> 创建预排任务 -> 夜间窗口入队'
+      : '任务创建中 -> 进入通宵预排 -> 夜间窗口入队'
+  }
+  return videoForm.mode === 1
+    ? '音频上传中 -> 创建任务 -> 队列处理'
+    : '素材上传中 -> 逻辑合成 -> 最终渲染'
+})
 
 const scriptSelector = reactive({
   visible: false,
@@ -1191,22 +1279,34 @@ const humanSelectorDialog = reactive({
   hasMore: true
 })
 
-// 配音选择器ㄦ粴鍔ㄥ鍣╮ef
+// 配音选择器滚动容器 ref
 const voiceScrollRef = ref<HTMLElement | null>(null)
 
 // 字幕预览相关
 const subtitlePreviewRef = ref<InstanceType<typeof SubtitlePreview> | null>(null)
 const subtitlePreviewFrameBase64 = ref('')
-const subtitleConfig = reactive({
+const DEFAULT_SUBTITLE_CONFIG = {
   font_size: 18,
   margin_v: 74,
   primary_colour: '#FFFF00',
   outline: 1,
   outline_colour: '#000000',
   bold: 1,
+  font_name: '竹言体',
+  bg_mode: 'none',
+  bg_height: 60,
+  bg_colour: 'rgba(0,0,0,0.5)',
   blur_subtitles: false,
   blur_strength: 15
-})
+}
+const subtitleConfig = reactive({ ...DEFAULT_SUBTITLE_CONFIG })
+
+const getRecentSubtitleConfig = () => {
+  return request({
+    url: '/api/material/video/subtitle-config/recent/',
+    method: 'get',
+  })
+}
 
 /**
  * 通过后端代理将图片 URL 转 base64（绕过浏览器 CORS） */
@@ -1218,7 +1318,7 @@ const fetchImageAsBase64 = async (url: string): Promise<string> => {
     const reader = new FileReader()
     reader.onloadend = () => {
       const b64 = reader.result as string
-      console.log('[getFrameBase64] 杞?base64 鎴愬姛, 闀垮害:', b64.length)
+      console.log('[getFrameBase64] 转 base64 成功, 长度:', b64.length)
       resolve(b64)
     }
     reader.onerror = reject
@@ -1240,7 +1340,7 @@ const bannerOverlayPaginateRequest = (page: number = 1, pageSize: number = 10, s
 }
 
 /**
- * 浼樺厛鐢ㄥ皝闈㈠浘URL杞?base64；若无犲皝闈㈡垨失败，则提取视频首帧
+ * 优先使用封面图 URL 转 base64；若无封面或失败，则提取视频首帧
  */
 const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<string> => {
   console.log('[getFrameBase64] coverUrl:', coverUrl, 'videoUrl:', videoUrl)
@@ -1323,9 +1423,55 @@ const currentBannerOverlayName = computed(() => {
   return bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))?.name || ''
 })
 
+const currentBannerOverlaySubmitUrl = computed(() => {
+  if (!selectedBannerOverlayId.value) return ''
+  const selected = bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))
+  return selected?.outputUrl || selected?.overlayUrl || ''
+})
+
+const shouldApplySubtitle = computed(() => {
+  if (videoForm.mode !== 0 || videoForm.videoType !== 0 || videoForm.language === 'th') return false
+  return videoForm.subtitleSelector === 1
+})
+
+const shouldEnableSubtitlePipeline = computed(() => {
+  if (videoForm.videoType !== 0) return false
+  return shouldApplySubtitle.value || !!videoForm.cornerMark || !!selectedBannerOverlayId.value
+})
+
+const effectiveSubtitleSelector = computed(() => (shouldEnableSubtitlePipeline.value ? 1 : 0))
+
+const shouldShowSubtitlePreview = computed(() => shouldEnableSubtitlePipeline.value)
+
+const previewProcessTypes = computed(() => {
+  const processTypes: string[] = []
+  if (shouldApplySubtitle.value) processTypes.push('subtitle')
+  if (videoForm.cornerMark) processTypes.push('corner_mark')
+  if (selectedBannerOverlayId.value) processTypes.push('banner_overlay')
+  return processTypes
+})
+
 // 字幕配置更新回调
 const handleSubtitleConfigUpdate = (newConfig: any) => {
   Object.assign(subtitleConfig, newConfig)
+}
+
+const loadRecentSubtitleConfig = async () => {
+  try {
+    const res = await getRecentSubtitleConfig()
+    const data = res.data?.data ?? res.data
+    if (data && typeof data === 'object') {
+      Object.assign(subtitleConfig, { ...DEFAULT_SUBTITLE_CONFIG, ...data })
+      await nextTick()
+      await (subtitlePreviewRef.value as any)?.setConfig?.({ ...subtitleConfig })
+      return
+    }
+  } catch (error) {
+    console.error('加载最近字幕配置失败:', error)
+  }
+  Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
+  await nextTick()
+  await (subtitlePreviewRef.value as any)?.setConfig?.({ ...subtitleConfig })
 }
 
 // 配音选择器状态
@@ -1354,7 +1500,7 @@ const relSelectorDialog = reactive({
   hasMore: true
 })
 
-// 蹇嵎预设显示鍚嶇О
+// 快捷预设显示名称
 const relName = ref('')
 
 // 角标选择器状态
@@ -1399,10 +1545,12 @@ const saveScriptDialog = reactive({
 
 const videoPreview = reactive({
   visible: false,
+  taskId: null as number | null,
   url: '',
   coverUrl: '',
   voiceUrl: '',
-  title: ''
+  title: '',
+  isDownloaded: 0,
 })
 
 // 监听关键配置变化，重置配音状鎬?// --- 閫昏緫处理 ---
@@ -1451,12 +1599,34 @@ const loadVideoTasks = async () => {
       videoUrl: task.videoUrl || task.video_url || '',
       videoCoverUrl: task.videoCoverUrl || task.video_cover_url || '',
       taskStatus: task.taskStatus || '0',
-      baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || ''
+      baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || '',
+      isDownloaded: Number(task.isDownloaded ?? task.is_downloaded ?? 0),
     }))
+
+    const availableIds = new Set(videoTaskList.value.map((item: any) => item.id))
+    const offPageSelections = selectedVideos.value.filter((item: any) => !availableIds.has(item.id))
+    selectedVideos.value = [
+      ...offPageSelections,
+      ...videoTaskList.value.filter((item: any) => selectedVideoIds.value.includes(item.id)),
+    ]
+    await restoreVideoSelection()
     
-    console.log('加载的任鍔″垪琛?', videoTaskList.value)
+    console.log('加载的任务列表:', videoTaskList.value)
   } catch (error) {
     console.error('加载视频任务列表失败:', error)
+  }
+}
+
+const loadVideoWaitingInfo = async () => {
+  try {
+    const res = await getVideoTaskWaiting()
+    if (res.data?.code === 200 && res.data?.data) {
+      const data = res.data.data
+      videoWaitingInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
+      videoWaitingInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
+    }
+  } catch (error) {
+    console.error('加载视频等待任务数失败:', error)
   }
 }
 
@@ -1465,6 +1635,7 @@ const startVideoTaskAutoRefresh = () => {
   videoTaskRefreshTimer.value = setInterval(() => {
     if (!showCreate.value) {
       loadVideoTasks()
+      loadVideoWaitingInfo()
     }
   }, 5000)
 }
@@ -1499,7 +1670,7 @@ const loadDigitalHumanList = async (searchName?: string) => {
       console.log('加载的数字人列表:', humanOptions.value)
     }
   } catch (error) {
-    console.error('加载数字人列表失璐?', error)
+    console.error('加载数字人列表失败:', error)
     // 如果加载失败，使用默认数字人列表
     humanOptions.value = [
       { name: '小美', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop' },
@@ -1540,7 +1711,7 @@ const extractAudioUrl = (urlString: string): string => {
     // 使用正则提取 https 或 http 开头的 URL
     const match = urlString.match(/https?:\/\/[^'"\]\)\s]+/)
     if (match && match[0]) {
-      console.log('从数组字绗︿覆中提取URL:', match[0])
+      console.log('从数组字符串中提取 URL:', match[0])
       return match[0]
     }
   }
@@ -1584,7 +1755,7 @@ const loadVoiceList = async (searchName?: string) => {
           ...voice
         }
       })
-      console.log('加载的配音列琛?', voiceOptions.value)
+      console.log('加载的配音列表:', voiceOptions.value)
     }
   } catch (error) {
     console.error('加载配音列表失败:', error)
@@ -1598,7 +1769,7 @@ const loadVoiceList = async (searchName?: string) => {
   }
 }
 
-// 加载缁戝畾关系列表
+// 加载绑定关系列表
 const loadBindingList = async (voiceName?: string, digitalHumanName?: string) => {
   try {
     const searchObj: any = {}
@@ -1613,7 +1784,7 @@ const loadBindingList = async (voiceName?: string, digitalHumanName?: string) =>
     searchObj.language = videoForm.language
     
     const response = await getBindingList(1, 50, searchObj)
-    console.log('缁戝畾关系列表API返回:', response)
+    console.log('绑定关系列表 API 返回:', response)
     
     // 处理 API 返回的数据结构
     if (response.data && response.data.data && response.data.data.data) {
@@ -1640,16 +1811,16 @@ const loadBindingList = async (voiceName?: string, digitalHumanName?: string) =>
           ...binding
         }
       })
-      console.log('加载的绑定关系列琛?', relList.value)
+      console.log('加载的绑定关系列表:', relList.value)
     }
   } catch (error) {
-    console.error('加载缁戝畾关系列表失败:', error)
+    console.error('加载绑定关系列表失败:', error)
     // 失败时使用默认数据
     relList.value = defaultRelList
   }
 }
 
-// 缁戝畾关系搜索处理函数
+// 绑定关系搜索处理函数
 const handleBindingSearch = () => {
   loadBindingList(voiceSearchInput.value || undefined, digitalHumanSearchInput.value || undefined)
 }
@@ -1676,6 +1847,7 @@ watch(() => videoForm.voice, (newVal, oldVal) => {
 // 组件挂载时加载任务列表、数字人列表、配音列表和绑定关系列表
 onMounted(() => {
   loadVideoTasks()
+  loadVideoWaitingInfo()
   loadDigitalHumanList()
   loadVoiceList()
   loadBindingList()
@@ -1702,19 +1874,35 @@ watch(() => videoForm.language, (val) => {
   }
 })
 
-// 监听 mode 切换：清空数字人选择、预览图
+watch(() => shouldShowSubtitlePreview.value, async (val) => {
+  if (val) {
+    await refreshPreview()
+  } else {
+    subtitlePreviewFrameBase64.value = ''
+  }
+})
+
+// 监听 mode 切换：清空模式相关残留，避免预设/配音跨模式遗留
 watch(() => videoForm.mode, () => {
+  videoForm.relId = ''
+  relName.value = ''
+  videoForm.voice = ''
+  videoForm.voiceExternalId = ''
+  videoForm.voiceUrl = ''
   videoForm.digitalHuman = ''
   videoForm.digitalHumanExternalId = ''
   videoForm.previewImg = ''
+  videoForm.label = ''
   subtitlePreviewFrameBase64.value = ''
 })
 
 watch(showCreate, (val) => {
   if (val) {
     stopVideoTaskAutoRefresh()
+    loadRecentSubtitleConfig()
   } else {
     loadVideoTasks()
+    loadVideoWaitingInfo()
     startVideoTaskAutoRefresh()
   }
 })
@@ -1724,11 +1912,18 @@ const handleCreateNew = () => {
   showCreate.value = true
 }
 
+const handleBackToList = () => {
+  resetForm()
+  showCreate.value = false
+}
+
 const handleViewVideo = (video: any) => {
+  videoPreview.taskId = Number(video.id ?? 0) || null
   videoPreview.url = video.videoUrl
   videoPreview.coverUrl = video.videoCoverUrl
   videoPreview.voiceUrl = video.baseVoiceUrl
   videoPreview.title = video.title
+  videoPreview.isDownloaded = Number(video.isDownloaded ?? 0)
   videoPreview.visible = true
 }
 
@@ -1737,8 +1932,11 @@ const handleDeleteVideo = async (id: any) => {
     // 调用 API 删除视频任务
     await deleteVideoTask(id)
     ElMessage.success('视频已删除')
+    selectedVideoIds.value = selectedVideoIds.value.filter((selectedId) => selectedId !== id)
+    selectedVideos.value = selectedVideos.value.filter((item: any) => item.id !== id)
     // 从列表中移除
     videoTaskList.value = videoTaskList.value.filter(v => v.id !== id)
+    await restoreVideoSelection()
   } catch (error) {
     ElMessage.error('删除视频失败')
     console.error('删除视频任务失败:', error)
@@ -1754,6 +1952,8 @@ const getStatusLabel = (status: string | number) => {
     '3': '视频预备中',
     '4': '视频生成中',
     '5': '已完成',
+    '8': '通宵预排',
+    '9': '夜间入队中',
     '-1': '失败'
   }
   return statusMap[String(status)] || '未知'
@@ -1762,11 +1962,33 @@ const getStatusLabel = (status: string | number) => {
 // 获取任务状态类型（用于 tag 颜色）
 const getStatusType = (status: string | number): 'success' | 'danger' | 'warning' | 'info' => {
   const statusStr = String(status)
-  if (statusStr === '5') return 'success'           // 宸插畬鎴?- 缁胯壊
-  if (statusStr === '-1') return 'danger'           // 失败 - 绾㈣壊
+  if (statusStr === '5') return 'success'           // 已完成 - 绿色
+  if (statusStr === '-1') return 'danger'           // 失败 - 红色
+  if (statusStr === '9') return 'warning'           // 夜间入队中 - 橙色
   if (statusStr === '0') return 'info'              // 等待中 - 灰色
+  if (statusStr === '8') return 'info'              // 通宵预排 - 灰色
   if (statusStr === '4') return 'warning'           // 视频生成中 - 橙色
-  return 'info'                                      // 其他 - 鐏拌壊
+  return 'info'                                     // 其他 - 灰色
+}
+
+const markVideoDownloadedLocally = (taskId?: number | null) => {
+  if (!taskId) return
+
+  videoTaskList.value = videoTaskList.value.map((item: any) =>
+    Number(item.id) === Number(taskId)
+      ? { ...item, isDownloaded: 1 }
+      : item
+  )
+
+  selectedVideos.value = selectedVideos.value.map((item: any) =>
+    Number(item.id) === Number(taskId)
+      ? { ...item, isDownloaded: 1 }
+      : item
+  )
+
+  if (Number(videoPreview.taskId) === Number(taskId)) {
+    videoPreview.isDownloaded = 1
+  }
 }
 
 const fillDefaultTitle = () => {
@@ -1780,8 +2002,10 @@ const resetForm = () => {
   videoForm.title = ''
   videoForm.channel = 'A2E'
   videoForm.relId = ''
+  relName.value = ''
   videoForm.digitalHuman = ''
   videoForm.digitalHumanExternalId = ''
+  videoForm.previewImg = ''
   videoForm.voice = ''
   videoForm.voiceExternalId = ''
   videoForm.voiceUrl = ''
@@ -1792,24 +2016,61 @@ const resetForm = () => {
   videoForm.cornerMark = ''
   selectedBannerOverlayId.value = ''
   selectedBannerOverlayBase64.value = ''
+  subtitlePreviewFrameBase64.value = ''
   videoForm.filename = ''
-    videoForm.label = ''
-    videoForm.videoType = 0
+  videoForm.label = ''
+  videoForm.videoType = 0
   videoForm.mode = 0
   audioFile.value = null
   audioFileName.value = ''
+  scriptSelector.visible = false
+  scriptSelector.search = ''
+  saveScriptDialog.visible = false
+  saveScriptDialog.form.title = ''
+  saveScriptDialog.form.tags = []
+  saveScriptDialog.form.newTag = ''
+  humanSelectorDialog.visible = false
+  humanSelectorDialog.search = ''
+  humanSelectorDialog.allList = []
+  humanSelectorDialog.displayList = []
+  humanSelectorDialog.page = 1
+  humanSelectorDialog.hasMore = true
+  voiceSelectorDialog.visible = false
+  voiceSelectorDialog.search = ''
+  voiceSelectorDialog.allList = []
+  voiceSelectorDialog.displayList = []
+  voiceSelectorDialog.page = 1
+  voiceSelectorDialog.hasMore = true
+  relSelectorDialog.visible = false
+  relSelectorDialog.voiceSearch = ''
+  relSelectorDialog.digitalHumanSearch = ''
+  relSelectorDialog.tagSearch = ''
+  relSelectorDialog.allList = []
+  relSelectorDialog.displayList = []
+  relSelectorDialog.page = 1
+  relSelectorDialog.hasMore = true
+  cornerMarkSelectorDialog.visible = false
+  cornerMarkSelectorDialog.search = ''
+  bannerOverlaySelectorDialog.visible = false
+  bannerOverlaySelectorDialog.search = ''
+  bannerOverlaySelectorDialog.allList = []
+  bannerOverlaySelectorDialog.displayList = []
+  bannerOverlaySelectorDialog.page = 1
+  bannerOverlaySelectorDialog.hasMore = true
   if (audioUploadRef.value) {
     audioUploadRef.value.clearFiles()
   }
   resultVideo.value = ''
   genProgress.value = 0
+  genStage.value = '准备就绪'
+  submitDispatchMode.value = 'immediate'
 }
 
 const getHumanImg = (name: string) => humanOptions.value.find((h: any) => h.name === name)?.img || ''
 
 const handleRelChange = async (val: any, selectedRel?: any) => {
   if (!val) {
-    // 娓呯┖预设选择
+    // 清空预设选择
     videoForm.relId = ''
     relName.value = ''
     videoForm.previewImg = ''
@@ -1826,17 +2087,18 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
     videoForm.label = rel.title || ''
     videoForm.digitalHumanExternalId = rel.digitalHumanExternalId || ''
     videoForm.voiceExternalId = rel.voiceExternalId || ''
-    
+
     // 字幕预览：优先封面图 URL，其次视频 URL，通过后端代理转 base64
-    if (videoForm.subtitleSelector === 1) {
+    if (shouldShowSubtitlePreview.value) {
       const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
       subtitlePreviewFrameBase64.value = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
     }
+
     // 表单缩略图（同样通过代理取视频首帧）
     if (rel.digitalHumanUrl) {
       videoForm.previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
     }
-    
+
     ElMessage.success(`已应用联动配置： ${rel.digitalHumanName || rel.human} & ${rel.voiceName || rel.voice}`)
   }
 }
@@ -1853,7 +2115,7 @@ const playVoice = (audioUrl: string, voiceName: string = '') => {
     return
   }
 
-  // 同一个音频：切换播放/鏆傚仠
+  // 同一个音频：切换播放/暂停
   if (currentAudio && currentAudioUrl === urlToPlay) {
     if (currentAudio.paused) {
       currentAudio.play().catch(() => {})
@@ -2077,7 +2339,8 @@ const confirmSaveScript = async () => {
     })
     ElMessage.success('已存入文案库')
     saveScriptDialog.visible = false
-    // 重新加载脚本搴?    await fetchScriptLibrary()
+    // 重新加载脚本库
+    await fetchScriptLibrary()
   } catch (error) {
     ElMessage.error('保存失败')
     console.error(error)
@@ -2086,7 +2349,7 @@ const confirmSaveScript = async () => {
 
 // A2E 
 // 渲染流程模拟
-const startGeneration = async () => {
+const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immediate') => {
   // 重复点击
   if (isGenerating.value) {
     return
@@ -2109,15 +2372,13 @@ const startGeneration = async () => {
     return ElMessage.warning('请上传音频文件')
   }
   
-    // 竖屏文案模式且开启字幕时校验角标必填
-  if (videoForm.videoType !== 1 && videoForm.mode === 0 && videoForm.subtitleSelector === 1 && !videoForm.cornerMark) {
-    return ElMessage.warning('请选择角标')
-  }
-
+  submitDispatchMode.value = dispatchMode
   isGenerating.value = true
   resultVideo.value = ''
   genProgress.value = 0
-  genStage.value = '正在上传素材...'
+  genStage.value = dispatchMode === 'overnight'
+    ? (videoForm.mode === 1 ? '正在上传音频并加入通宵预排...' : '正在创建通宵预排任务...')
+    : (videoForm.mode === 1 ? '正在上传音频并创建任务...' : '正在上传素材...')
 
   try {
         let digitalHumanId: string
@@ -2170,19 +2431,24 @@ const startGeneration = async () => {
     formData.append('digital_human_id', digitalHumanId)
     formData.append('language', language)
     formData.append('speechRate', '1')
-    const selectedBannerOverlay = bannerOverlayOptions.value.find((item: any) => String(item.id) === String(selectedBannerOverlayId.value))
-    const bannerOverlayUrl = selectedBannerOverlay?.outputUrl || ''
+    formData.append('dispatch_mode', dispatchMode)
+    const bannerOverlayUrl = currentBannerOverlaySubmitUrl.value
     if (bannerOverlayUrl) {
       formData.append('banner_overlay_url', bannerOverlayUrl)
     }
     
-    // 横版模式下强制关闭字幕
-    const effectiveSubtitle = videoForm.videoType === 1 ? 0 : (videoForm.mode === 1 ? 0 : videoForm.subtitleSelector)
+    const processTypes: string[] = []
+    if (shouldApplySubtitle.value) processTypes.push('subtitle')
+    if (videoForm.cornerMark) processTypes.push('corner_mark')
+    if (bannerOverlayUrl) processTypes.push('banner_overlay')
+
+    // 字幕开关 / 角标 / 横幅 三者只要任一配置，即走统一后处理能力
+    const effectiveSubtitle = effectiveSubtitleSelector.value
     formData.append('subtitleSelector', String(effectiveSubtitle))
     if (effectiveSubtitle === 1) {
       formData.append('colour', 'yellow')
       
-      // 只有开启字幕时才添加角标参数
+      // 角标与字幕不再强绑定，只要选择了就提交
       if (videoForm.cornerMark) {
         formData.append('corner_mark_id', videoForm.cornerMark)
         const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
@@ -2191,8 +2457,8 @@ const startGeneration = async () => {
         }
       }
 
-      // 闄勫姞字幕样式配置
-      formData.append('subtitle_config', JSON.stringify({
+      // 附加字幕样式配置
+      const subtitlePayload = shouldApplySubtitle.value ? {
         font_name: subtitleConfig.font_name,
         font_size: subtitleConfig.font_size,
         margin_v: subtitleConfig.margin_v,
@@ -2205,6 +2471,11 @@ const startGeneration = async () => {
         bg_colour: subtitleConfig.bg_colour,
         blur_subtitles: subtitleConfig.blur_subtitles,
         blur_strength: subtitleConfig.blur_strength
+      } : null
+
+      formData.append('subtitle_config', JSON.stringify({
+        process_types: processTypes,
+        subtitle_config: subtitlePayload
       }))
     }
 
@@ -2216,11 +2487,15 @@ const startGeneration = async () => {
       digital_human_id: digitalHumanId,
       language: language,
       speechRate: '1',
-      subtitleSelector: videoForm.subtitleSelector,
-      colour: videoForm.subtitleSelector === 1 ? 'yellow' : undefined,
-      corner_mark_id: (videoForm.subtitleSelector === 1 && videoForm.cornerMark) || undefined,
-      corner_mark_url: (videoForm.subtitleSelector === 1 && videoForm.cornerMark && cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl) || undefined,
-      subtitle_config: videoForm.subtitleSelector === 1 ? { ...subtitleConfig } : undefined
+      subtitleSelector: effectiveSubtitle,
+      process_types: processTypes,
+      colour: effectiveSubtitle === 1 ? 'yellow' : undefined,
+      corner_mark_id: videoForm.cornerMark || undefined,
+      corner_mark_url: (videoForm.cornerMark && cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)?.photoUrl) || undefined,
+      subtitle_config: effectiveSubtitle === 1 ? {
+        process_types: processTypes,
+        subtitle_config: shouldApplySubtitle.value ? { ...subtitleConfig } : null
+      } : undefined
       ,
       banner_overlay_url: bannerOverlayUrl || undefined
     })
@@ -2236,6 +2511,8 @@ const startGeneration = async () => {
     let response
     if (videoForm.mode === 0) {
       // 文案模式：调用原创建视频任务接口
+      genProgress.value = dispatchMode === 'overnight' ? 15 : 20
+      genStage.value = dispatchMode === 'overnight' ? '正在提交通宵预排任务...' : '正在提交文案任务...'
       response = await createVideoTask(formData)
       console.log('文案模式提交完成:', response)
     } else {
@@ -2249,14 +2526,24 @@ const startGeneration = async () => {
           formData.append('corner_mark_url', selectedCornerMark.photoUrl)
         }
       }
+      genProgress.value = dispatchMode === 'overnight' ? 25 : 35
+      genStage.value = dispatchMode === 'overnight' ? '正在上传音频并创建预排，请稍候...' : '正在上传音频，请稍候...'
       console.log('音频模式提交数据:', Object.fromEntries(formData.entries()))
       response = await createAudioVideoTask(formData)
       console.log('音频模式提交完成:', response)
     }
     
     if (response && response.data) {
+      genProgress.value = 100
+      genStage.value = dispatchMode === 'overnight'
+        ? '任务已加入通宵预排队列'
+        : (videoForm.mode === 1 ? '音频上传完成，任务已进入队列' : '任务已提交，正在进入队列')
       // 提交成功，立即返回列表并清空表单
-      ElMessage.success('任务已提交，请在列表中查看生成进度')
+      if (dispatchMode === 'overnight') {
+        ElMessage.success('任务已加入通宵预排队列，将在 22:00-09:00 窗口内开始生成')
+      } else {
+        ElMessage.success(videoForm.mode === 1 ? '音频上传成功，任务已创建并进入队列' : '任务已提交，请在列表中查看生成进度')
+      }
       isGenerating.value = false
       resetForm()
       showCreate.value = false
@@ -2265,13 +2552,26 @@ const startGeneration = async () => {
     }
   } catch (error) {
     isGenerating.value = false
+    submitDispatchMode.value = 'immediate'
     console.error('视频生成失败:', error)
-    ElMessage.error(`视频生成失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    const errorMessage = extractRequestErrorMessage(error)
+    if (videoForm.mode === 1 && /上传|TOS|MinIO|音频/i.test(errorMessage)) {
+      ElMessage.error(`音频上传失败: ${errorMessage}`)
+    } else {
+      ElMessage.error(`视频生成失败: ${errorMessage}`)
+    }
   }
 }
 
+const extractRequestErrorMessage = (error: unknown) => {
+  const err = error as any
+  return err?.response?.data?.message || err?.response?.data?.msg || err?.message || '未知错误'
+}
+
 const previewResult = () => {
+  videoPreview.taskId = null
   videoPreview.url = resultVideo.value
+  videoPreview.isDownloaded = 0
   videoPreview.visible = true
 }
 
@@ -2285,42 +2585,18 @@ const downloadVideo = async () => {
   
   try {
     console.log('开始下载视频', videoPreview.url)
-    
-    // 方法1：尝试用 fetch 下载
-    try {
-      const response = await fetch(videoPreview.url)
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `video-${new Date().getTime()}.mp4`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        
-        setTimeout(() => {
-          ElMessage.success('下载已开始')
-        }, 2000)
-      } else {
-        throw new Error('fetch 返回非 200 状态码')
-      }
-    } catch (fetchError) {
-      console.log('fetch失败，尝试直接跳转下杞?', fetchError)
-      // 方法2：直接用 window.location.href 跳转下载
-      const link = document.createElement('a')
-      link.href = videoPreview.url
-      link.download = `video-${new Date().getTime()}.mp4`
-      link.target = '_blank'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
-      setTimeout(() => {
-        ElMessage.success('下载已开始')
-      }, 1000)
-    }
+    const response = await downloadFileByProxy(videoPreview.url, videoPreview.taskId, 'video')
+    const blob = response.data as Blob
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `video-${new Date().getTime()}.mp4`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    markVideoDownloadedLocally(videoPreview.taskId)
+    ElMessage.success('下载已开始')
   } catch (error) {
     console.error('下载视频失败:', error)
     ElMessage.error('下载失败，请重试')
@@ -2359,7 +2635,7 @@ const downloadAudio = async () => {
         throw new Error('fetch 返回非 200 状态码')
       }
     } catch (fetchError) {
-      console.log('fetch失败，尝试直接跳转下杞?', fetchError)
+      console.log('fetch失败，尝试直接跳转下载', fetchError)
       // 方法2：直接用 window.location.href 跳转下载
       const link = document.createElement('a')
       link.href = videoPreview.voiceUrl
@@ -2426,14 +2702,12 @@ const batchDownloadVideos = async () => {
 
     // 并行下载所有视频
     const downloadPromises = validVideos.map(video =>
-      fetch(toProxyUrl(video.videoUrl))
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          return response.blob()
-        })
+      downloadFileByProxy(video.videoUrl, video.id, 'video')
+        .then(response => response.data as Blob)
         .then(blob => {
           const fileName = `${video.title || 'video'}-${video.id}.mp4`
           zip.file(fileName, blob)
+          markVideoDownloadedLocally(video.id)
           successCount++
         })
         .catch(error => {
@@ -2606,14 +2880,14 @@ const loadMoreHumans = async () => {
       }
     }
   } catch (error) {
-    console.error('加载数字人失璐?', error)
+    console.error('加载数字人失败:', error)
     ElMessage.error('加载数字人失败')
   } finally {
     humanSelectorDialog.loading = false
   }
 }
 
-// 婊氬姩到底部时自动加载
+// 滚动到底部时自动加载
 const handleHumanScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   // 距离底部小于 100px 时自动加载
@@ -2627,22 +2901,22 @@ const selectHuman = async (item: any) => {
   videoForm.digitalHuman = item.name
   videoForm.digitalHumanExternalId = item.externalId || ''
   videoForm.previewImg = item.img
-  // 缁熶竴刷新预览
+  // 统一刷新预览
   refreshPreview(item)
   humanSelectorDialog.visible = false
   ElMessage.success('已选择数字人')
 }
 
 /**
- * 缁熶竴刷新Ԥ览效果
+ * 统一刷新预览效果
  * - 文案竖版开字幕：前端即时渲染（SubtitlePreview） * - 其他情况：直接显示封面图
  */
 const refreshPreview = async (item?: any) => {
   const digitalHuman = item || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
   if (!digitalHuman) return
   
-  // 文案竖版且开启字幕时，请求后端即时渲染
-  if (videoForm.mode === 0 && videoForm.subtitleSelector === 1 && videoForm.videoType === 0) {
+  // 文案竖版且启用了字幕能力时，请求后端即时渲染
+  if (shouldShowSubtitlePreview.value) {
     subtitlePreviewFrameBase64.value = await getFrameBase64(digitalHuman.coverUrl || '', digitalHuman.videoUrl || '')
   }
   // 其他情况封面预览依赖 currentDigitalHumanImg 计算属性自动更新，无需额外操作
@@ -2668,6 +2942,9 @@ const selectCornerMark = async (item: any) => {
   videoForm.cornerMark = item.id
   cornerMarkSelectorDialog.visible = false
   ElMessage.success(`已选择角标: ${item.name}`)
+  if (shouldShowSubtitlePreview.value) {
+    await refreshPreview()
+  }
   try {
     await recordRecentCornerMark(item.id)
     await loadRecentCornerMarks()
@@ -2732,6 +3009,9 @@ const selectBannerOverlay = async (item: any) => {
   }
   try {
     selectedBannerOverlayBase64.value = await fetchImageAsBase64(pickedUrl)
+    if (shouldShowSubtitlePreview.value) {
+      await refreshPreview()
+    }
     ElMessage.success('已选择横幅')
   } catch (error) {
     console.error('横幅转base64失败:', error)
@@ -2801,7 +3081,7 @@ const loadMoreVoices = async () => {
   }
 }
 
-// 婊氬姩到底部时自动加载更多配音
+// 滚动到底部时自动加载更多配音
 const handleVoiceScroll = (e: any) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target
   if (scrollHeight - scrollTop - clientHeight < 100 && voiceSelectorDialog.hasMore && !voiceSelectorDialog.loading) {
@@ -3019,6 +3299,15 @@ watch(() => bannerOverlaySelectorDialog.search, () => {
 
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out;
+}
+
+.queue-hint {
+  min-width: 188px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  line-height: 1.4;
 }
 
 @keyframes fadeIn {

@@ -5,9 +5,18 @@
         <h2 class="text-xl font-bold text-gray-800 tracking-tight">音频克隆与管理</h2>
         <p class="text-xs text-gray-400 mt-1">上传样本音频进行声音训练，或管理已生成的 AI 配音资产</p>
       </div>
-      <el-button type="primary" icon="el-icon-plus" @click="dialogVisible = true" class="shadow-sm">
-        创建克隆任务
-      </el-button>
+      <div class="flex items-center gap-3">
+        <div class="queue-hint">
+          <div class="text-xs text-gray-400">今日排队</div>
+          <div v-if="voiceWaitingInfo.waitingTotal > 0" class="text-sm font-semibold text-gray-700">
+            当前还有 <span class="text-amber-600">{{ voiceWaitingInfo.waitingTotal }}</span> 个等待任务
+          </div>
+          <div v-else class="text-sm font-semibold text-gray-700">当前没有等待任务</div>
+        </div>
+        <el-button type="primary" icon="el-icon-plus" @click="dialogVisible = true" class="shadow-sm">
+          创建克隆任务
+        </el-button>
+      </div>
     </div>
 
     <el-alert
@@ -237,7 +246,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { createVoiceTask, getVoiceTaskList, deleteVoiceTask, validateVoiceTaskName } from '/@/api/material'
+import { createVoiceTask, getVoiceTaskList, getVoiceTaskWaiting, deleteVoiceTask, validateVoiceTaskName } from '/@/api/material'
 
 interface VoiceTask {
   id?: number
@@ -289,6 +298,10 @@ const pagination = reactive({
   pageSize: 20,
   total: 0
 })
+const voiceWaitingInfo = reactive({
+  waitingTotal: 0,
+  waitingBefore: 0
+})
 
 const normalizeTaskUrl = (raw: unknown): string => {
   if (!raw) return ''
@@ -318,6 +331,7 @@ const normalizeTaskUrl = (raw: unknown): string => {
 
 onMounted(() => {
   loadVoiceTaskList()
+  loadVoiceWaitingInfo()
 })
 
 const loadVoiceTaskList = async () => {
@@ -346,6 +360,19 @@ const loadVoiceTaskList = async () => {
     }
   } catch (error) {
     console.error('Failed to load voice tasks:', error)
+  }
+}
+
+const loadVoiceWaitingInfo = async () => {
+  try {
+    const res = await getVoiceTaskWaiting()
+    if (res.data?.code === 200 && res.data?.data) {
+      const data = res.data.data
+      voiceWaitingInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
+      voiceWaitingInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
+    }
+  } catch (error) {
+    console.error('Failed to load voice waiting info:', error)
   }
 }
 
@@ -549,6 +576,7 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       pagination.currentPage = 1
       await loadVoiceTaskList()
+      await loadVoiceWaitingInfo()
 
       ElMessage.success('已加入训练队列，预计耗时 5-10 分钟')
     } else {
@@ -606,6 +634,7 @@ const handleDelete = (index: number) => {
       const res = await deleteVoiceTask(task.id!)
       if (res.data && res.data.code === 200) {
         voiceTasks.value.splice(index, 1)
+        await loadVoiceWaitingInfo()
         ElMessage.success('已从库中移除')
       } else {
         ElMessage.error(res.data?.message || '删除失败，请稍后重试')
@@ -639,5 +668,13 @@ const handleDelete = (index: number) => {
 .generate-audio :deep(.el-dialog) {
   border-radius: 12px;
 }
-</style>
 
+.queue-hint {
+  min-width: 188px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  line-height: 1.4;
+}
+</style>

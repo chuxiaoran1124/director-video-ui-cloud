@@ -27,7 +27,7 @@
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetHistorySearch">重置</el-button>
-              <el-button type="primary" size="default" @click="fetchHistory">
+              <el-button type="primary" size="default" @click="handleHistorySearch">
                 <el-icon class="mr-1"><ElIconSearch /></el-icon>查询
               </el-button>
             </div>
@@ -117,7 +117,7 @@
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetLibrarySearch">重置</el-button>
-              <el-button type="primary" size="default" @click="fetchLibrary">
+              <el-button type="primary" size="default" @click="handleLibrarySearch">
                 <el-icon class="mr-1"><ElIconSearch /></el-icon>查询
               </el-button>
             </div>
@@ -400,13 +400,29 @@ export default defineComponent({
     const resetHistorySearch = () => {
       searchHistory.value = ''
       historyDateRange.value = []
-      historyPage.currentPage = 1
+      handleHistorySearch()
     }
 
     const resetLibrarySearch = () => {
       searchLibrary.value = ''
       searchLibTag.value = ''
-      libraryPage.currentPage = 1
+      handleLibrarySearch()
+    }
+
+    const handleHistorySearch = () => {
+      if (historyPage.currentPage !== 1) {
+        historyPage.currentPage = 1
+        return
+      }
+      fetchHistory()
+    }
+
+    const handleLibrarySearch = () => {
+      if (libraryPage.currentPage !== 1) {
+        libraryPage.currentPage = 1
+        return
+      }
+      fetchLibrary()
     }
 
     // 处理组织选择变化
@@ -756,7 +772,21 @@ export default defineComponent({
     watch(() => historyPage.currentPage, () => {
       fetchHistory()
     })
+    watch(() => historyPage.pageSize, () => {
+      if (historyPage.currentPage !== 1) {
+        historyPage.currentPage = 1
+        return
+      }
+      fetchHistory()
+    })
     watch(() => libraryPage.currentPage, () => {
+      fetchLibrary()
+    })
+    watch(() => libraryPage.pageSize, () => {
+      if (libraryPage.currentPage !== 1) {
+        libraryPage.currentPage = 1
+        return
+      }
       fetchLibrary()
     })
 
@@ -792,6 +822,8 @@ export default defineComponent({
       // getScriptPermission,
       resetHistorySearch,
       resetLibrarySearch,
+      handleHistorySearch,
+      handleLibrarySearch,
       handleGroupChange,
       fetchHistory,
       fetchLibrary,

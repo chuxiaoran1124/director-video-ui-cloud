@@ -260,6 +260,12 @@ export function getVoiceTaskList(page: number = 1, pageSize: number = 20, search
  * 查询所有声音克隆任务（不分页）
  * @returns 返回所有任务列�?
  */
+export function getVoiceTaskWaiting() {
+    return request({
+        url: '/api/material/voice/task/waiting/',
+        method: 'get'
+    })
+}
 export function getAllVoiceTasks() {
     return request({
         url: '/api/material/voice/task/all/',
@@ -352,6 +358,24 @@ export function getDigitalHumanTaskStatistics() {
     return request({
         url: '/api/material/fast-task/statistics/',
         method: 'get'
+    })
+}
+
+export function getDigitalHumanTaskWaiting() {
+    return request({
+        url: '/api/material/digital-human/task/waiting/',
+        method: 'get'
+    })
+}
+
+/**
+ * 获取今天指定/当前快速克隆任务前面还有多少等待任务
+ */
+export function getFastTaskWaitingBefore(taskId?: number | string) {
+    return request({
+        url: '/api/material/fast-task/waiting-before/',
+        method: 'get',
+        params: taskId ? { taskId } : undefined
     })
 }
 
@@ -544,13 +568,43 @@ export function topLabel(id: number | string) {
  * @param formData FormData 对象，包�?file, name, title, gender
  * @returns 返回任务ID
  */
-export function createFastTask(formData: FormData) {
+export function createFastTask(formData: FormData, config: any = {}) {
     return request({
         url: '/api/material/fast-task/create/',
         method: 'post',
         data: formData,
+        timeout: 10 * 60 * 1000,
         headers: {
             'Content-Type': 'multipart/form-data'
+        },
+        ...config
+    })
+}
+
+/**
+ * 获取快速克隆批量直传 TOS 预签名地址
+ */
+export function createFastTaskTosPresign(data: any) {
+    return request({
+        url: '/api/material/fast-task/tos/presign/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 快速克隆批量直传完成后创建任务
+ */
+export function createFastTaskDirectBatch(data: any) {
+    return request({
+        url: '/api/material/fast-task/direct/batch-create/',
+        method: 'post',
+        data,
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
         }
     })
 }
@@ -662,6 +716,16 @@ export function getVideoTaskList(page: number = 1, pageSize: number = 20, search
             pageSize,
             ...(search && { search })
         }
+    })
+}
+
+/**
+ * 获取今天视频单次生成还在等待的任务数
+ */
+export function getVideoTaskWaiting() {
+    return request({
+        url: '/api/material/video/task/waiting/',
+        method: 'get'
     })
 }
 
@@ -1383,8 +1447,10 @@ export function getSubtitlePreviewFrame(data: {
     video_url?: string
     frame_base64?: string
     frame_time?: number
+    process_types?: string[]
     preview_text?: string
-    corner_mark_url?: string
+    image_url?: string
+    banner_overlay_base64?: string
     subtitle_config?: {
         font_size?: number
         margin_v?: number
@@ -1412,11 +1478,15 @@ export function getSubtitlePreviewFrame(data: {
  * 通过后端代理下载文件（解决跨域问题）
  * @param fileUrl 需要下载的文件 URL
  */
-export function downloadFileByProxy(fileUrl: string) {
+export function downloadFileByProxy(fileUrl: string, taskId?: string | number, assetType?: string) {
     return request({
         url: '/api/material/download-proxy/',
         method: 'get',
-        params: { url: fileUrl },
+        params: {
+            url: fileUrl,
+            ...(taskId !== undefined && taskId !== null ? { taskId } : {}),
+            ...(assetType ? { assetType } : {}),
+        },
         responseType: 'blob',
         timeout: 120000
     })
@@ -1574,3 +1644,4 @@ export function getVideoTaskStatusStats(data: any) {
     data
   })
 }
+
