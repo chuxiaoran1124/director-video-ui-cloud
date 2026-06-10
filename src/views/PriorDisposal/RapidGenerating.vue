@@ -7,6 +7,10 @@
         <p class="text-slate-500 text-sm mt-1">一键克隆数字人和声音资产，支持批量任务追踪。</p>
       </div>
       <div v-if="!isCreating">
+        <el-button size="large" @click="handleCreateBatch">
+          <el-icon class="mr-1"><el-icon-upload /></el-icon>
+          批量上传
+        </el-button>
         <el-button type="primary" size="large" @click="handleCreateNew">
           <el-icon class="mr-1"><el-icon-plus /></el-icon>
           新建克隆任务
@@ -39,29 +43,15 @@
             <el-option label="已失败" value="failed" />
           </el-select>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
+          <div class="queue-hint">
+            <div class="text-xs text-slate-400">今日排队</div>
+            <div class="text-sm font-semibold text-slate-700">
+              前面还有 <span class="text-amber-600">{{ waitingBeforeInfo.waitingBefore }}</span> 个任务等待
+            </div>
+          </div>
            <el-button icon="el-icon-refresh" circle @click="refreshList"></el-button>
         </div>
-      </div>
-
-      <!-- 数据概览统计 -->
-      <div class="grid grid-cols-4 gap-4 mb-6">
-         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-          <div class="text-slate-400 text-xs mb-1">当日总任务</div>
-          <div class="text-2xl font-bold text-slate-800">{{ taskStats.total }}</div>
-         </div>
-         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <div class="text-blue-400 text-xs mb-1">处理中</div>
-          <div class="text-2xl font-bold text-blue-600">{{ taskStats.processing }}</div>
-         </div>
-         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-          <div class="text-amber-400 text-xs mb-1">等待中</div>
-          <div class="text-2xl font-bold text-amber-600">{{ taskStats.waiting }}</div>
-         </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-          <div class="text-green-400 text-xs mb-1">已完成</div>
-          <div class="text-2xl font-bold text-green-600">{{ taskStats.completed }}</div>
-         </div>
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -150,8 +140,8 @@
       <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 max-w-4xl mx-auto border border-slate-100">
         <el-steps :active="activeStep" finish-status="success" align-center>
           <el-step title="上传素材" />
-          <el-step title="同步克隆" />
-          <el-step title="预览确认" />
+          <el-step :title="uploadMode === 'batch' ? '批量提交' : '同步克隆'" />
+          <el-step :title="uploadMode === 'batch' ? '任务追踪' : '预览确认'" />
         </el-steps>
       </div>
 
@@ -161,27 +151,91 @@
         <div v-if="activeStep === 0" class="animate-fade-in">
           <!-- 上传区域 -->
           <div class="bg-white p-10 rounded-2xl shadow-sm border border-slate-100">
+             <div class="mb-8 flex justify-center">
+               <el-radio-group v-model="uploadMode" size="large">
+                 <el-radio-button label="single">单条上传</el-radio-button>
+                 <el-radio-button label="batch">批量上传</el-radio-button>
+               </el-radio-group>
+             </div>
              <!-- 上传说明 -->
              <div class="flex flex-col items-center mb-10 text-center">
                 <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 text-4xl mb-4 shadow-inner">
                   <el-icon><el-icon-video-camera /></el-icon>
                 </div>
-                <h3 class="text-2xl font-bold text-slate-800">上传克隆视频</h3>
-                <p class="text-slate-400 mt-2 max-w-sm">系统将从该视频中提取形象与声音特征。</p>
+                <h3 class="text-2xl font-bold text-slate-800">{{ uploadMode === 'batch' ? '批量上传克隆视频' : '上传克隆视频' }}</h3>
+                <p class="text-slate-400 mt-2 max-w-sm">{{ uploadMode === 'batch' ? '批量任务仅支持竖版中文素材，提交后将逐个进入克隆队列。' : '系统将从该视频中提取形象与声音特征。' }}</p>
              </div>
-             <div class="w-2/3 mx-auto">
+             <div v-if="uploadMode === 'single'" class="w-2/3 mx-auto">
                <el-upload ref="videoUploadRef" class="!w-full" drag action="#" :auto-upload="false" :on-change="handleFileChange" :on-exceed="handleVideoExceed" :limit="1" accept="video/mp4,.mov">
                   <el-icon class="el-icon--upload"><el-icon-upload-filled /></el-icon>
                   <div class="el-upload__text">拖拽视频到此处，或<em>点击上传</em></div>
                   <template #tip>
                     <div class="text-slate-400 text-xs mt-2">
-                      仅支持 MP4、MOV 格式，文件大小不超过 500MB。
+                      仅支持 MP4、MOV 格式，文件大小不超过 150MB。
                       <span v-if="form.videoType === 0" class="text-red-500">竖版模式下视频宽高比需接近 9:16</span>
                     </div>
                   </template>
                </el-upload>
              </div>
-              <div class="mt-6 pb-4 border-b border-slate-50 flex items-center gap-8">
+             <div v-else class="space-y-5">
+               <el-upload
+                 ref="batchUploadRef"
+                 class="!w-full"
+                 drag
+                 action="#"
+                 multiple
+                 :auto-upload="false"
+                 :show-file-list="false"
+                 :on-change="handleBatchFileChange"
+                 accept="video/mp4,.mov"
+               >
+                 <el-icon class="el-icon--upload"><el-icon-upload-filled /></el-icon>
+                 <div class="el-upload__text">拖拽多个竖版视频到此处，或<em>点击批量选择</em></div>
+                 <template #tip>
+                   <div class="text-slate-400 text-xs mt-2">
+                     批量上传仅支持竖版 9:16，中文，MP4/MOV，单个文件不超过 150MB。
+                   </div>
+                 </template>
+               </el-upload>
+
+               <div class="rounded-xl border border-slate-100 overflow-hidden">
+                 <div class="grid grid-cols-[1.4fr_1fr_120px_120px_90px] gap-3 px-4 py-3 bg-slate-50 text-xs font-bold text-slate-500">
+                   <span>视频文件</span>
+                   <span>资产名称</span>
+                   <span>性别</span>
+                   <span>上传进度</span>
+                   <span class="text-right">操作</span>
+                 </div>
+                 <div v-if="batchFiles.length === 0" class="px-4 py-10 text-center text-sm text-slate-400">
+                   暂未选择视频
+                 </div>
+                 <div
+                   v-for="item in batchFiles"
+                   :key="item.key"
+                   class="grid grid-cols-[1.4fr_1fr_120px_120px_90px] gap-3 px-4 py-3 border-t border-slate-100 items-center"
+                 >
+                   <div class="min-w-0">
+                     <div class="font-medium text-slate-700 truncate">{{ item.file.name }}</div>
+                     <div class="text-xs" :class="item.error ? 'text-red-500' : 'text-slate-400'">
+                       {{ item.error || formatFileSize(item.file.size) }}
+                     </div>
+                   </div>
+                   <el-input v-model="item.name" size="small" :disabled="batchSubmitting" />
+                   <el-select v-model="item.gender" size="small" :disabled="batchSubmitting">
+                     <el-option label="男" value="male" />
+                     <el-option label="女" value="female" />
+                   </el-select>
+                   <div>
+                     <el-progress :percentage="item.progress" :show-text="false" :stroke-width="7" />
+                     <div class="text-[10px] text-slate-400 mt-1">{{ getBatchStatusLabel(item.status) }}</div>
+                   </div>
+                   <div class="text-right">
+                     <el-button type="danger" link :disabled="batchSubmitting" @click="removeBatchFile(item.key)">移除</el-button>
+                   </div>
+                 </div>
+               </div>
+             </div>
+              <div v-if="uploadMode === 'single'" class="mt-6 pb-4 border-b border-slate-50 flex items-center gap-8">
                 <div>
                   <div class="text-sm text-slate-600 font-medium mb-2">视频方向</div>
                   <el-radio-group v-model="form.videoType">
@@ -195,6 +249,16 @@
                     <el-radio :label="'zh'" size="large">中文</el-radio>
                     <el-radio :label="'th'" size="large">泰语</el-radio>
                   </el-radio-group>
+                </div>
+              </div>
+              <div v-else class="mt-6 pb-4 border-b border-slate-50 flex items-center gap-8">
+                <div>
+                  <div class="text-sm text-slate-600 font-medium mb-2">视频方向</div>
+                  <el-tag type="success" effect="light">竖版 9:16</el-tag>
+                </div>
+                <div>
+                  <div class="text-sm text-slate-600 font-medium mb-2">核心语言</div>
+                  <el-tag type="success" effect="light">中文</el-tag>
                 </div>
               </div>
               <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
@@ -215,7 +279,7 @@
                 />
                 <span class="text-xs text-slate-400">{{ form.hasVideoDubbing ? '系统将同时训练形象和声音，并完成绑定' : '关闭后仅训练形象，不训练声音，不完成声音与视频绑定' }}</span>
               </div>
-              <div class="mt-4 pt-2 flex gap-4 items-start">
+              <div v-if="uploadMode === 'single'" class="mt-4 pt-2 flex gap-4 items-start">
                 <div class="flex-1">
                   <el-input
                     v-model="form.humanName"
@@ -246,6 +310,12 @@
                   <el-option label="女" value="female" />
                 </el-select>
                 <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
+             </div>
+              <div v-else class="mt-4 pt-2 flex items-center justify-between gap-4">
+                <div class="text-sm text-slate-500">
+                  已选择 {{ batchFiles.length }} 个视频，批量任务将逐个提交到后端处理。
+                </div>
+                <el-button type="primary" size="large" class="px-8" :loading="batchSubmitting" :disabled="!canStartBatchProcessing" @click="startBatchProcessing">开始批量任务</el-button>
              </div>
           </div>
         </div>
@@ -399,7 +469,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore } from '/@/store/modules/task'
-import { createFastTask, getFastTaskList, deleteFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getDigitalHumanTaskStatistics } from '/@/api/material'
+import { createFastTask, getFastTaskList, deleteFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -416,11 +486,31 @@ const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
 const previewVideoRef = ref<HTMLVideoElement | null>(null)
 const previewAudioRef = ref<HTMLAudioElement | null>(null)
+const uploadMode = ref<'single' | 'batch'>('single')
+const batchUploadRef = ref()
+const batchSubmitting = ref(false)
+
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024
+
+type BatchUploadStatus = 'validating' | 'ready' | 'uploading' | 'uploaded' | 'submitted' | 'failed'
+type BatchUploadItem = {
+  key: string
+  file: File
+  name: string
+  gender: string
+  status: BatchUploadStatus
+  progress: number
+  error: string
+  videoUrl: string
+}
+
+const batchFiles = ref<BatchUploadItem[]>([])
 
 const form = reactive({
   humanName: '',
   gender: 'male',  // male or female
   language: 'zh',
+  model: 'a2e',
   videoType: 0 as 0 | 1, // 0=portrait, 1=landscape
   isSubtitle: false,
   hasVideoDubbing: true,
@@ -464,17 +554,21 @@ const canStartProcessing = computed(() => {
     && videoRatioValid.value
 })
 
+const canStartBatchProcessing = computed(() => {
+  return batchFiles.value.some(item => item.status === 'ready' && !!item.name.trim() && !item.error)
+    && !batchSubmitting.value
+})
+
 // --- 浠诲姟鍒楄〃鏁版嵁 ---
 const searchQuery = ref('')
 const filterStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalCount = ref(0)  // API杩斿洖鐨勬€绘暟
-const taskStats = reactive({
-  total: 0,
-  processing: 0,
-  waiting: 0,
-  completed: 0
+const waitingBeforeInfo = reactive({
+  taskId: null as number | null,
+  waitingBefore: 0,
+  waitingTotal: 0
 })
 
 const taskList = ref<any[]>([])
@@ -482,7 +576,7 @@ const taskList = ref<any[]>([])
 // --- Lifecycle ---
 onMounted(() => {
   loadTaskList()
-  loadTaskStatistics()
+  loadWaitingBefore()
   
   // 鐩戝惉鍒嗛〉鏀瑰彉锛岄噸鏂板姞杞芥暟鎹?
   watch([currentPage, pageSize], () => {
@@ -543,18 +637,17 @@ const loadTaskList = async () => {
   }
 }
 
-const loadTaskStatistics = async () => {
+const loadWaitingBefore = async (taskId?: number | string) => {
   try {
-    const res = await getDigitalHumanTaskStatistics()
+    const res = await getFastTaskWaitingBefore(taskId)
     if (res.data?.code === 200 && res.data?.data) {
       const data = res.data.data
-      taskStats.total = Number(data.total || 0)
-      taskStats.processing = Number(data.processing || 0)
-      taskStats.waiting = Number(data.waiting || 0)
-      taskStats.completed = Number(data.completed || 0)
+      waitingBeforeInfo.taskId = data.taskId || data.task_id || null
+      waitingBeforeInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
+      waitingBeforeInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
     }
   } catch (error) {
-    console.error('Failed to load task statistics:', error)
+    console.error('Failed to load fast task waiting info:', error)
   }
 }
 
@@ -625,7 +718,7 @@ const getProgressText = (taskStatus: number) => {
 
 const refreshList = async () => {
   try {
-    await Promise.all([loadTaskList(), loadTaskStatistics()])
+    await Promise.all([loadTaskList(), loadWaitingBefore()])
     ElMessage.success('列表已刷新')
   } catch (error: any) {
     console.error('Failed to refresh list:', error)
@@ -693,8 +786,116 @@ const applyRecommendedName = async () => {
   }
 }
 
-const handleCreateNew = () => {
-  isCreating.value = true
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const getFileBaseName = (fileName: string) => {
+  return fileName.replace(/\.[^.]+$/, '')
+}
+
+const getBatchFileKey = (file: File) => {
+  return `${file.name}-${file.size}-${file.lastModified}`
+}
+
+const getBatchStatusLabel = (status: BatchUploadStatus) => {
+  const map: Record<BatchUploadStatus, string> = {
+    validating: '校验中',
+    ready: '待上传',
+    uploading: '上传中',
+    uploaded: '已上传',
+    submitted: '已提交',
+    failed: '失败'
+  }
+  return map[status] || status
+}
+
+const validateBasicVideoFile = (rawFile: File) => {
+  const allowedTypes = ['video/mp4', 'video/quicktime']
+  const fileName = rawFile.name.toLowerCase()
+  const isValidType = allowedTypes.includes(rawFile.type) || fileName.endsWith('.mp4') || fileName.endsWith('.mov')
+
+  if (!isValidType) {
+    throw new Error('仅支持 MP4 和 MOV 格式的视频文件')
+  }
+
+  if (rawFile.size > MAX_VIDEO_SIZE) {
+    throw new Error('视频文件大小不能超过 150MB')
+  }
+}
+
+const validateVideoFile = (rawFile: File, requirePortrait = true): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      callback()
+    }
+
+    try {
+      validateBasicVideoFile(rawFile)
+    } catch (error) {
+      finish(() => reject(error))
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(rawFile)
+    const videoEl = document.createElement('video')
+    videoEl.preload = 'metadata'
+
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl)
+      videoEl.removeAttribute('src')
+      videoEl.load()
+    }
+
+    const timer = window.setTimeout(() => {
+      finish(() => {
+        cleanup()
+        reject(new Error('读取视频信息超时，请确认视频编码可在浏览器预览'))
+      })
+    }, 15000)
+
+    videoEl.onloadedmetadata = () => {
+      window.clearTimeout(timer)
+
+      if (requirePortrait) {
+        const aspectRatio = videoEl.videoWidth / videoEl.videoHeight
+        const targetRatio = 9 / 16
+        const tolerance = 0.05
+
+        if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+          finish(() => {
+            cleanup()
+            reject(new Error(`竖版模式下视频宽高比需接近 9:16（当前为 ${videoEl.videoWidth}×${videoEl.videoHeight}）`))
+          })
+          return
+        }
+      }
+
+      finish(() => {
+        cleanup()
+        resolve()
+      })
+    }
+
+    videoEl.onerror = () => {
+      window.clearTimeout(timer)
+      finish(() => {
+        cleanup()
+        reject(new Error('无法读取视频信息，请更换文件'))
+      })
+    }
+
+    videoEl.src = objectUrl
+    videoEl.load()
+  })
+}
+
+const resetCreateForm = () => {
   activeStep.value = 0
   form.hasFile = false
   form.rawFile = null
@@ -704,7 +905,21 @@ const handleCreateNew = () => {
   form.language = 'zh'
   form.model = 'a2e'
   videoRatioValid.value = false
+  batchFiles.value = []
+  batchSubmitting.value = false
   resetNameValidationState()
+}
+
+const handleCreateNew = () => {
+  isCreating.value = true
+  uploadMode.value = 'single'
+  resetCreateForm()
+}
+
+const handleCreateBatch = () => {
+  isCreating.value = true
+  uploadMode.value = 'batch'
+  resetCreateForm()
 }
 
 const parseVoiceUrl = (voiceUrl: string) => {
@@ -746,7 +961,7 @@ const handleCancelTask = (row: any) => {
         if (index !== -1) {
           taskList.value.splice(index, 1)
         }
-        await Promise.all([loadTaskList(), loadTaskStatistics()])
+        await Promise.all([loadTaskList(), loadWaitingBefore()])
         ElMessage.success('任务已删除')
       }
     } catch (error: any) {
@@ -757,70 +972,156 @@ const handleCancelTask = (row: any) => {
   })
 }
 
-const handleFileChange = (file: any) => {
+const handleFileChange = async (file: any) => {
   const rawFile = file.raw
   if (!rawFile) return
 
-  // 验证文件格式
-  const allowedTypes = ['video/mp4', 'video/quicktime']
-  const fileName = rawFile.name.toLowerCase()
-  const isValidType = allowedTypes.includes(rawFile.type) || fileName.endsWith('.mp4') || fileName.endsWith('.mov')
-
-  if (!isValidType) {
-    ElMessage.error('仅支持 MP4 和 MOV 格式的视频文件')
-    form.rawFile = null
-    form.hasFile = false
-    videoRatioValid.value = false
-    return
-  }
-
-  // 先清空旧数据
   form.rawFile = null
   form.hasFile = false
   videoRatioValid.value = false
 
-  // 异步校验视频宽高比：竖版要求 9:16，横版不限制
-  const objectUrl = URL.createObjectURL(rawFile)
-  const videoEl = document.createElement('video')
-
-  videoEl.onloadedmetadata = () => {
-    URL.revokeObjectURL(objectUrl)
-
-    if (form.videoType === 0) {
-      const aspectRatio = videoEl.videoWidth / videoEl.videoHeight
-      const targetRatio = 9 / 16
-      const tolerance = 0.05
-
-      if (Math.abs(aspectRatio - targetRatio) > tolerance) {
-        videoUploadRef.value?.clearFiles()
-        form.rawFile = null
-        form.hasFile = false
-        videoRatioValid.value = false
-        ElMessage.error(`竖版模式下视频宽高比需接近 9:16（当前为 ${videoEl.videoWidth}×${videoEl.videoHeight}），请重新上传`)
-        return
-      }
-    }
-
+  try {
+    await validateVideoFile(rawFile, form.videoType === 0)
     form.rawFile = rawFile
     form.hasFile = true
     videoRatioValid.value = true
-  }
-
-  videoEl.onerror = () => {
-    URL.revokeObjectURL(objectUrl)
+  } catch (error: any) {
     videoUploadRef.value?.clearFiles()
-    form.rawFile = null
-    form.hasFile = false
-    videoRatioValid.value = false
-    ElMessage.error('无法读取视频信息，请更换文件')
+    ElMessage.error(error?.message || '视频校验失败，请重新上传')
   }
-
-  videoEl.src = objectUrl
 }
 const handleVideoExceed = (files: any[]) => {
   // 瓒呭嚭闄愬埗鏃讹紝娓呯┖鏃ф枃浠跺苟澶勭悊鏂版枃浠?
   videoUploadRef.value?.clearFiles()
   handleFileChange({ raw: files[0] })
+}
+
+const handleBatchFileChange = async (file: any) => {
+  const rawFile = file.raw as File
+  if (!rawFile) return
+
+  const key = getBatchFileKey(rawFile)
+  if (batchFiles.value.some(item => item.key === key)) return
+
+  try {
+    validateBasicVideoFile(rawFile)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '视频校验失败')
+    return
+  }
+
+  const item: BatchUploadItem = {
+    key,
+    file: rawFile,
+    name: getFileBaseName(rawFile.name),
+    gender: form.gender,
+    status: 'ready',
+    progress: 0,
+    error: '',
+    videoUrl: ''
+  }
+  batchFiles.value.push(item)
+
+  // 批量模式不阻塞读取视频 metadata，避免浏览器无法解析部分编码时卡住提交。
+}
+
+const removeBatchFile = (key: string) => {
+  batchFiles.value = batchFiles.value.filter(item => item.key !== key)
+}
+
+const ensureBatchNames = async () => {
+  const usedNames = new Set<string>()
+
+  for (const item of batchFiles.value) {
+    const currentName = item.name.trim()
+    if (!currentName) {
+      item.status = 'failed'
+      item.error = '资产名称不能为空'
+      continue
+    }
+
+    let finalName = currentName
+    if (usedNames.has(finalName)) {
+      let suffix = 2
+      while (usedNames.has(`${currentName}${suffix}`)) suffix++
+      finalName = `${currentName}${suffix}`
+      item.name = finalName
+    }
+
+    try {
+      const res = await validateDigitalHumanTaskName(finalName)
+      const data = res.data?.data
+      if (res.data?.code === 200 && data && !data.is_valid && data.recommended_name) {
+        finalName = data.recommended_name
+        item.name = finalName
+      }
+      usedNames.add(finalName)
+    } catch (error) {
+      item.status = 'failed'
+      item.error = '名称校验失败'
+    }
+  }
+}
+
+const startBatchProcessing = async () => {
+  if (!batchFiles.value.length) return ElMessage.warning('请先选择视频素材')
+
+  batchSubmitting.value = true
+  try {
+    await ensureBatchNames()
+    const readyItems = batchFiles.value.filter(item => item.status === 'ready' && !item.error)
+    if (!readyItems.length) {
+      ElMessage.error('没有可提交的视频，请检查文件状态')
+      return
+    }
+
+    let successCount = 0
+    let failedCount = 0
+    for (const item of readyItems) {
+      item.status = 'uploading'
+      item.progress = 1
+      try {
+        const formData = new FormData()
+        formData.append('file', item.file)
+        formData.append('name', item.name.trim())
+        formData.append('gender', item.gender)
+        formData.append('language', 'zh')
+        formData.append('model', 'a2e')
+        formData.append('type', '0')
+        formData.append('is_subtitle', form.isSubtitle ? 'true' : 'false')
+        formData.append('is_video_dubbing', form.hasVideoDubbing ? 'true' : 'false')
+
+        await createFastTask(formData, {
+          onUploadProgress: (event: ProgressEvent) => {
+            if (event.lengthComputable) {
+              item.progress = Math.max(1, Math.round((event.loaded / event.total) * 100))
+            }
+          }
+        })
+
+        item.status = 'submitted'
+        item.progress = 100
+        successCount++
+      } catch (error: any) {
+        item.status = 'failed'
+        item.error = error?.message || '提交失败'
+        failedCount++
+      }
+    }
+
+    await Promise.all([loadTaskList(), loadWaitingBefore()])
+    if (successCount > 0) {
+      ElMessage.success(`批量任务已提交：成功 ${successCount} 个，失败 ${failedCount} 个`)
+      isCreating.value = false
+    } else {
+      ElMessage.error('所有视频提交失败，请检查错误信息')
+    }
+  } catch (error: any) {
+    console.error('Failed to create batch fast task:', error)
+    ElMessage.error(error?.message || '批量提交失败，请稍后重试')
+  } finally {
+    batchSubmitting.value = false
+  }
 }
 
 const startProcessing = async () => {
@@ -951,7 +1252,7 @@ const handleComplete = async () => {
     if (timer) clearInterval(timer)
     
     // 閲嶆柊鍔犺浇浠诲姟鍒楄〃鑾峰彇鏈€鏂版暟鎹?
-    await Promise.all([loadTaskList(), loadTaskStatistics()])
+    await Promise.all([loadTaskList(), loadWaitingBefore()])
     
     ElMessage.success('数字化资产已成功绑定并完成训练任务！')
     isCreating.value = false
@@ -1004,6 +1305,22 @@ watch(
   }
 )
 
+watch(
+  uploadMode,
+  (value) => {
+    if (value === 'batch') {
+      form.videoType = 0
+      form.language = 'zh'
+      form.model = 'a2e'
+      videoRatioValid.value = false
+      videoUploadRef.value?.clearFiles()
+      form.rawFile = null
+      form.hasFile = false
+      resetNameValidationState()
+    }
+  }
+)
+
 onUnmounted(() => { 
   if (timer) clearInterval(timer)
   if (pollTimer) clearInterval(pollTimer)
@@ -1023,6 +1340,15 @@ onUnmounted(() => {
 
 .section-container {
   min-height: 500px;
+}
+
+.queue-hint {
+  min-width: 188px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  line-height: 1.4;
 }
 
 :deep(.el-upload) {
@@ -1050,5 +1376,3 @@ onUnmounted(() => {
   font-weight: bold;
 }
 </style>
-
-

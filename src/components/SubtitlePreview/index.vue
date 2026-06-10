@@ -31,20 +31,21 @@
     <!-- 控制面板 -->
     <div class="control-panel space-y-3">
 
-      <!-- 展开/收起详细设置 -->
-      <div
-        class="flex items-center justify-between cursor-pointer text-xs select-none"
-        @click="showDetailSettings = !showDetailSettings"
-      >
-        <span class="font-bold text-gray-600">详细配置</span>
-        <span class="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors">
-          <span>{{ showDetailSettings ? '收起' : '展开' }}</span>
-          <span class="transition-transform duration-200 inline-block" :class="showDetailSettings ? 'rotate-180' : ''">▾</span>
-        </span>
-      </div>
+      <template v-if="enableSubtitle">
+        <!-- 展开/收起详细设置 -->
+        <div
+          class="flex items-center justify-between cursor-pointer text-xs select-none"
+          @click="showDetailSettings = !showDetailSettings"
+        >
+          <span class="font-bold text-gray-600">详细配置</span>
+          <span class="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors">
+            <span>{{ showDetailSettings ? '收起' : '展开' }}</span>
+            <span class="transition-transform duration-200 inline-block" :class="showDetailSettings ? 'rotate-180' : ''">▾</span>
+          </span>
+        </div>
 
-      <!-- 详细设置（默认折叠） -->
-      <div v-show="showDetailSettings && enableSubtitle" class="space-y-3">
+        <!-- 详细设置（默认折叠） -->
+        <div v-show="showDetailSettings" class="space-y-3">
 
       <!-- 字体选择 -->
       <div>
@@ -156,47 +157,44 @@
         <el-input v-model="previewText" placeholder="输入预览字幕文字" size="small" @input="requestBackendPreview" />
       </div>
 
-      </div>
-
-      <el-divider class="!my-1" />
-
-      <!-- 字幕模板选择 -->
-      <div class="bg-gray-50 rounded-lg p-3">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-gray-600">字幕模板</span>
-          <el-button size="small" type="primary" plain @click="showSaveDialog = true" class="!h-6 !text-xs !px-2 !py-0">
-            保存当前配置
-          </el-button>
         </div>
-        <div class="flex flex-wrap gap-1.5 max-h-[88px] overflow-y-auto pr-0.5">
-          <div
-            v-for="tpl in allTemplates"
-            :key="tpl.id"
-            @click="applyTemplate(tpl)"
-            class="relative flex items-center gap-1 px-2.5 py-1 rounded-full text-xs cursor-pointer border transition-all select-none group"
-            :class="activeTemplate === tpl.id
-              ? 'bg-blue-500 border-blue-500 text-white shadow-md shadow-blue-200'
-              : 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:shadow-sm'"
-          >
-            <!-- 颜色预览点 -->
-            <span
-              class="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-black/10"
-              :style="{ background: tpl.config.primary_colour }"
-            ></span>
-            <span>{{ tpl.name }}</span>
-            <!-- 内置模板标记 -->
-            <span v-if="tpl.isBuiltIn" class="ml-0.5 text-[10px] opacity-50">系统</span>
-            <!-- 用户模板删除按钮 -->
-            <span
-              v-if="!tpl.isBuiltIn"
-              @click.stop="deleteTemplate(tpl.id)"
-              class="ml-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[11px] leading-none"
-              :class="activeTemplate === tpl.id ? 'hover:bg-white/30' : 'hover:bg-red-100 hover:text-red-500'"
-              title="删除模板"
-            >×</span>
+        <el-divider class="!my-1" />
+
+        <!-- 字幕模板选择 -->
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-gray-600">字幕模板</span>
+            <el-button size="small" type="primary" plain @click="showSaveDialog = true" class="!h-6 !text-xs !px-2 !py-0">
+              保存当前配置
+            </el-button>
+          </div>
+          <div class="flex flex-wrap gap-1.5 max-h-[88px] overflow-y-auto pr-0.5">
+            <div
+              v-for="tpl in allTemplates"
+              :key="tpl.id"
+              @click="applyTemplate(tpl)"
+              class="relative flex items-center gap-1 px-2.5 py-1 rounded-full text-xs cursor-pointer border transition-all select-none group"
+              :class="activeTemplate === tpl.id
+                ? 'bg-blue-500 border-blue-500 text-white shadow-md shadow-blue-200'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:shadow-sm'"
+            >
+              <span
+                class="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-black/10"
+                :style="{ background: tpl.config.primary_colour }"
+              ></span>
+              <span>{{ tpl.name }}</span>
+              <span v-if="tpl.isBuiltIn" class="ml-0.5 text-[10px] opacity-50">系统</span>
+              <span
+                v-if="!tpl.isBuiltIn"
+                @click.stop="deleteTemplate(tpl.id)"
+                class="ml-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[11px] leading-none"
+                :class="activeTemplate === tpl.id ? 'hover:bg-white/30' : 'hover:bg-red-100 hover:text-red-500'"
+                title="删除模板"
+              >×</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
     </div>
   </div>
@@ -483,12 +481,15 @@ const previewText = ref('这里展示字幕效果')
 const requestBackendPreview = () => {
   if (!props.frameBase64) {
     console.warn('[SubtitlePreview] frameBase64 为空，跳过渲染')
+    if (previewDebounceTimer) clearTimeout(previewDebounceTimer)
+    previewImageSrc.value = ''
+    loading.value = false
     return
   }
   console.log('[SubtitlePreview] 触发后端渲染，frameBase64 长度:', props.frameBase64.length)
   if (previewDebounceTimer) clearTimeout(previewDebounceTimer)
+  loading.value = true
   previewDebounceTimer = setTimeout(async () => {
-    loading.value = true
     try {
       const subtitlePayload = enableSubtitle.value ? {
         font_size: config.font_size,
@@ -508,7 +509,7 @@ const requestBackendPreview = () => {
       const res = await getSubtitlePreviewFrame({
         frame_base64: props.frameBase64,
         preview_text: enableSubtitle.value ? previewText.value : '',
-        corner_mark_url: props.cornerMarkUrl || '',
+        image_url: props.cornerMarkUrl || '',
         banner_overlay_base64: props.bannerOverlayBase64 || '',
         process_types: normalizedProcessTypes.value,
         subtitle_config: subtitlePayload,
@@ -540,7 +541,13 @@ defineExpose({ getConfig, setConfig: applyExternalConfig })
 
 // 监听 frameBase64 变化 → 重新请求渲染
 watch(() => props.frameBase64, (val) => {
-  if (val) requestBackendPreview()
+  if (val) {
+    requestBackendPreview()
+    return
+  }
+  if (previewDebounceTimer) clearTimeout(previewDebounceTimer)
+  previewImageSrc.value = ''
+  loading.value = false
 })
 
 // 监听角标 URL 变化 → 重新渲染

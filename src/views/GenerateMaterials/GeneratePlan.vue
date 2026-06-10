@@ -288,7 +288,7 @@
         <el-form-item label="生成字幕">
           <el-switch v-model="projectForm.subtitleSelector" :active-value="1" :inactive-value="0" />
         </el-form-item>
-        <el-form-item label="角标" required v-if="projectForm.subtitleSelector === 1">
+        <el-form-item label="角标">
           <div class="flex items-center gap-2 w-full">
             <div class="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded bg-white min-h-10">
               <template v-if="projectForm.cornerMark">
@@ -450,7 +450,7 @@
         <el-form-item label="生成字幕">
           <el-switch v-model="subTaskForm.subtitleSelector" :active-value="1" :inactive-value="0" />
         </el-form-item>
-        <el-form-item label="角标" required v-if="subTaskForm.subtitleSelector === 1">
+        <el-form-item label="角标">
           <div class="flex items-center gap-2 w-full">
             <div class="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded bg-white min-h-10">
               <template v-if="subTaskForm.cornerMark">
@@ -2169,20 +2169,13 @@ const submitSubTask = async () => {
     params.binding_id = subTaskForm.relId
   }
   
-  // 只有开启字幕时才处理和提交角标
-  if (subtitleSelector === 1) {
-    // 角标：子任务优先，回退到计划
-    const cornerMarkId = subTaskForm.cornerMark || plan.cornerMark || ''
-    if (!cornerMarkId) {
-      ElMessage.warning('当前已开启字幕生成，请先选择角标，或先在计划里配置默认角标')
-      return
-    }
-    if (cornerMarkId) {
-      const cornerMarkItem = cornerMarkOptions.value.find((item: any) => item.id === cornerMarkId)
-      if (cornerMarkItem?.photoUrl) {
-        params.corner_mark_id = cornerMarkId
-        params.corner_mark_url = cornerMarkItem.photoUrl
-      }
+  // 角标：子任务优先，回退到计划；现在允许与字幕独立组合
+  const cornerMarkId = subTaskForm.cornerMark || plan.cornerMark || ''
+  if (cornerMarkId) {
+    const cornerMarkItem = cornerMarkOptions.value.find((item: any) => item.id === cornerMarkId)
+    if (cornerMarkItem?.photoUrl) {
+      params.corner_mark_id = cornerMarkId
+      params.corner_mark_url = cornerMarkItem.photoUrl
     }
   }
 
