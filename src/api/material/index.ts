@@ -260,6 +260,12 @@ export function getVoiceTaskList(page: number = 1, pageSize: number = 20, search
  * 查询所有声音克隆任务（不分页）
  * @returns 返回所有任务列�?
  */
+export function getVoiceTaskWaiting() {
+    return request({
+        url: '/api/material/voice/task/waiting/',
+        method: 'get'
+    })
+}
 export function getAllVoiceTasks() {
     return request({
         url: '/api/material/voice/task/all/',
@@ -351,6 +357,13 @@ export function getDigitalHumanTaskList(page: number = 1, pageSize: number = 20,
 export function getDigitalHumanTaskStatistics() {
     return request({
         url: '/api/material/fast-task/statistics/',
+        method: 'get'
+    })
+}
+
+export function getDigitalHumanTaskWaiting() {
+    return request({
+        url: '/api/material/digital-human/task/waiting/',
         method: 'get'
     })
 }
@@ -703,6 +716,16 @@ export function getVideoTaskList(page: number = 1, pageSize: number = 20, search
             pageSize,
             ...(search && { search })
         }
+    })
+}
+
+/**
+ * 获取今天视频单次生成还在等待的任务数
+ */
+export function getVideoTaskWaiting() {
+    return request({
+        url: '/api/material/video/task/waiting/',
+        method: 'get'
     })
 }
 
@@ -1596,3 +1619,4 @@ export const getFailedTaskStats = (data: any) => {
     data
   })
 }
+

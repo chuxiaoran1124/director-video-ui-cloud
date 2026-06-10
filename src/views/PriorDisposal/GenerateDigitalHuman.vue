@@ -5,7 +5,16 @@
         <h2 class="text-xl font-bold text-gray-800 tracking-tight">数字人视频生成</h2>
         <p class="text-xs text-gray-400 mt-1">通过单张图片和提示词快速创建数字人训练任务</p>
       </div>
-      <el-button type="primary" @click="dialogVisible = true" class="shadow-sm">创建数字人</el-button>
+      <div class="flex items-center gap-3">
+        <div class="queue-hint">
+          <div class="text-xs text-gray-400">今日排队</div>
+          <div v-if="digitalHumanWaitingInfo.waitingTotal > 0" class="text-sm font-semibold text-gray-700">
+            当前还有 <span class="text-amber-600">{{ digitalHumanWaitingInfo.waitingTotal }}</span> 个等待任务
+          </div>
+          <div v-else class="text-sm font-semibold text-gray-700">当前没有等待任务</div>
+        </div>
+        <el-button type="primary" @click="dialogVisible = true" class="shadow-sm">创建数字人</el-button>
+      </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
@@ -284,6 +293,7 @@ import {
   createPromptTemplate,
   deleteDigitalHumanTask,
   getDigitalHumanTaskList,
+  getDigitalHumanTaskWaiting,
   getPromptTemplateGrouped,
   getPromptTemplateGroupedByUser,
   getPromptWordGrouped,
@@ -360,6 +370,10 @@ const pagination = reactive({
   currentPage: 1,
   pageSize: 20,
   total: 0
+})
+const digitalHumanWaitingInfo = reactive({
+  waitingTotal: 0,
+  waitingBefore: 0
 })
 
 const splitPromptText = (value = '') => value.split(/[、,，]/).map(item => item.trim()).filter(Boolean)
@@ -449,6 +463,19 @@ const loadDigitalHumanTaskList = async () => {
     }
   } catch (error) {
     console.error('Failed to load digital human tasks:', error)
+  }
+}
+
+const loadDigitalHumanWaitingInfo = async () => {
+  try {
+    const res = await getDigitalHumanTaskWaiting()
+    if (res.data?.code === 200 && res.data?.data) {
+      const data = res.data.data
+      digitalHumanWaitingInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
+      digitalHumanWaitingInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
+    }
+  } catch (error) {
+    console.error('Failed to load digital human waiting info:', error)
   }
 }
 
@@ -700,6 +727,7 @@ const handleSubmit = async () => {
     if (res.data?.code === 200) {
       pagination.currentPage = 1
       await loadDigitalHumanTaskList()
+      await loadDigitalHumanWaitingInfo()
       handleCancelDialog()
       ElMessage.success('数字人训练任务已提交，预计生成时间 15-30 分钟')
       setTimeout(() => {
@@ -737,6 +765,7 @@ const handleDelete = (index: number) => {
       const res = await deleteDigitalHumanTask(task.id)
       if (res.data?.code === 200) {
         taskList.value.splice(index, 1)
+        await loadDigitalHumanWaitingInfo()
         ElMessage.success('已删除')
       } else {
         ElMessage.error(res.data?.message || '删除失败，请稍后重试')
@@ -777,6 +806,7 @@ watch(dialogVisible, visible => {
 
 onMounted(() => {
   loadDigitalHumanTaskList()
+  loadDigitalHumanWaitingInfo()
   loadPromptResources()
 })
 
@@ -806,5 +836,14 @@ onUnmounted(() => {
 .preview-dialog :deep(.el-dialog__body) {
   padding: 0;
   background: #000;
+}
+
+.queue-hint {
+  min-width: 188px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  line-height: 1.4;
 }
 </style>

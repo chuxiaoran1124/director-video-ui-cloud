@@ -46,9 +46,10 @@
         <div class="flex items-center gap-3">
           <div class="queue-hint">
             <div class="text-xs text-slate-400">今日排队</div>
-            <div class="text-sm font-semibold text-slate-700">
-              前面还有 <span class="text-amber-600">{{ waitingBeforeInfo.waitingBefore }}</span> 个任务等待
+            <div v-if="waitingBeforeInfo.waitingTotal > 0" class="text-sm font-semibold text-slate-700">
+              当前还有 <span class="text-amber-600">{{ waitingBeforeInfo.waitingTotal }}</span> 个等待任务
             </div>
+            <div v-else class="text-sm font-semibold text-slate-700">当前没有等待任务</div>
           </div>
            <el-button icon="el-icon-refresh" circle @click="refreshList"></el-button>
         </div>

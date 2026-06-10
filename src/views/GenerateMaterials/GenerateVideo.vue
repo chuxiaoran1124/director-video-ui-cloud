@@ -41,6 +41,13 @@
             </el-input>
           </div>
           <div class="flex items-center gap-2">
+            <div class="queue-hint">
+              <div class="text-xs text-gray-400">今日排队</div>
+              <div v-if="videoWaitingInfo.waitingTotal > 0" class="text-sm font-semibold text-gray-700">
+                当前还有 <span class="text-amber-600">{{ videoWaitingInfo.waitingTotal }}</span> 个等待任务
+              </div>
+              <div v-else class="text-sm font-semibold text-gray-700">当前没有等待任务</div>
+            </div>
             <el-button 
               type="primary" 
               :disabled="selectedVideos.length === 0"
@@ -990,7 +997,7 @@ import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, createAudioVideoTask, getVideoTaskList, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
@@ -1011,6 +1018,10 @@ const selectedVideoIds = ref<Array<string | number>>([])
 const videoTaskPage = ref(1)
 const videoTaskPageSize = ref(20)
 const videoTaskTotal = ref(0)
+const videoWaitingInfo = reactive({
+  waitingTotal: 0,
+  waitingBefore: 0
+})
 const filteredVideoList = computed(() => {
   return videoTaskList.value
 })
@@ -1606,11 +1617,25 @@ const loadVideoTasks = async () => {
   }
 }
 
+const loadVideoWaitingInfo = async () => {
+  try {
+    const res = await getVideoTaskWaiting()
+    if (res.data?.code === 200 && res.data?.data) {
+      const data = res.data.data
+      videoWaitingInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
+      videoWaitingInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
+    }
+  } catch (error) {
+    console.error('加载视频等待任务数失败:', error)
+  }
+}
+
 const startVideoTaskAutoRefresh = () => {
   if (videoTaskRefreshTimer.value) return
   videoTaskRefreshTimer.value = setInterval(() => {
     if (!showCreate.value) {
       loadVideoTasks()
+      loadVideoWaitingInfo()
     }
   }, 5000)
 }
@@ -1822,6 +1847,7 @@ watch(() => videoForm.voice, (newVal, oldVal) => {
 // 组件挂载时加载任务列表、数字人列表、配音列表和绑定关系列表
 onMounted(() => {
   loadVideoTasks()
+  loadVideoWaitingInfo()
   loadDigitalHumanList()
   loadVoiceList()
   loadBindingList()
@@ -1876,6 +1902,7 @@ watch(showCreate, (val) => {
     loadRecentSubtitleConfig()
   } else {
     loadVideoTasks()
+    loadVideoWaitingInfo()
     startVideoTaskAutoRefresh()
   }
 })
@@ -3272,6 +3299,15 @@ watch(() => bannerOverlaySelectorDialog.search, () => {
 
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out;
+}
+
+.queue-hint {
+  min-width: 188px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  line-height: 1.4;
 }
 
 @keyframes fadeIn {
