@@ -4,7 +4,7 @@ import { ILayout, IMenubarStatus, ITagsList, IMenubarList, ISetting, IMenubar, I
 import router from '/@/router/index'
 import { allowRouter } from '/@/router/index'
 import { generatorDynamicRouter } from '/@/router/asyncRouter'
-import { decode, setCookie, deleteCookie } from '/@/utils/tools'
+import { decode, decodeJwtPayload, setCookie, deleteCookie } from '/@/utils/tools'
 import { RouteLocationNormalizedLoaded, RouteRecordRaw } from 'vue-router'
 
 const setting = JSON.parse(localStorage.getItem('setting') || '{}')
@@ -20,6 +20,8 @@ export const useLayoutStore = defineStore({
         },
         // 用户信息
         userInfo: {
+            id: '',
+            user_id: '',
             name: '',
             username: '',
             role: []
@@ -221,17 +223,27 @@ export const useLayoutStore = defineStore({
             const res = await login(param)
             // 从返回数据中获取token和用户信息
             const { token, name, role } = res.data.data
+            const tokenPayload = decodeJwtPayload<any>(token)
+            const userId =
+                tokenPayload?.user_id ??
+                tokenPayload?.userId ??
+                (res.data.data as any).user_id ??
+                (res.data.data as any).id ??
+                ''
             // 设置token
             this.status.ACCESS_TOKEN = token
             sessionStorage.setItem('token', token)
             // 设置用户信息（兼容后端 role 可能为字符串或数组）
+            this.userInfo.id = userId
+            this.userInfo.user_id = userId
             this.userInfo.name = name
-            this.userInfo.username = param.username
+            this.userInfo.username = tokenPayload?.username || param.username
             try { setCookie('username', name, 365) } catch {}
-            if (Array.isArray(role)) {
-                this.userInfo.role = role
-            } else if (typeof role === 'string') {
-                this.userInfo.role = [role]
+            const nextRole = tokenPayload?.role ?? role
+            if (Array.isArray(nextRole)) {
+                this.userInfo.role = nextRole
+            } else if (typeof nextRole === 'string') {
+                this.userInfo.role = [nextRole]
             } else {
                 this.userInfo.role = []
             }
@@ -258,7 +270,11 @@ export const useLayoutStore = defineStore({
         async getUser():Promise<void> {
             const res = await getUser()
             const userInfo = res.data.data
+            const userId = (userInfo as any).user_id ?? (userInfo as any).id ?? ''
+            this.userInfo.id = userId
+            this.userInfo.user_id = userId
             this.userInfo.name = userInfo.name
+            this.userInfo.username = userInfo.username || this.userInfo.username
             // API 返回 role 已经是数组类型
             this.userInfo.role = userInfo.role
         },

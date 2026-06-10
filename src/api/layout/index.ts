@@ -16,6 +16,8 @@ export interface loginParam {
 
 // 登录接口返回的数据结构
 export interface ILoginRes {
+    id?: number | string,
+    user_id?: number | string,
     name: string,
     role: string,
     token: string
@@ -37,7 +39,10 @@ export function publickey():Promise<AxiosResponse<IResponse<string>>> {
 }
 
 interface IGetuserRes {
+    id?: number | string
+    user_id?: number | string
     name: string
+    username?: string
     role: Array<string>
 }
 

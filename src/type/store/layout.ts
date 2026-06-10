@@ -19,6 +19,8 @@ export interface IMenubar {
     isPhone: boolean
 }
 export interface IUserInfo {
+    id?: number | string,
+    user_id?: number | string,
     name: string,
     username: string,
     role: string[]

@@ -9,9 +9,6 @@
           <p class="hero-kicker">Dashboard / Workplace</p>
           <div class="hero-greeting">{{ currentUser }}，今天先看整体产出。</div>
           <h1>内容生成看板</h1>
-          <p class="hero-description">
-            这页专注展示前期处理和生成环节的核心产出，按所选时间范围统计每位使用人的生成视频个数、总时长、失败数，以及形象训练、音频训练和联合训练的分布。
-          </p>
 
           <div class="hero-meta">
             <div class="hero-meta-item">
@@ -30,19 +27,6 @@
         </div>
 
         <div class="hero-filters">
-          <div class="preset-row">
-            <el-button
-              v-for="preset in presetOptions"
-              :key="preset.key"
-              :type="activePreset === preset.key ? 'primary' : 'default'"
-              round
-              @click="applyPreset(preset.key)"
-            >
-              {{ preset.label }}
-            </el-button>
-          </div>
-
-          
           <el-date-picker
             v-model="selectedRange"
             class="range-picker"
@@ -54,31 +38,98 @@
             format="YYYY-MM-DD"
             @change="handleCustomRangeChange"
           />
+
+          <div class="preset-row">
+            <el-button
+              v-for="preset in presetOptions"
+              :key="preset.key"
+              :type="activePreset === preset.key ? 'primary' : 'default'"
+              round
+              @click="applyPreset(preset.key)"
+            >
+              {{ preset.label }}
+            </el-button>
+          </div>
         </div>
       </div>
     </section>
+    <el-row :gutter="10" class="overview-grid">
+      <el-col :xs="24" :lg="9" :xl="9">
+        <section class="summary-panel">
+          <div class="section-head summary-section-head">
+            <div>
+              <h2>任务状态概览</h2>
+              <p>按任务类型查看完成、等待、进行中和失败数量</p>
+            </div>
 
-    <el-row :gutter="16" class="summary-grid">
-      <el-col
-        v-for="card in summaryCards"
-        :key="card.key"
-        :xs="24"
-        :sm="12"
-        :xl="6"
-      >
-        <div class="summary-card" :class="card.tone">
-          <div class="summary-head">
-            <span class="summary-label">{{ card.label }}</span>
-            <span class="summary-badge">{{ card.badge }}</span>
+            <el-select
+              v-model="taskCategory"
+              class="summary-task-select"
+              placeholder="请选择任务类型"
+            >
+              <el-option
+                v-for="item in taskCategoryOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </div>
-          <div class="summary-value">{{ card.value }}</div>
-          <div class="summary-note">{{ card.note }}</div>
-        </div>
+
+          <el-row :gutter="10" class="summary-grid">
+            <el-col
+              v-for="card in summaryCards"
+              :key="card.key"
+              :xs="24"
+              :sm="12"
+            >
+              <div class="summary-card" :class="card.tone">
+                <div class="summary-head">
+                  <span class="summary-label">{{ card.label }}</span>
+                  <span class="summary-badge">{{ card.badge }}</span>
+                </div>
+                <div class="summary-value">{{ card.value }}</div>
+                <div class="summary-note">{{ card.note }}</div>
+              </div>
+            </el-col>
+          </el-row>
+        </section>
+      </el-col>
+
+      <el-col :xs="24" :lg="15" :xl="15">
+        <el-card class="glass-card stage-card" shadow="never">
+          <template #header>
+            <div class="section-head">
+              <div>
+                <h2>阶段透视</h2>
+                <p>把关键环节拆开看，便于快速判断瓶颈</p>
+              </div>
+              <el-tag effect="light" round>归一化展示</el-tag>
+            </div>
+          </template>
+
+          <div ref="stageChartRef" class="chart stage-chart"></div>
+
+          <div class="stage-foot">
+            <div>
+              <span>前期处理总数</span>
+              <strong>{{ formatNumber(preprocessTotal) }}</strong>
+            </div>
+            <div>
+              <span>失败任务</span>
+              <strong>{{ formatNumber(failedCount) }}</strong>
+            </div>
+            <div>
+              <span>平均时长</span>
+              <strong>{{ formatDuration(avgDurationMinutes) }}</strong>
+            </div>
+          </div>
+        </el-card>
       </el-col>
     </el-row>
 
     <el-row :gutter="16" class="content-grid">
-      <el-col :xs="24" :xl="16">
+      <el-col :xs="24">
         <el-card class="glass-card trend-card" shadow="never">
 
           <template #header>
@@ -115,9 +166,27 @@
             <div class="section-head">
               <div>
                 <h2>使用人排行</h2>
-                <p>按生成视频数排序，统计每位使用人的视频时长、形象训练、音频训练和联合训练</p>
+                <p>按任务类型统计每位使用人的完成、等待、失败和平均耗时</p>
               </div>
-              <el-tag type="success" effect="light" round>TOP {{ Math.min(3, userRanking.length) }}</el-tag>
+
+              <div class="rank-tools">
+                <el-select
+                  v-model="rankTaskCategory"
+                  class="rank-task-select"
+                  placeholder="请选择任务类型"
+                >
+                  <el-option
+                    v-for="item in taskCategoryOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+
+                <el-tag type="success" effect="light" round>
+                  TOP {{ Math.min(3, userRanking.length) }}
+                </el-tag>
+              </div>
             </div>
           </template>
 
@@ -132,7 +201,7 @@
                 <div class="pill-name">{{ item.user }}</div>
                 <div class="pill-meta">{{ item.team }}</div>
               </div>
-              <strong class="pill-value">{{ formatNumber(item.generatedCount) }}</strong>
+              <strong class="pill-value">{{ formatNumber(item.finishedCount) }}</strong>
             </div>
           </div>
 
@@ -155,121 +224,62 @@
                 </template>
               </el-table-column>
 
-              <el-table-column label="生成视频" prop="generatedCount" width="110" align="center">
-                <template #default="{ row }">
-                  <span class="metric-number">{{ formatNumber(row.generatedCount) }}</span>
-                </template>
-              </el-table-column>
+                <el-table-column label="已完成任务" prop="finishedCount" width="120" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatNumber(row.finishedCount) }}</span>
+                  </template>
+                </el-table-column>
 
-              <el-table-column label="视频时长" prop="durationMinutes" width="120" align="center">
-                <template #default="{ row }">
-                  <span class="metric-number">{{ formatDuration(row.durationMinutes) }}</span>
-                </template>
-              </el-table-column>
+                <el-table-column label="等待任务" prop="waitingCount" width="110" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatNumber(row.waitingCount) }}</span>
+                  </template>
+                </el-table-column>
 
-              <el-table-column label="失败数" prop="failedCount" width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag type="danger" effect="light" round>
-                    {{ formatNumber(row.failedCount) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
+                <el-table-column label="进行中任务" prop="generatingCount" width="120" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatNumber(row.generatingCount) }}</span>
+                  </template>
+                </el-table-column>
 
-              <el-table-column label="前期处理" min-width="240">
-                <template #default="{ row }">
-                  <div class="process-tags">
-                    <el-tag effect="light" round class="process-tag tag-human">
-                      形象 {{ formatNumber(row.humanCount) }}
+                <el-table-column label="失败任务" prop="failedCount" width="110" align="center">
+                  <template #default="{ row }">
+                    <el-tag type="danger" effect="light" round>
+                      {{ formatNumber(row.failedCount) }}
                     </el-tag>
-                    <el-tag effect="light" round class="process-tag tag-voice">
-                      音频 {{ formatNumber(row.voiceCount) }}
-                    </el-tag>
-                    <el-tag effect="light" round class="process-tag tag-both">
-                      联合 {{ formatNumber(row.bothCount) }}
-                    </el-tag>
-                  </div>
-                </template>
-              </el-table-column>
+                  </template>
+                </el-table-column>
 
-              <el-table-column label="成功率" width="140" align="center">
-                <template #default="{ row }">
-                  <div class="rate-cell">
-                    <el-progress
-                      :percentage="row.successRate"
-                      :show-text="false"
-                      :stroke-width="8"
-                      :color="row.successRate >= 90 ? '#14b8a6' : row.successRate >= 75 ? '#f59e0b' : '#ef4444'"
-                    />
-                    <span>{{ row.successRate }}%</span>
-                  </div>
-                </template>
-              </el-table-column>
+                <el-table-column
+                  v-if="rankTaskCategory === 'video'"
+                  label="视频时长"
+                  prop="durationMinutes"
+                  width="120"
+                  align="center"
+                >
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatDuration(row.durationMinutes) }}</span>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="平均等待时长" prop="avgWaitSeconds" width="140" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatSecondsDuration(row.avgWaitSeconds) }}</span>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="平均生成时长" prop="avgGenerateSeconds" width="140" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatSecondsDuration(row.avgGenerateSeconds) }}</span>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="平均任务时长" prop="avgTaskSeconds" width="140" align="center">
+                  <template #default="{ row }">
+                    <span class="metric-number">{{ formatSecondsDuration(row.avgTaskSeconds) }}</span>
+                  </template>
+                </el-table-column>
             </el-table>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :xl="8">
-        <el-card class="glass-card pie-card" shadow="never">
-          <template #header>
-            <div class="section-head">
-              <div>
-                <h2>任务构成</h2>
-                <p>生成与训练类任务在当前区间内的占比</p>
-              </div>
-              <el-tag type="warning" effect="light" round>合计 {{ formatNumber(typeTotal) }}</el-tag>
-            </div>
-          </template>
-
-          <div ref="pieChartRef" class="chart chart-medium"></div>
-        </el-card>
-
-        <el-card class="glass-card stage-card" shadow="never">
-          <template #header>
-            <div class="section-head">
-              <div>
-                <h2>阶段透视</h2>
-                <p>把关键环节拆开看，便于快速判断瓶颈</p>
-              </div>
-              <el-tag effect="light" round>归一化展示</el-tag>
-            </div>
-          </template>
-
-          <div class="stage-list">
-            <div
-              v-for="item in stageRows"
-              :key="item.key"
-              class="stage-row"
-            >
-              <div class="stage-row-head">
-                <div>
-                  <div class="stage-name">{{ item.label }}</div>
-                  <div class="stage-desc">{{ item.desc }}</div>
-                </div>
-                <strong class="stage-value">{{ formatNumber(item.value) }}</strong>
-              </div>
-              <el-progress
-                :percentage="item.percentage"
-                :show-text="false"
-                :stroke-width="10"
-                :color="item.color"
-              />
-            </div>
-          </div>
-
-          <div class="stage-foot">
-            <div>
-              <span>前期处理总数</span>
-              <strong>{{ formatNumber(preprocessTotal) }}</strong>
-            </div>
-            <div>
-              <span>失败任务</span>
-              <strong>{{ formatNumber(failedCount) }}</strong>
-            </div>
-            <div>
-              <span>平均时长</span>
-              <strong>{{ formatDuration(avgDurationMinutes) }}</strong>
-            </div>
           </div>
         </el-card>
       </el-col>
@@ -279,30 +289,59 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { echarts, ECOption } from '/@/components/Echart'
+import { decodeJwtPayload } from '/@/utils/tools'
 import request from '/@/utils/request'
 import {
   getVideoDurationStats,
   getBindingStats,
   getDigitalHumanStats,
   getVoiceStats,
-  getFailedTaskStats
+  getDigitalHumanTaskStatusStats,
+  getFastTaskStatusStats,
+  getPlanVideoTaskStatusStats,
+  getVideoTaskStatusStats
 } from '/@/api/material'
 
 type TaskType = 'generate' | 'human' | 'voice' | 'both'
 type TaskResult = 'success' | 'failed'
 type RangePresetKey = '7d' | '14d' | '30d' | 'custom'
-type StatType = 'duration' | 'binding' | 'digitalHuman' | 'voice' | 'failed'
+type StatType = 'duration' | 'binding' | 'digitalHuman' | 'voice' 
 const statType = ref<StatType>('duration')
-
+const rankTaskCategory = ref('all')
 const statTypeOptions = [
   { label: '视频时长', value: 'duration' },
   { label: '绑定关系', value: 'binding' },
   { label: '数字人', value: 'digitalHuman' },
   { label: '声音', value: 'voice' },
-  { label: '失败任务', value: 'failed' }
+]
+
+const taskCategory = ref('all')
+
+const taskCategoryOptions = [
+  {
+    label: '全部任务',
+    value: 'all'
+  },
+  {
+    label: '同时训练形象加声音',
+    value: 'fastTask'
+  },
+  {
+    label: '形象训练',
+    value: 'digitalHuman'
+  },
+  {
+    label: '批量生成',
+    value: 'planVideo'
+  },
+  {
+    label: '单条生成',
+    value: 'video'
+  }
 ]
 
 const apiMap = {
@@ -319,16 +358,71 @@ const titleMap = {
   voice: '声音统计'
 }
 
+const getResData = (res: any) => {
+  return res?.data?.data || res?.data || {}
+}
+
+const sumTaskStats = (list: any[]) => {
+  const totalFinished = list.reduce((sum, item) => sum + Number(item.finishedCount || 0), 0)
+
+  return {
+    finishedCount: totalFinished,
+    waitingCount: list.reduce((sum, item) => sum + Number(item.waitingCount || 0), 0),
+    generatingCount: list.reduce((sum, item) => sum + Number(item.generatingCount || 0), 0),
+    failedCount: list.reduce((sum, item) => sum + Number(item.failedCount || 0), 0),
+    totalCount: list.reduce((sum, item) => sum + Number(item.totalCount || 0), 0),
+
+    avgGenerateSeconds: totalFinished
+      ? Math.round(
+          list.reduce((sum, item) => {
+            return sum + Number(item.avgGenerateSeconds || 0) * Number(item.finishedCount || 0)
+          }, 0) / totalFinished
+        )
+      : 0,
+
+    avgWaitSeconds: totalFinished
+      ? Math.round(
+          list.reduce((sum, item) => {
+            return sum + Number(item.avgWaitSeconds || 0) * Number(item.finishedCount || 0)
+          }, 0) / totalFinished
+        )
+      : 0,
+
+    avgTaskSeconds: totalFinished
+      ? Math.round(
+          list.reduce((sum, item) => {
+            return sum + Number(item.avgTaskSeconds || 0) * Number(item.finishedCount || 0)
+          }, 0) / totalFinished
+        )
+      : 0
+  }
+}
+
 
 const backendStats = ref({
-  videoDuration: 0,
-  videoCount: 0,
-  bindingCount: 0,
-  digitalHumanCount: 0,
-  voiceCount: 0,
-  failedCount: 0
+  finishedCount: 0,
+  waitingCount: 0,
+  generatingCount: 0,
+  failedCount: 0,
+  totalCount: 0,
+
+  fastTaskCount: 0,
+  digitalHumanTaskCount: 0,
+  planVideoTaskCount: 0,
+  videoTaskCount: 0,
+
+  avgGenerateSeconds: 0,
+  avgWaitSeconds: 0,
+  avgTaskSeconds: 0
 })
-const backendUserRanking = ref<UserSummary[]>([])
+
+const taskStatsMap = ref<Record<string, any>>({
+  fastTask: {},
+  digitalHuman: {},
+  planVideo: {},
+  video: {}
+})
+
 
 const sumOptionSeries = (option: any) => {
   const series = option?.series || []
@@ -350,97 +444,19 @@ const countSeriesPositiveDays = (seriesItem: any) => {
   return (seriesItem?.data || []).filter((value: any) => Number(value || 0) > 0).length
 }
 
-const buildUserRankingFromOptions = (
-  durationOption: any,
-  bindingOption: any,
-  digitalHumanOption: any,
-  voiceOption: any,
-  failedOption: any
-) => {
-  const userMap = new Map<string, UserSummary>()
-
-  const ensureUser = (name: string) => {
-    if (!userMap.has(name)) {
-      userMap.set(name, {
-        user: name,
-        team: '默认分组',
-        generatedCount: 0,
-        durationMinutes: 0,
-        failedCount: 0,
-        humanCount: 0,
-        voiceCount: 0,
-        bothCount: 0,
-        totalCount: 0,
-        successRate: 100
-      })
-    }
-
-    return userMap.get(name)!
-  }
+const buildVideoDurationMap = (durationOption: any) => {
+  const map = new Map<string, number>()
 
   ;(durationOption?.series || []).forEach((item: any) => {
-    const user = ensureUser(item.name || '未知用户')
-
+    const userName = item.name || '未知用户'
     const durationSeconds = sumSeriesData(item)
-
-    // 生成视频数量：目前先按“有视频时长的日期数量”算
-    // 如果后端以后能返回真实视频 count，这里再换成真实 count
-    user.generatedCount += countSeriesPositiveDays(item)
-
-    // 后端 video_duration 如果是秒，这里转分钟
-    user.durationMinutes += Math.round(durationSeconds / 60)
+    map.set(userName, Math.round(durationSeconds / 60))
   })
 
-  ;(digitalHumanOption?.series || []).forEach((item: any) => {
-    const user = ensureUser(item.name || '未知用户')
-    user.humanCount += sumSeriesData(item)
-  })
-
-  ;(voiceOption?.series || []).forEach((item: any) => {
-    const user = ensureUser(item.name || '未知用户')
-    user.voiceCount += sumSeriesData(item)
-  })
-
-  ;(bindingOption?.series || []).forEach((item: any) => {
-    const user = ensureUser(item.name || '未知用户')
-    user.bothCount += sumSeriesData(item)
-  })
-
-  ;(failedOption?.series || []).forEach((item: any) => {
-  const user = ensureUser(item.name || '未知用户')
-  user.failedCount += sumSeriesData(item)
-  })
-
-const rows = Array.from(userMap.values()).map(item => {
-  const successRate =
-    item.generatedCount > 0
-      ? Math.max(
-          0,
-          Math.round(
-            ((item.generatedCount - item.failedCount) / item.generatedCount) * 100
-          )
-        )
-      : 100
-
-  return {
-    ...item,
-    totalCount:
-      item.generatedCount +
-      item.humanCount +
-      item.voiceCount +
-      item.bothCount,
-    successRate
-  }
-})
-
-  return rows.sort((left, right) => {
-    return (
-      right.generatedCount - left.generatedCount ||
-      right.durationMinutes - left.durationMinutes ||
-      right.totalCount - left.totalCount
-    )
-  })
+  return map
 }
+
+
 
 const beautifyTrendOption = (option: any) => {
   return {
@@ -522,26 +538,77 @@ interface DashboardRecord {
 }
 
 interface UserSummary {
+  user_id?: number
   user: string
   team: string
-  generatedCount: number
-  durationMinutes: number
+
+  finishedCount: number
+  waitingCount: number
+  generatingCount: number
   failedCount: number
-  humanCount: number
-  voiceCount: number
-  bothCount: number
   totalCount: number
-  successRate: number
+
+  avgGenerateSeconds: number
+  avgWaitSeconds: number
+  avgTaskSeconds: number
+
+  durationMinutes: number
 }
 
 const layoutStore = useLayoutStore()
+const router = useRouter()
 const currentUser = computed(() => layoutStore.getUserInfo.name || '管理员')
+const tokenPayload = computed(() => decodeJwtPayload<any>(sessionStorage.getItem('token')))
+const currentUserId = computed(() => {
+  const payload = tokenPayload.value
+  const userInfo = layoutStore.getUserInfo as any
+  return payload?.user_id ?? payload?.userId ?? userInfo.user_id ?? userInfo.userid ?? userInfo.userId ?? userInfo.id
+})
+
+const redirectIfNoDashboardAccess = () => {
+  const userId = Number(currentUserId.value)
+
+  if (userId === 1) return false
+
+  if (!Number.isFinite(userId)) return false
+
+  if (router.hasRoute('MaterialManagement')) {
+    router.replace({ name: 'MaterialManagement' })
+  } else {
+    router.replace('/PriorDisposal/MaterialManagement')
+  }
+
+  return true
+}
 
 const presetOptions: Array<{ key: RangePresetKey; label: string; days: number }> = [
   { key: '7d', label: '近 7 天', days: 7 },
   { key: '14d', label: '近 14 天', days: 14 },
   { key: '30d', label: '近 30 天', days: 30 }
 ]
+
+const formatSecondsDuration = (seconds: number) => {
+  if (!seconds) return '0秒'
+
+  const minutes = Math.floor(seconds / 60)
+  const remainSeconds = seconds % 60
+  const hours = Math.floor(minutes / 60)
+  const remainMinutes = minutes % 60
+
+  if (hours) {
+    return remainSeconds
+      ? `${hours}小时${pad(remainMinutes)}分${pad(remainSeconds)}秒`
+      : `${hours}小时${pad(remainMinutes)}分`
+  }
+
+  if (minutes) {
+    return remainSeconds
+      ? `${minutes}分${pad(remainSeconds)}秒`
+      : `${minutes}分`
+  }
+
+  return `${seconds}秒`
+}
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
 const cloneDate = (date: Date) => new Date(date.getTime())
@@ -621,49 +688,78 @@ const fetchDashboardData = async () => {
       rangeKeys.value.endKey
     )
 
-  const [durationRes, bindingRes, digitalHumanRes, voiceRes, failedRes] = await Promise.all([
-    getVideoDurationStats({ xAxis, title: '视频时长统计' }),
-    getBindingStats({ xAxis, title: '绑定关系统计' }),
-    getDigitalHumanStats({ xAxis, title: '数字人统计' }),
-    getVoiceStats({ xAxis, title: '声音统计' }),
-    getFailedTaskStats({ xAxis, title: '失败任务统计' })
-  ])
+    const params = {
+      start_date: rangeKeys.value.startKey,
+      end_date: rangeKeys.value.endKey
+    }
+
+    const [
+      durationRes,
+      bindingRes,
+      digitalHumanRes,
+      voiceRes,
+
+      digitalHumanTaskRes,
+      fastTaskRes,
+      planVideoTaskRes,
+      videoTaskRes
+    ] = await Promise.all([
+      getVideoDurationStats({ xAxis, title: '视频时长统计' }),
+      getBindingStats({ xAxis, title: '绑定关系统计' }),
+      getDigitalHumanStats({ xAxis, title: '数字人统计' }),
+      getVoiceStats({ xAxis, title: '声音统计' }),
+
+      getDigitalHumanTaskStatusStats(params),
+      getFastTaskStatusStats(params),
+      getPlanVideoTaskStatusStats(params),
+      getVideoTaskStatusStats(params)
+    ])
 
     const durationOption = durationRes.data?.data || durationRes.data
     const bindingOption = bindingRes.data?.data || bindingRes.data
     const digitalHumanOption = digitalHumanRes.data?.data || digitalHumanRes.data
     const voiceOption = voiceRes.data?.data || voiceRes.data
-    const failedOption = failedRes.data?.data || failedRes.data
-    const durationSeconds = sumOptionSeries(durationOption)
 
-   backendStats.value = {
-      videoCount: (durationOption?.series || []).reduce((total: number, item: any) => {
-        return total + (item?.data || []).filter((value: any) => Number(value || 0) > 0).length
-      }, 0),
+    const digitalHumanStats = getResData(digitalHumanTaskRes)
+    const fastTaskStats = getResData(fastTaskRes)
+    const planVideoStats = getResData(planVideoTaskRes)
+    const videoStats = getResData(videoTaskRes)
 
-      videoDuration: Math.round(durationSeconds / 60),
+    const totalStats = sumTaskStats([
+      digitalHumanStats,
+      fastTaskStats,
+      planVideoStats,
+      videoStats
+    ])
 
-      bindingCount: sumOptionSeries(bindingOption),
-      digitalHumanCount: sumOptionSeries(digitalHumanOption),
-      voiceCount: sumOptionSeries(voiceOption),
-      failedCount: failedOption?.totalCount || sumOptionSeries(failedOption)
-   }
-
-    backendUserRanking.value = buildUserRankingFromOptions(
-      durationOption,
-      bindingOption,
-      digitalHumanOption,
-      voiceOption,
-      failedOption
-    )
+    backendStats.value = {
+      ...totalStats,
+      fastTaskCount: fastTaskStats.totalCount || 0,
+      digitalHumanTaskCount: digitalHumanStats.totalCount || 0,
+      planVideoTaskCount: planVideoStats.totalCount || 0,
+      videoTaskCount: videoStats.totalCount || 0
+    }
 
     const optionMap: Record<StatType, any> = {
       duration: durationOption,
       binding: bindingOption,
       digitalHuman: digitalHumanOption,
-      voice: voiceOption,
-      failed: failedOption
+      voice: voiceOption
     }
+
+    taskStatsMap.value = {
+      fastTask: fastTaskStats,
+      digitalHuman: digitalHumanStats,
+      planVideo: planVideoStats,
+      video: videoStats
+    }
+
+    const videoDurationMap = buildVideoDurationMap(durationOption)
+    ;(taskStatsMap.value.video?.users || []).forEach((row: any) => {
+      row.durationMinutes = videoDurationMap.get(row.user || '未知用户') || 0
+    })
+
+
 
     await nextTick()
 
@@ -689,65 +785,175 @@ const filteredRecords = computed(() =>
   allRecords.value.filter(item => item.dateKey >= rangeKeys.value.startKey && item.dateKey <= rangeKeys.value.endKey)
 )
 
-const totalGeneratedVideos = computed(() => backendStats.value.videoCount)
-const totalDurationMinutes = computed(() => backendStats.value.videoDuration)
-const humanCount = computed(() => backendStats.value.digitalHumanCount)
-const voiceCount = computed(() => backendStats.value.voiceCount)
-const bothCount = computed(() => backendStats.value.bindingCount)
-const preprocessTotal = computed(() =>
-  humanCount.value + voiceCount.value + bothCount.value
-)
-const totalTasks = computed(() =>
-  totalGeneratedVideos.value + preprocessTotal.value
-)
+
+
+const finishedCount = computed(() => backendStats.value.finishedCount)
+const waitingCount = computed(() => backendStats.value.waitingCount)
+const generatingCount = computed(() => backendStats.value.generatingCount)
 const failedCount = computed(() => backendStats.value.failedCount)
-const avgDurationMinutes = computed(() => totalGeneratedVideos.value ? Math.round(totalDurationMinutes.value / totalGeneratedVideos.value) : 0)
-const failureRate = computed(() =>
-  formatRate(failedCount.value, totalGeneratedVideos.value)
+const totalTasks = computed(() => backendStats.value.totalCount)
+
+const fastTaskCount = computed(() => backendStats.value.fastTaskCount)
+const digitalHumanTaskCount = computed(() => backendStats.value.digitalHumanTaskCount)
+const planVideoTaskCount = computed(() => backendStats.value.planVideoTaskCount)
+const videoTaskCount = computed(() => backendStats.value.videoTaskCount)
+const preprocessTotal = computed(() =>
+  fastTaskCount.value + digitalHumanTaskCount.value
 )
-const successRate = computed(() =>
-  totalGeneratedVideos.value
-    ? Math.max(0, 100 - failureRate.value)
-    : 100
+
+const avgDurationMinutes = computed(() =>
+  Math.round((backendStats.value.avgTaskSeconds || 0) / 60)
 )
-const typeTotal = computed(() => totalGeneratedVideos.value + humanCount.value + voiceCount.value + bothCount.value)
+
+const currentTaskStats = computed(() => {
+
+  if (taskCategory.value === 'all') {
+    return backendStats.value
+  }
+
+  return (
+    taskStatsMap.value[
+      taskCategory.value as keyof typeof taskStatsMap.value
+    ] || {}
+  )
+})
+
+const mergeUsersFromStats = (statsList: any[]) => {
+  const userMap = new Map<string, UserSummary>()
+
+  const ensureUser = (row: any) => {
+    const key = String(row.user_id ?? row.user ?? 'unknown')
+
+    if (!userMap.has(key)) {
+      userMap.set(key, {
+        user_id: row.user_id,
+        user: row.user || '未知用户',
+        team: '默认分组',
+
+        finishedCount: 0,
+        waitingCount: 0,
+        generatingCount: 0,
+        failedCount: 0,
+        totalCount: 0,
+
+        avgGenerateSeconds: 0,
+        avgWaitSeconds: 0,
+        avgTaskSeconds: 0,
+
+        durationMinutes: 0
+      })
+    }
+
+    return userMap.get(key)!
+  }
+
+  statsList.forEach(stats => {
+    ;(stats?.users || []).forEach((row: any) => {
+      const user = ensureUser(row)
+
+      const oldFinished = user.finishedCount
+      const addFinished = Number(row.finishedCount || 0)
+      const newFinished = oldFinished + addFinished
+
+      user.finishedCount += addFinished
+      user.waitingCount += Number(row.waitingCount || 0)
+      user.generatingCount += Number(row.generatingCount || 0)
+      user.failedCount += Number(row.failedCount || 0)
+      user.totalCount += Number(row.totalCount || 0)
+      user.durationMinutes += Number(row.durationMinutes || 0)
+
+      if (newFinished > 0) {
+        user.avgGenerateSeconds = Math.round(
+          (
+            user.avgGenerateSeconds * oldFinished +
+            Number(row.avgGenerateSeconds || 0) * addFinished
+          ) / newFinished
+        )
+
+        user.avgWaitSeconds = Math.round(
+          (
+            user.avgWaitSeconds * oldFinished +
+            Number(row.avgWaitSeconds || 0) * addFinished
+          ) / newFinished
+        )
+
+        user.avgTaskSeconds = Math.round(
+          (
+            user.avgTaskSeconds * oldFinished +
+            Number(row.avgTaskSeconds || 0) * addFinished
+          ) / newFinished
+        )
+      }
+    })
+  })
+
+  return Array.from(userMap.values()).sort((a, b) => {
+    return (
+      b.finishedCount - a.finishedCount ||
+      b.totalCount - a.totalCount ||
+      b.failedCount - a.failedCount
+    )
+  })
+}
 
 const summaryCards = computed(() => [
   {
-    key: 'videos',
-    label: '生成视频',
-    value: formatNumber(totalGeneratedVideos.value),
-    note: `成功率 ${successRate.value}% · 最近 ${rangeDays.value} 天`,
+    key: 'finished',
+    label: '已完成任务',
+    value: formatNumber(
+      currentTaskStats.value.finishedCount || 0
+    ),
+    note: `单条生成 ${formatNumber(videoTaskCount.value)} · 批量生成 ${formatNumber(planVideoTaskCount.value)}`,
     badge: '视频产出',
     tone: 'tone-blue'
   },
   {
-    key: 'duration',
-    label: '总时长',
-    value: formatDuration(totalDurationMinutes.value),
-    note: `平均 ${formatDuration(avgDurationMinutes.value)} / 条`,
-    badge: '时长累计',
+    key: 'waiting',
+    label: '等待中任务',
+    value: formatNumber(
+      currentTaskStats.value.waitingCount || 0
+    ),
+    note: `平均等待 ${formatSecondsDuration(backendStats.value.avgWaitSeconds)}`,
+    badge: '等待中',
     tone: 'tone-cyan'
   },
   {
-    key: 'failure',
-    label: '失败任务',
-    value: formatNumber(failedCount.value),
-    note: `失败率 ${failureRate.value}% · 需重点回看`,
-    badge: '风险指标',
-    tone: 'tone-rose'
+    key: 'generating',
+    label: '进行中任务',
+    value: formatNumber(
+      currentTaskStats.value.generatingCount || 0
+    ),
+    note: `平均生成 ${formatSecondsDuration(backendStats.value.avgGenerateSeconds)}`,
+    badge: '生成中',
+    tone: 'tone-amber'
   },
   {
-    key: 'preprocess',
-    label: '前期处理',
-    value: formatNumber(preprocessTotal.value),
-    note: `形象 ${formatNumber(humanCount.value)} · 音频 ${formatNumber(voiceCount.value)} · 联合 ${formatNumber(bothCount.value)}`,
-    badge: '预处理',
-    tone: 'tone-amber'
+    key: 'failed',
+    label: '失败任务',
+     value: formatNumber(
+      currentTaskStats.value.failedCount || 0
+    ),
+    note: `平均任务时长 ${formatSecondsDuration(backendStats.value.avgTaskSeconds)}`,
+    badge: '风险指标',
+    tone: 'tone-rose'
   }
 ])
 
-const userRanking = computed<UserSummary[]>(() => backendUserRanking.value)
+const userRanking = computed<UserSummary[]>(() => {
+  if (rankTaskCategory.value === 'all') {
+    return mergeUsersFromStats([
+      taskStatsMap.value.fastTask,
+      taskStatsMap.value.digitalHuman,
+      taskStatsMap.value.planVideo,
+      taskStatsMap.value.video
+    ])
+  }
+
+  return mergeUsersFromStats([
+    taskStatsMap.value[rankTaskCategory.value as keyof typeof taskStatsMap.value]
+  ])
+})
+
 const trendRows = computed(() => {
   const dateKeys = enumerateDateKeys(rangeKeys.value.startKey, rangeKeys.value.endKey)
   const bucket = new Map<string, { generated: number; duration: number; failed: number }>()
@@ -765,6 +971,7 @@ const trendRows = computed(() => {
     if (item.result === 'failed') current.failed += 1
   })
 
+
   return dateKeys.map(key => ({
     dateKey: key,
     label: formatShortDate(key),
@@ -774,20 +981,36 @@ const trendRows = computed(() => {
   }))
 })
 
-const typeBreakdown = computed(() => [
-  { key: 'generate', label: '生成视频', value: totalGeneratedVideos.value, color: '#2563eb' },
-  { key: 'human', label: '形象训练', value: humanCount.value, color: '#14b8a6' },
-  { key: 'voice', label: '音频训练', value: voiceCount.value, color: '#f59e0b' },
-  { key: 'both', label: '联合训练', value: bothCount.value, color: '#8b5cf6' }
-])
-
 const stageRows = computed(() => {
   const rows = [
-    { key: 'generate', label: '生成视频', desc: '成功生成的视频个数', value: totalGeneratedVideos.value, color: '#2563eb' },
-    { key: 'human', label: '形象训练', desc: '形象训练任务数', value: humanCount.value, color: '#14b8a6' },
-    { key: 'voice', label: '音频训练', desc: '音频训练任务数', value: voiceCount.value, color: '#f59e0b' },
-    { key: 'both', label: '联合训练', desc: '形象与音频同时训练', value: bothCount.value, color: '#8b5cf6' },
-    { key: 'failed', label: '失败任务', desc: '失败的总任务数', value: failedCount.value, color: '#ef4444' }
+    {
+      key: 'fastTask',
+      label: '同时训练形象加声音',
+      desc: '形象与声音同时训练任务数',
+      value: fastTaskCount.value,
+      color: '#8b5cf6'
+    },
+    {
+      key: 'digitalHuman',
+      label: '形象训练',
+      desc: '形象训练任务数',
+      value: digitalHumanTaskCount.value,
+      color: '#14b8a6'
+    },
+    {
+      key: 'planVideo',
+      label: '批量生成',
+      desc: '批量生成任务数',
+      value: planVideoTaskCount.value,
+      color: '#f59e0b'
+    },
+    {
+      key: 'video',
+      label: '单条生成',
+      desc: '单条生成任务数',
+      value: videoTaskCount.value,
+      color: '#2563eb'
+    }
   ]
 
   const maxValue = Math.max(...rows.map(item => item.value), 1)
@@ -799,9 +1022,9 @@ const stageRows = computed(() => {
 })
 
 const trendChartRef = ref<HTMLDivElement | null>(null)
-const pieChartRef = ref<HTMLDivElement | null>(null)
+const stageChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: echarts.ECharts | null = null
-let pieChart: echarts.ECharts | null = null
+let stageChart: echarts.ECharts | null = null
 
 const createTrendOption = (): ECOption => {
   const gradient = new (echarts as any).graphic.LinearGradient(0, 0, 0, 1, [
@@ -895,67 +1118,92 @@ const createTrendOption = (): ECOption => {
   }
 }
 
-const createPieOption = (): ECOption => ({
-  tooltip: { trigger: 'item' },
-  legend: {
-    bottom: 0,
-    left: 'center',
-    itemWidth: 10,
-    itemHeight: 10,
-    textStyle: { color: '#64748b' }
+
+
+const createStageOption = (): ECOption => ({
+  color: stageRows.value.map(item => item.color),
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: {
+      type: 'shadow'
+    },
+    formatter: (params: any) => {
+      const item = params?.[0]
+      if (!item) return ''
+      return `${item.name}<br/>任务数：${formatNumber(item.value)}`
+    }
+  },
+  grid: {
+    left: 8,
+    right: 8,
+    top: 16,
+    bottom: 36,
+    containLabel: true
+  },
+  xAxis: {
+    type: 'category',
+    data: stageRows.value.map(item => item.label),
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: '#dbe3f0' } },
+    axisLabel: {
+      color: '#64748b',
+      fontSize: 11,
+      interval: 0,
+      formatter: (value: string) => value.replace('同时训练', '同时\n训练').replace('批量生成', '批量\n生成').replace('单条生成', '单条\n生成')
+    }
+  },
+  yAxis: {
+    type: 'value',
+    axisLabel: {
+      color: '#64748b',
+      fontSize: 11
+    },
+    splitLine: {
+      lineStyle: { color: 'rgba(148, 163, 184, 0.18)' }
+    }
   },
   series: [
     {
-      name: '任务构成',
-      type: 'pie',
-      radius: ['45%', '72%'],
-      center: ['50%', '44%'],
-      avoidLabelOverlap: false,
-      label: {
-        color: '#475569',
-        formatter: '{b}\n{d}%'
-      },
-      labelLine: {
-        length: 12,
-        length2: 10
-      },
-      itemStyle: {
-        borderColor: '#ffffff',
-        borderWidth: 3
-      },
-      data: typeBreakdown.value.map(item => ({
-        name: item.label,
+      name: '任务数',
+      type: 'bar',
+      barMaxWidth: 34,
+      data: stageRows.value.map(item => ({
         value: item.value,
-        itemStyle: { color: item.color }
+        itemStyle: {
+          color: item.color,
+          borderRadius: [8, 8, 0, 0]
+        }
       }))
     }
   ]
 })
 
 const renderCharts = () => {
-  if (pieChartRef.value) {
-    if (!pieChart) {
-      pieChart = echarts.init(pieChartRef.value)
+  if (stageChartRef.value) {
+    if (!stageChart) {
+      stageChart = echarts.init(stageChartRef.value)
     }
-    pieChart.setOption(createPieOption(), true)
+    stageChart.setOption(createStageOption(), true)
   }
 }
 
 const handleResize = () => {
   trendChart?.resize()
-  pieChart?.resize()
+  stageChart?.resize()
 }
 
 watch([rangeKeys, statType], async () => {
+  if (redirectIfNoDashboardAccess()) return
   await fetchDashboardData()
 }, { deep: true, immediate: true })
 
-watch([trendRows, typeBreakdown], async () => {
+watch(stageRows, async () => {
   await nextTick()
   renderCharts()
 }, { deep: true })
 
 onMounted(async () => {
+  if (redirectIfNoDashboardAccess()) return
   await nextTick()
   renderCharts()
   window.addEventListener('resize', handleResize)
@@ -964,7 +1212,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   trendChart?.dispose()
-  pieChart?.dispose()
+  stageChart?.dispose()
 })
 </script>
 <style scoped>
@@ -991,6 +1239,7 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   padding: 28px;
@@ -1030,19 +1279,11 @@ onBeforeUnmount(() => {
   color: #0f172a;
 }
 
-.hero-description {
-  max-width: 840px;
-  margin: 14px 0 0;
-  font-size: 15px;
-  line-height: 1.8;
-  color: #475569;
-}
-
 .hero-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 20px;
 }
 
 .hero-meta-item {
@@ -1071,8 +1312,9 @@ onBeforeUnmount(() => {
   flex: 0 0 340px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 14px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -1087,20 +1329,73 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+.overview-grid {
+  align-items: stretch;
+}
+
+.overview-grid > .el-col {
+  display: flex;
+  align-items: stretch;
+}
+
+.summary-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.summary-task-select {
+  width: 180px;
+}
+
+.summary-section-head {
+  align-items: center;
+  min-height: 46px;
+  gap: 10px;
+}
+
+.summary-section-head h2 {
+  font-size: 16px;
+}
+
+.summary-section-head p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 768px) {
+  .summary-task-select {
+    width: 100%;
+  }
+}
+
 .summary-grid {
-  margin-top: 2px;
+  flex: 1;
+  align-content: stretch;
+  margin-top: 8px;
+  row-gap: 8px;
+}
+
+:deep(.summary-grid .el-col) {
+  display: flex;
 }
 
 .summary-card {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   height: 100%;
-  padding: 18px 18px 20px;
-  border-radius: 22px;
+  min-height: 92px;
+  padding: 10px 11px;
+  border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
 }
 
 .summary-card.tone-blue {
@@ -1123,41 +1418,45 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
 }
 
 .summary-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: #334155;
 }
 
 .summary-badge {
   flex-shrink: 0;
-  padding: 5px 10px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.1);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   color: #2563eb;
 }
 
 .summary-value {
-  font-size: 30px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1.05;
   color: #0f172a;
 }
 
 .summary-note {
-  min-height: 36px;
-  font-size: 13px;
-  line-height: 1.6;
+  min-height: 28px;
+  font-size: 11px;
+  line-height: 1.35;
   color: #64748b;
 }
 
 .content-grid {
   align-items: flex-start;
+}
+
+.content-grid {
+  margin-top: 2px;
 }
 
 .glass-card {
@@ -1169,6 +1468,11 @@ onBeforeUnmount(() => {
 
 .glass-card + .glass-card {
   margin-top: 16px;
+}
+
+.stage-card {
+  width: 100%;
+  height: 100%;
 }
 
 .section-head {
@@ -1200,8 +1504,8 @@ onBeforeUnmount(() => {
   height: 360px;
 }
 
-.chart-medium {
-  height: 320px;
+.stage-chart {
+  height: 230px;
 }
 
 .top-pills {
@@ -1334,58 +1638,19 @@ onBeforeUnmount(() => {
   color: #475569;
 }
 
-.stage-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.stage-row {
-  padding: 14px 14px 15px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.98));
-  border: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-.stage-row-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.stage-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.stage-desc {
-  margin-top: 3px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.stage-value {
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
 .stage-foot {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .stage-foot > div {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 14px 13px;
-  border-radius: 16px;
+  gap: 5px;
+  padding: 10px 11px;
+  border-radius: 12px;
   background: rgba(241, 245, 249, 0.8);
 }
 
@@ -1395,7 +1660,7 @@ onBeforeUnmount(() => {
 }
 
 .stage-foot strong {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   color: #0f172a;
 }
@@ -1433,7 +1698,6 @@ onBeforeUnmount(() => {
 }
 
 :deep(.rank-card .el-card__body),
-:deep(.pie-card .el-card__body),
 :deep(.stage-card .el-card__body),
 :deep(.trend-card .el-card__body) {
   padding-top: 0;
@@ -1470,6 +1734,15 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .overview-grid {
+    row-gap: 12px;
+  }
+
+  .summary-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .hero-content,
   .summary-card,
   .glass-card {
@@ -1493,8 +1766,8 @@ onBeforeUnmount(() => {
     height: 300px;
   }
 
-  .chart-medium {
-    height: 280px;
+  .stage-chart {
+    height: 220px;
   }
 
   .stage-foot {
@@ -1505,7 +1778,26 @@ onBeforeUnmount(() => {
     width: 100%;
   }
 }
+.rank-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
+.rank-task-select {
+  width: 240px;
+}
+
+@media (max-width: 768px) {
+  .rank-tools {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .rank-task-select {
+    width: 100%;
+  }
+}
 .trend-section-head {
   align-items: center;
 }

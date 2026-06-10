@@ -1542,9 +1542,34 @@ export function syncWindowsShareFolder(data: {
     })
 }
 
-export const getFailedTaskStats = (data: any) => {
+
+export function getDigitalHumanTaskStatusStats(data: any) {
   return request({
-    url: '/api/material/a2e/failed-task-stats/',
+    url: '/api/material/a2e/task-stats/digital-human/',
+    method: 'post',
+    data
+  })
+}
+
+export function getFastTaskStatusStats(data: any) {
+  return request({
+    url: '/api/material/a2e/task-stats/fast-task/',
+    method: 'post',
+    data
+  })
+}
+
+export function getPlanVideoTaskStatusStats(data: any) {
+  return request({
+    url: '/api/material/a2e/task-stats/plan-video/',
+    method: 'post',
+    data
+  })
+}
+
+export function getVideoTaskStatusStats(data: any) {
+  return request({
+    url: '/api/material/a2e/task-stats/video/',
     method: 'post',
     data
   })

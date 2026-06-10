@@ -187,6 +187,26 @@ export function encode(url: string): string {
     return encodeURIComponent(encodeURIComponent(url))
 }
 
+export function decodeJwtPayload<T = IObject<any>>(token?: string | null): T | null {
+    if (!token) return null
+    const rawPayload = token.split('.')[1]
+    if (!rawPayload) return null
+
+    try {
+        const base64 = rawPayload.replace(/-/g, '+').replace(/_/g, '/')
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+        const json = decodeURIComponent(
+            Array.from(atob(padded))
+                .map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+                .join('')
+        )
+
+        return JSON.parse(json) as T
+    } catch {
+        return null
+    }
+}
+
 /** Cookie 工具 **/
 export function setCookie(name: string, value: string, days = 365): void {
     const d = new Date()
