@@ -313,8 +313,17 @@
                 <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
              </div>
               <div v-else class="mt-4 pt-2 flex items-center justify-between gap-4">
-                <div class="text-sm text-slate-500">
-                  已选择 {{ batchFiles.length }} 个视频，批量任务将逐个提交到后端处理。
+                <div class="flex-1 max-w-xl">
+                  <div class="text-sm text-slate-500">
+                    已选择 {{ batchFiles.length }} 个视频，素材上传成功后进入处理队列。
+                  </div>
+                  <div v-if="batchFiles.length" class="mt-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                      <span>已完成 {{ batchProgress.finished }}/{{ batchProgress.total }}</span>
+                      <span>成功 {{ batchProgress.success }} 个，失败 {{ batchProgress.failed }} 个</span>
+                    </div>
+                    <el-progress :percentage="batchProgress.percent" :show-text="false" :stroke-width="6" />
+                  </div>
                 </div>
                 <el-button type="primary" size="large" class="px-8" :loading="batchSubmitting" :disabled="!canStartBatchProcessing" @click="startBatchProcessing">开始批量任务</el-button>
              </div>
@@ -558,6 +567,20 @@ const canStartProcessing = computed(() => {
 const canStartBatchProcessing = computed(() => {
   return batchFiles.value.some(item => item.status === 'ready' && !!item.name.trim() && !item.error)
     && !batchSubmitting.value
+})
+
+const batchProgress = computed(() => {
+  const total = batchFiles.value.length
+  const success = batchFiles.value.filter(item => item.status === 'uploaded' || item.status === 'submitted').length
+  const failed = batchFiles.value.filter(item => item.status === 'failed').length
+  const finished = success + failed
+  return {
+    total,
+    success,
+    failed,
+    finished,
+    percent: total ? Math.min(100, Math.round((finished / total) * 100)) : 0,
+  }
 })
 
 // --- 浠诲姟鍒楄〃鏁版嵁 ---
@@ -898,6 +921,9 @@ const validateVideoFile = (rawFile: File, requirePortrait = true): Promise<void>
 
 const resetCreateForm = () => {
   activeStep.value = 0
+  form.humanName = ''
+  form.gender = 'male'
+  form.currentTaskId = null
   form.hasFile = false
   form.rawFile = null
   form.videoType = 0
@@ -1015,7 +1041,7 @@ const handleBatchFileChange = async (file: any) => {
     key,
     file: rawFile,
     name: getFileBaseName(rawFile.name),
-    gender: form.gender,
+    gender: 'male',
     status: 'ready',
     progress: 0,
     error: '',
@@ -1093,6 +1119,7 @@ const startBatchProcessing = async () => {
         formData.append('is_video_dubbing', form.hasVideoDubbing ? 'true' : 'false')
 
         await createFastTask(formData, {
+          hideLoading: true,
           onUploadProgress: (event: ProgressEvent) => {
             if (event.lengthComputable) {
               item.progress = Math.max(1, Math.round((event.loaded / event.total) * 100))
@@ -1100,8 +1127,9 @@ const startBatchProcessing = async () => {
           }
         })
 
-        item.status = 'submitted'
+        item.status = 'uploaded'
         item.progress = 100
+        item.error = ''
         successCount++
       } catch (error: any) {
         item.status = 'failed'
@@ -1112,8 +1140,10 @@ const startBatchProcessing = async () => {
 
     await Promise.all([loadTaskList(), loadWaitingBefore()])
     if (successCount > 0) {
-      ElMessage.success(`批量任务已提交：成功 ${successCount} 个，失败 ${failedCount} 个`)
-      isCreating.value = false
+      ElMessage.success(`批量素材上传完成：成功 ${successCount} 个，失败 ${failedCount} 个`)
+      if (failedCount === 0) {
+        isCreating.value = false
+      }
     } else {
       ElMessage.error('所有视频提交失败，请检查错误信息')
     }
@@ -1168,7 +1198,7 @@ const startProcessing = async () => {
       // })
 
       activeStep.value = 1
-      ElMessage.success('任务已提交，正在处理中...')
+      ElMessage.success('视频上传完成，任务排队处理中...')
       
       // 鍚姩杞
       pollTaskProgress()

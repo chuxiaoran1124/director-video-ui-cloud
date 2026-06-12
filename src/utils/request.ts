@@ -4,7 +4,6 @@ import axios from 'axios'
 import { AxiosResponse } from 'axios'
 import { ElLoading, ElNotification } from 'element-plus'
 
-let loading:{close():void}
 // 创建 axios 实例
 const request = axios.create({
     // API 请求的默认前缀
@@ -17,7 +16,7 @@ const request = axios.create({
 
 // 异常拦截处理器
 const errorHandler = (error:any) => {
-    loading.close && loading.close()
+    error?.config?._loadingInstance?.close?.()
     let status = error && error.response ? error.response.status : undefined
     let msg = error && error.response && error.response.data && error.response.data.message ? error.response.data.message : error.message
     let title = status ? `请求失败 ${status}` : '请求失败'
@@ -40,13 +39,14 @@ const errorHandler = (error:any) => {
 
 // request interceptor
 request.interceptors.request.use(config => {
-    const { getStatus } = useLayoutStore()
-    loading = ElLoading.service({
-        lock: true,
-        text: 'Loading',
-        spinner: 'el-icon-loading',
-        background: 'rgba(0, 0, 0, 0.4)'
-    })
+    if (!(config as any).hideLoading) {
+        ;(config as any)._loadingInstance = ElLoading.service({
+            lock: true,
+            text: 'Loading',
+            spinner: 'el-icon-loading',
+            background: 'rgba(0, 0, 0, 0.4)'
+        })
+    }
     // 直接从 sessionStorage 读取 token
     const token = sessionStorage.getItem('token')
     if (token) {
@@ -59,7 +59,7 @@ request.interceptors.request.use(config => {
 request.interceptors.response.use((response:AxiosResponse<IResponse>) => {
     const { data } = response
     const { getStatus, logout, setToken } = useLayoutStore()
-    loading.close()
+    ;(response.config as any)._loadingInstance?.close?.()
     
     // 如果是blob类型（文件下载），直接返回
     if (response.data instanceof Blob) {
