@@ -47,12 +47,12 @@ $rootDirText = Convert-ToBashSingleQuotedText $config.Server.RootDir
 $repoDirText = Convert-ToBashSingleQuotedText $config.Frontend.RepoDir
 $sourceArchivePathText = Convert-ToBashSingleQuotedText $remoteSourceArchivePath
 $distArchivePathText = Convert-ToBashSingleQuotedText $remoteDistArchivePath
-$remoteScript = @"
+$remoteScript = @'
 set -euo pipefail
-ROOT_DIR=$rootDirText
-REPO_DIR=$repoDirText
-SOURCE_ARCHIVE=$sourceArchivePathText
-DIST_ARCHIVE=$distArchivePathText
+ROOT_DIR=__ROOT_DIR__
+REPO_DIR=__REPO_DIR__
+SOURCE_ARCHIVE=__SOURCE_ARCHIVE__
+DIST_ARCHIVE=__DIST_ARCHIVE__
 WORK_ROOT="\$ROOT_DIR/.release_work"
 SOURCE_DIR="\$WORK_ROOT/frontend_source_\$(date +%Y%m%d%H%M%S)"
 rm -rf "\$SOURCE_DIR"
@@ -62,7 +62,11 @@ chmod +x "\$SOURCE_DIR"/deploy/server/*.sh
 bash "\$SOURCE_DIR/deploy/server/frontend-deploy.sh" "\$ROOT_DIR" "\$SOURCE_DIR" "\$DIST_ARCHIVE"
 rm -f "\$SOURCE_ARCHIVE" "\$DIST_ARCHIVE"
 rm -rf "\$WORK_ROOT"
-"@
+'@
+$remoteScript = $remoteScript.Replace('__ROOT_DIR__', $rootDirText)
+$remoteScript = $remoteScript.Replace('__REPO_DIR__', $repoDirText)
+$remoteScript = $remoteScript.Replace('__SOURCE_ARCHIVE__', $sourceArchivePathText)
+$remoteScript = $remoteScript.Replace('__DIST_ARCHIVE__', $distArchivePathText)
 Invoke-RemoteBashScript -SshTarget $config.Server.SshTarget -ScriptContent $remoteScript
 
 if (-not $SkipHealthCheck) {
