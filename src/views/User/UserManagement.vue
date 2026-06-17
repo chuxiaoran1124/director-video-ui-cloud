@@ -144,7 +144,12 @@
                     <el-input v-model='createForm.username' placeholder='请输入用户名' />
                 </el-form-item>
                 <el-form-item label='初始密码' prop='password'>
-                    <el-input v-model='createForm.password' placeholder='请输入密码' show-password />
+                    <el-input
+                        v-model='createForm.password'
+                        placeholder='请设置该成员的初始密码'
+                        show-password
+                        autocomplete='new-password'
+                    />
                 </el-form-item>
                 <el-form-item label='姓名' prop='name'>
                     <el-input v-model='createForm.name' placeholder='请输入姓名' />
@@ -286,7 +291,7 @@ const search = reactive({
 const createForm = reactive({
     tenantId: layoutStore.getCurrentTenant?.id,
     username: '',
-    password: 'Cloud@123456',
+    password: '',
     name: '',
     email: '',
     phone: '',
@@ -364,7 +369,7 @@ const getPreferredRoleCode = (roleList: IUserRoleItem[]) => {
 const resetCreateForm = () => {
     createForm.tenantId = currentTenantId.value
     createForm.username = ''
-    createForm.password = 'Cloud@123456'
+    createForm.password = ''
     createForm.name = ''
     createForm.email = ''
     createForm.phone = ''
