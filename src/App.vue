@@ -38,9 +38,11 @@ export default defineComponent ({
 
         const { getUserInfo } = useLayoutStore()
         const username = computed(() => {
-            return getUserInfo.name || getCookie('username') || localStorage.getItem('username') || '未知用户'
+            return getUserInfo.name || getCookie('username') || localStorage.getItem('username') || ''
         })
-        const watermarkEnabled = (import.meta as any).env?.VITE_WATERMARK !== 'false'
+        const watermarkEnabled = computed(() => {
+            return (import.meta as any).env?.VITE_WATERMARK === 'true' && !!username.value
+        })
 
         return {
             locale,

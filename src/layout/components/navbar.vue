@@ -43,6 +43,25 @@
                 </el-dropdown-menu>
             </template>
         </el-dropdown>
+
+        <el-dropdown v-if='tenantList.length > 1' class='mr-4' @command='handleTenantSwitch'>
+            <span class='el-dropdown-link flex flex-center px-2'>
+                <el-tag effect='plain' type='success'>{{ currentTenant?.tenantName || '当前团队未设置' }}</el-tag>
+                <el-icon class='ml-2'><el-icon-arrow-down /></el-icon>
+            </span>
+            <template #dropdown>
+                <el-dropdown-menu>
+                    <el-dropdown-item
+                        v-for='tenant in tenantList'
+                        :key='tenant.id'
+                        :command='tenant.id'
+                        :disabled='tenant.id === currentTenant?.id'
+                    >
+                        {{ tenant.tenantName }}
+                    </el-dropdown-item>
+                </el-dropdown-menu>
+            </template>
+        </el-dropdown>
         
         <Notice />
         <Screenfull />
@@ -52,6 +71,7 @@
 
 <script lang='ts'>
 import { defineComponent, reactive, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useRoute, RouteLocationNormalizedLoaded } from 'vue-router'
 import Notice from '/@/layout/components/notice.vue'
@@ -59,6 +79,7 @@ import Screenfull from '/@/layout/components/screenfull.vue'
 import Search from '/@/layout/components/search.vue'
 import LayoutMenubar from '/@/layout/components/menubar.vue'
 import icon from '/@/assets/img/icon.png'
+import { ElMessageBox } from 'element-plus'
 
 
 interface IBreadcrumbList {
@@ -96,8 +117,26 @@ export default defineComponent ({
         LayoutMenubar
     },
     setup() {
-        const { getMenubar, getUserInfo, changeCollapsed, logout, getSetting } = useLayoutStore()
+        const layoutStore = useLayoutStore()
+        const { getMenubar, getUserInfo, getSetting, getCurrentTenant, getTenantList } = storeToRefs(layoutStore)
+        const { changeCollapsed, logout } = layoutStore
         const route = useRoute()
+        const handleTenantSwitch = async(tenantId: number) => {
+            if (tenantId === getCurrentTenant.value?.id) {
+                return
+            }
+            await ElMessageBox.confirm(
+                '切换团队后，当前工作入口和可查看内容会按新团队重新刷新，是否继续？',
+                '切换团队',
+                {
+                    type: 'warning',
+                    confirmButtonText: '继续切换',
+                    cancelButtonText: '取消'
+                }
+            )
+            await layoutStore.switchCurrentTenant(tenantId)
+        }
+
         return {
             getMenubar,
             userInfo: getUserInfo,
@@ -105,7 +144,10 @@ export default defineComponent ({
             logout,
             ...breadcrumb(route),
             getSetting,
-            icon
+            icon,
+            currentTenant: getCurrentTenant,
+            tenantList: getTenantList,
+            handleTenantSwitch
         }
     }
 })

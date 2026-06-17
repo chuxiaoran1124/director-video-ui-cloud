@@ -230,6 +230,11 @@
         </div>
       </el-tab-pane>
 
+      <!-- 角标管理 -->
+      <el-tab-pane label="角标管理" name="cornerMark">
+        <MaterialCornerMarkPanel />
+      </el-tab-pane>
+
       <!-- 横幅管理 Tab -->
       <el-tab-pane label="横幅管理" name="banner">
         <div class="p-5 bg-white rounded-b-lg">
@@ -516,8 +521,24 @@
               <div class="p-2">
                 <el-input v-model="searchAddVoice" placeholder="搜索声音..." size="mini" prefix-icon="ElIconSearch" />
               </div>
-              <el-table ref="voiceTableRef" :data="filteredAddVoices" height="100%" size="mini" @selection-change="handleVoiceSelectionChange" class="flex-1">
-                <el-table-column type="selection" width="35" />
+              <el-table
+                ref="voiceTableRef"
+                :data="filteredAddVoices"
+                :row-key="getDialogRowKey"
+                height="100%"
+                size="mini"
+                class="flex-1"
+                @row-click="handleVoiceRowClick"
+              >
+                <el-table-column label="选中" width="60" align="center">
+                  <template #default="{ row }">
+                    <el-checkbox
+                      :model-value="isVoiceSelected(row)"
+                      @change="toggleVoiceSelection(row)"
+                      @click.stop
+                    />
+                  </template>
+                </el-table-column>
                 <el-table-column prop="voiceName" label="名称" show-overflow-tooltip />
               </el-table>
             </div>
@@ -531,8 +552,24 @@
               <div class="p-2">
                 <el-input v-model="searchAddDH" placeholder="鎼滅储鏁板瓧浜?.." size="mini" prefix-icon="ElIconSearch" />
               </div>
-              <el-table ref="dhTableRef" :data="filteredAddDHs" height="100%" size="mini" @selection-change="handleDHSelectionChange" class="flex-1">
-                <el-table-column type="selection" width="35" />
+              <el-table
+                ref="dhTableRef"
+                :data="filteredAddDHs"
+                :row-key="getDialogRowKey"
+                height="100%"
+                size="mini"
+                class="flex-1"
+                @row-click="handleDHRowClick"
+              >
+                <el-table-column label="选中" width="60" align="center">
+                  <template #default="{ row }">
+                    <el-checkbox
+                      :model-value="isDHSelected(row)"
+                      @change="toggleDHSelection(row)"
+                      @click.stop
+                    />
+                  </template>
+                </el-table-column>
                 <el-table-column prop="digitalHumanName" label="名称" show-overflow-tooltip />
               </el-table>
             </div>
@@ -572,7 +609,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="addRelVisible = false">取消</el-button>
-          <el-button type="primary" :disabled="!selectedVoices.length || !selectedDHs.length" @click="saveRelations">确认生成</el-button>
+          <el-button type="primary" @click="saveRelations">确认生成</el-button>
         </div>
       </template>
     </el-dialog>
@@ -611,6 +648,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, computed, reactive, nextTick, watch } from 'vue'
 import TagManager from '/@/components/TagManager/index.vue'
+import MaterialCornerMarkPanel from '/@/views/PriorDisposal/components/MaterialCornerMarkPanel.vue'
 import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding, bannerOverlayPreview, bannerOverlaySave, downloadFileByProxy } from '/@/api/material/index'
 import request from '/@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -618,7 +656,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 export default defineComponent({
   name: 'MaterialManagement',
   components: {
-    TagManager
+    TagManager,
+    MaterialCornerMarkPanel
   },
   setup() {
     const activeName = ref('voice')
@@ -644,6 +683,7 @@ export default defineComponent({
     const bannerSelectedDH = ref<number | null>(null)
     const bannerSelectedDHName = ref('')
     const bannerDHCoverUrl = ref('')
+    const bannerDHVideoUrl = ref('')
     const bannerImageUrl = ref('')
     const bannerPreviewImageUrl = ref('')
     const bannerFallbackPreviewUrl = ref('')
@@ -919,6 +959,139 @@ export default defineComponent({
       return await blobToDataUrl(res.data as Blob)
     }
 
+    const syncBannerBackgroundSize = async (src: string) => {
+      if (!src) return
+      const bgSize = await getImageSizeByUrl(src)
+      bannerBgNaturalWidth.value = bgSize.width || 360
+      bannerBgNaturalHeight.value = bgSize.height || 640
+    }
+
+    const extractVideoFrameByProxy = async (videoUrl: string) => {
+      if (!videoUrl) {
+        throw new Error('Missing banner background video url')
+      }
+      const res = await downloadFileByProxy(videoUrl)
+      const videoBlob = res.data as Blob
+      const objectUrl = URL.createObjectURL(videoBlob)
+      try {
+        return await new Promise<string>((resolve, reject) => {
+          const video = document.createElement('video')
+          const canvas = document.createElement('canvas')
+          let settled = false
+
+          const cleanup = () => {
+            video.pause()
+            video.removeAttribute('src')
+            video.load()
+          }
+
+          const finish = (handler: () => void) => {
+            if (settled) return
+            settled = true
+            cleanup()
+            handler()
+          }
+
+          const captureFrame = () => {
+            const width = Math.max(1, video.videoWidth || 360)
+            const height = Math.max(1, video.videoHeight || 640)
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
+              finish(() => reject(new Error('Canvas context unavailable')))
+              return
+            }
+            ctx.drawImage(video, 0, 0, width, height)
+            finish(() => resolve(canvas.toDataURL('image/png')))
+          }
+
+          video.preload = 'auto'
+          video.muted = true
+          video.playsInline = true
+          video.crossOrigin = 'anonymous'
+
+          video.addEventListener('error', () => {
+            finish(() => reject(new Error('Video frame extraction failed')))
+          })
+
+          video.addEventListener('loadedmetadata', () => {
+            const targetTime = Number.isFinite(video.duration) && video.duration > 0.15 ? 0.1 : 0
+            if (targetTime > 0) {
+              try {
+                video.currentTime = targetTime
+              } catch (error) {
+                console.warn('Seek video frame failed, fallback to first loaded frame:', error)
+                if (video.readyState >= 2) {
+                  captureFrame()
+                }
+              }
+              return
+            }
+            if (video.readyState >= 2) {
+              captureFrame()
+            }
+          })
+
+          video.addEventListener('loadeddata', () => {
+            if (!settled && video.currentTime === 0) {
+              captureFrame()
+            }
+          })
+
+          video.addEventListener('seeked', () => {
+            if (!settled) {
+              captureFrame()
+            }
+          })
+
+          video.src = objectUrl
+          video.load()
+        })
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+
+    const loadBannerBackgroundAsset = async (coverUrl: string, videoUrl: string = '') => {
+      if (!coverUrl && !videoUrl) {
+        bannerBackgroundBase64.value = ''
+        return
+      }
+
+      try {
+        if (coverUrl) {
+          await syncBannerBackgroundSize(coverUrl)
+        }
+      } catch (error) {
+        console.error('Load banner background size failed:', error)
+      }
+
+      try {
+        if (coverUrl) {
+          bannerBackgroundBase64.value = await getImageBase64ByProxy(coverUrl)
+          return
+        }
+      } catch (error) {
+        console.error('Load banner background base64 failed:', error)
+      }
+
+      if (!videoUrl) {
+        bannerBackgroundBase64.value = ''
+        throw new Error('Banner background cover unavailable and video url missing')
+      }
+
+      try {
+        const frameBase64 = await extractVideoFrameByProxy(videoUrl)
+        bannerBackgroundBase64.value = frameBase64
+        await syncBannerBackgroundSize(frameBase64)
+      } catch (error) {
+        console.error('Load banner background fallback frame failed:', error)
+        bannerBackgroundBase64.value = ''
+        throw error
+      }
+    }
+
     const normalizePreviewImage = (raw: unknown) => {
       if (typeof raw !== 'string') return ''
       const value = raw.trim()
@@ -1103,7 +1276,7 @@ export default defineComponent({
       try {
         const searchObj: any = {}
         const keyword = bannerDHSearchKeyword.value.trim()
-        if (keyword) searchObj.name = keyword
+        if (keyword) searchObj.digitalHumanName = keyword
         const res = await getDigitalHumanPaginateList(bannerDHPage.page, bannerDHPage.pageSize, searchObj)
         if (res.data.code === 200 && res.data.data) {
           const list = res.data.data.data || []
@@ -1142,7 +1315,8 @@ export default defineComponent({
       }
     }
 
-    async function onBannerDHChange(id: number | null) {
+    async function onBannerDHChange(id: number | string | null) {
+      const normalizedId = id === null || id === undefined || id === '' ? null : Number(id)
       const currentTransform = {
         x: Number(bannerX.value ?? 0),
         y: Number(bannerY.value ?? 0),
@@ -1151,27 +1325,28 @@ export default defineComponent({
         rotate: Number(bannerRotate.value ?? 0),
         opacity: Number(bannerOpacity.value ?? 1)
       }
-      if (!id) {
+      if (!normalizedId) {
         bannerSelectedDHName.value = ''
         bannerDHCoverUrl.value = ''
+        bannerDHVideoUrl.value = ''
         bannerBackgroundBase64.value = ''
         bannerPreviewImageUrl.value = bannerFallbackPreviewUrl.value || ''
         bannerPreviewError.value = (!bannerPreviewImageUrl.value && bannerImageUrl.value) ? '请选择数字人后拉取预览' : ''
         return
       }
-      const dh = (bannerDHOptions.value as any[]).find((d: any) => d.id === id)
-        || (digitalHumans.value as any[]).find((d: any) => d.id === id)
+      if (bannerSelectedDH.value !== normalizedId) {
+        bannerSelectedDH.value = normalizedId
+      }
+      const dh = (bannerDHOptions.value as any[]).find((d: any) => Number(d.id) === normalizedId)
+        || (digitalHumans.value as any[]).find((d: any) => Number(d.id) === normalizedId)
       bannerSelectedDHName.value = dh?.digitalHumanName ?? ''
       bannerDHCoverUrl.value = dh?.coverUrl ?? ''
+      bannerDHVideoUrl.value = dh?.videoUrl ?? ''
       try {
-        const bgSize = await getImageSizeByUrl(bannerDHCoverUrl.value)
-        bannerBgNaturalWidth.value = bgSize.width || 360
-        bannerBgNaturalHeight.value = bgSize.height || 640
-        bannerBackgroundBase64.value = bannerDHCoverUrl.value ? await getImageBase64ByProxy(bannerDHCoverUrl.value) : ''
+        await loadBannerBackgroundAsset(bannerDHCoverUrl.value, bannerDHVideoUrl.value)
       } catch (error) {
-        console.error('Load banner background base64 failed:', error)
         bannerBackgroundBase64.value = ''
-        bannerPreviewError.value = '数字人封面读取失败，暂时无法预览'
+        bannerPreviewError.value = '数字人预览底图读取失败，暂时无法预览'
       }
       const fixedTransform = bannerLoadedTransform || currentTransform
       bannerX.value = fixedTransform.x
@@ -1182,6 +1357,55 @@ export default defineComponent({
       bannerOpacity.value = fixedTransform.opacity
       clampBannerPosition()
       await requestBannerPreview(true)
+    }
+
+    const ensureBannerDhSnapshotReady = async () => {
+      if (!bannerSelectedDH.value) return
+      if (bannerSelectedDHName.value && bannerDHVideoUrl.value) return
+
+      let dh = (bannerDHOptions.value as any[]).find((item: any) => Number(item.id) === Number(bannerSelectedDH.value))
+        || (digitalHumans.value as any[]).find((item: any) => Number(item.id) === Number(bannerSelectedDH.value))
+
+      if (!dh) {
+        const res = await getDigitalHumanPaginateList(1, 100, { digitalHumanId: bannerSelectedDH.value })
+        const list = res?.data?.data?.data || []
+        dh = list.find((item: any) => Number(item.id) === Number(bannerSelectedDH.value))
+      }
+
+      if (dh) {
+        bannerSelectedDHName.value = dh.digitalHumanName || ''
+        bannerDHCoverUrl.value = dh.coverUrl || ''
+        bannerDHVideoUrl.value = dh.videoUrl || ''
+      }
+    }
+
+    const ensureBannerAssetsReady = async () => {
+      await ensureBannerDhSnapshotReady()
+
+      if (!bannerBackgroundBase64.value && (bannerDHCoverUrl.value || bannerDHVideoUrl.value)) {
+        try {
+          await loadBannerBackgroundAsset(bannerDHCoverUrl.value, bannerDHVideoUrl.value)
+        } catch (error) {
+          console.error('Ensure banner background failed:', error)
+        }
+      }
+
+      if (!bannerOverlayBase64.value && bannerImageUrl.value) {
+        try {
+          if (bannerImageUrl.value.startsWith('data:')) {
+            bannerOverlayBase64.value = bannerImageUrl.value
+          } else {
+            bannerOverlayBase64.value = await getImageBase64ByProxy(bannerImageUrl.value)
+          }
+          const size = await getImageSizeByUrl(bannerImageUrl.value)
+          if (size.width > 0 && size.height > 0) {
+            bannerOverlayNaturalWidth.value = size.width
+            bannerOverlayNaturalHeight.value = size.height
+          }
+        } catch (error) {
+          console.error('Ensure banner overlay failed:', error)
+        }
+      }
     }
 
     async function onBannerImageChange(file: any) {
@@ -1344,6 +1568,7 @@ export default defineComponent({
       bannerSelectedDH.value = null
       bannerSelectedDHName.value = ''
       bannerDHCoverUrl.value = ''
+      bannerDHVideoUrl.value = ''
       bannerName.value = ''
       bannerOriginalName.value = ''
       bannerNameValid.value = true
@@ -1385,17 +1610,20 @@ export default defineComponent({
       bannerSelectedDH.value = row.dhId || null
       bannerSelectedDHName.value = row.dhName || ''
       bannerDHCoverUrl.value = row.dhCoverUrl || ''
-      if (!bannerDHCoverUrl.value && row.dhId) {
+      bannerDHVideoUrl.value = row.dhVideoUrl || ''
+      if ((!bannerDHCoverUrl.value || !bannerDHVideoUrl.value) && row.dhId) {
         const fallbackDh = (digitalHumans.value as any[]).find((d: any) => Number(d.id) === Number(row.dhId))
-        if (fallbackDh?.coverUrl) {
-          bannerDHCoverUrl.value = fallbackDh.coverUrl
+        if (fallbackDh) {
+          bannerDHCoverUrl.value = bannerDHCoverUrl.value || fallbackDh.coverUrl || ''
+          bannerDHVideoUrl.value = bannerDHVideoUrl.value || fallbackDh.videoUrl || ''
         } else {
           try {
             const dhRes = await getDigitalHumanPaginateList(1, 100)
             const dhList = dhRes?.data?.data?.data || []
             const remoteDh = dhList.find((d: any) => Number(d.id) === Number(row.dhId))
-            if (remoteDh?.coverUrl) {
-              bannerDHCoverUrl.value = remoteDh.coverUrl
+            if (remoteDh) {
+              bannerDHCoverUrl.value = bannerDHCoverUrl.value || remoteDh.coverUrl || ''
+              bannerDHVideoUrl.value = bannerDHVideoUrl.value || remoteDh.videoUrl || ''
             }
           } catch (e) {
             console.error('Fallback load DH cover failed:', e)
@@ -1423,12 +1651,7 @@ export default defineComponent({
       bannerMode.value = 'edit'
 
       try {
-        if (bannerDHCoverUrl.value) {
-          const bgSize = await getImageSizeByUrl(bannerDHCoverUrl.value)
-          bannerBgNaturalWidth.value = bgSize.width || 360
-          bannerBgNaturalHeight.value = bgSize.height || 640
-        }
-        bannerBackgroundBase64.value = bannerDHCoverUrl.value ? await getImageBase64ByProxy(bannerDHCoverUrl.value) : ''
+        await loadBannerBackgroundAsset(bannerDHCoverUrl.value, bannerDHVideoUrl.value)
       } catch (error) {
         console.error('Load edit background base64 failed:', error)
         bannerBackgroundBase64.value = ''
@@ -1564,6 +1787,8 @@ export default defineComponent({
         return
       }
 
+      await ensureBannerAssetsReady()
+
       if (!bannerBackgroundBase64.value || !bannerOverlayBase64.value) {
         ElMessage.warning('缺少底图或横幅图数据，无法保存')
         return
@@ -1666,8 +1891,8 @@ export default defineComponent({
     const editRelVisible = ref(false)
     const searchAddVoice = ref('')
     const searchAddDH = ref('')
-    const selectedVoices = ref<any[]>([])
-    const selectedDHs = ref<any[]>([])
+    const selectedVoiceIds = ref<number[]>([])
+    const selectedDHIds = ref<number[]>([])
     const voicesForDialog = ref<any[]>([])
     const digitalHumansForDialog = ref<any[]>([])
     const voiceDialogPage = reactive({ currentPage: 1, pageSize: 20, total: 0, loading: false })
@@ -1747,6 +1972,16 @@ export default defineComponent({
       return digitalHumansForDialog.value.filter((d: any) => 
         (d.digitalHumanName || '').toLowerCase().includes(searchAddDH.value.toLowerCase())
       )
+    })
+
+    const selectedVoices = computed(() => {
+      const selectedIdSet = new Set(selectedVoiceIds.value)
+      return voicesForDialog.value.filter((voice: any) => selectedIdSet.has(Number(voice?.id)))
+    })
+
+    const selectedDHs = computed(() => {
+      const selectedIdSet = new Set(selectedDHIds.value)
+      return digitalHumansForDialog.value.filter((digitalHuman: any) => selectedIdSet.has(Number(digitalHuman?.id)))
     })
 
     const fetchData = async () => {
@@ -1835,11 +2070,9 @@ export default defineComponent({
     // 关系管理操作
     const fetchVoicesForDialog = async () => {
       try {
-        console.log('Fetching all voices for dialog')
         const res = await getVoicePaginateList(1, 999)
         if (res.data.code === 200 && res.data.data) {
           voicesForDialog.value = res.data.data.data || []
-          console.log('Voices loaded:', voicesForDialog.value.length)
         }
       } catch (error) {
         console.error('Failed to fetch voices for dialog:', error)
@@ -1848,11 +2081,9 @@ export default defineComponent({
 
     const fetchDigitalHumansForDialog = async () => {
       try {
-        console.log('Fetching all digital humans for dialog')
         const res = await getDigitalHumanPaginateList(1, 999)
         if (res.data.code === 200 && res.data.data) {
           digitalHumansForDialog.value = res.data.data.data || []
-          console.log('Digital humans loaded:', digitalHumansForDialog.value.length)
         }
       } catch (error) {
         console.error('Failed to fetch digital humans for dialog:', error)
@@ -1870,8 +2101,8 @@ export default defineComponent({
     const openAddRelDialog = async () => {
       searchAddVoice.value = ''
       searchAddDH.value = ''
-      selectedVoices.value = []
-      selectedDHs.value = []
+      selectedVoiceIds.value = []
+      selectedDHIds.value = []
       isAddRelTag.value = false
       bulkRelTags.value = []
       bulkTagInput.value = ''
@@ -1896,24 +2127,55 @@ export default defineComponent({
       }
     }
 
-    const handleVoiceSelectionChange = (val: any[]) => {
-      selectedVoices.value = val
+    const getDialogRowKey = (row: any) => row?.id
+
+    const normalizeDialogRowId = (row: any) => Number(row?.id || 0)
+
+    const toggleSelectedIds = (selectedIds: number[], row: any) => {
+      const targetId = normalizeDialogRowId(row)
+      if (!targetId) return selectedIds
+      return selectedIds.includes(targetId)
+        ? selectedIds.filter(id => id !== targetId)
+        : [...selectedIds, targetId]
     }
 
-    const handleDHSelectionChange = (val: any[]) => {
-      selectedDHs.value = val
+    const isVoiceSelected = (row: any) => {
+      return selectedVoiceIds.value.includes(normalizeDialogRowId(row))
+    }
+
+    const isDHSelected = (row: any) => {
+      return selectedDHIds.value.includes(normalizeDialogRowId(row))
+    }
+
+    const toggleVoiceSelection = (row: any) => {
+      selectedVoiceIds.value = toggleSelectedIds(selectedVoiceIds.value, row)
+    }
+
+    const toggleDHSelection = (row: any) => {
+      selectedDHIds.value = toggleSelectedIds(selectedDHIds.value, row)
+    }
+
+    const handleVoiceRowClick = (row: any) => {
+      toggleVoiceSelection(row)
+    }
+
+    const handleDHRowClick = (row: any) => {
+      toggleDHSelection(row)
     }
 
     const saveRelations = async () => {
-      if (selectedVoices.value.length === 0 || selectedDHs.value.length === 0) return
+      const resolvedVoices = selectedVoices.value
+      const resolvedDHs = selectedDHs.value
+
+      if (resolvedVoices.length === 0 || resolvedDHs.length === 0) return
       
       const sharedTags = isAddRelTag.value ? `|${bulkRelTags.value.join('|')}|` : ''
       
       try {
         let successCount = 0
         // 绗涘崱灏旂Н鐢熸垚骞跺垱寤?
-        for (const v of selectedVoices.value) {
-          for (const d of selectedDHs.value) {
+        for (const v of resolvedVoices) {
+          for (const d of resolvedDHs) {
             const bindingData = {
               voiceId: v.id,
               digitalHumanId: d.id,
@@ -2274,6 +2536,11 @@ export default defineComponent({
       }
     }, { deep: true })
 
+    watch(() => bannerSelectedDH.value, (newVal, oldVal) => {
+      if (newVal === oldVal) return
+      onBannerDHChange(newVal as number | null)
+    })
+
     watch(() => [bannerX.value, bannerY.value, bannerScaleX.value, bannerScaleY.value, bannerRotate.value, bannerOpacity.value], () => {
       if (bannerEditInitializing) return
       clampBannerPosition()
@@ -2352,8 +2619,13 @@ export default defineComponent({
         relTagManagerRef,
       dhTableRef,
       addBulkRelTag,
-      handleVoiceSelectionChange,
-      handleDHSelectionChange,
+      handleVoiceRowClick,
+      handleDHRowClick,
+      isVoiceSelected,
+      isDHSelected,
+      toggleVoiceSelection,
+      toggleDHSelection,
+      getDialogRowKey,
       saveRelations,
       handleEditRel,
       saveEditRel,

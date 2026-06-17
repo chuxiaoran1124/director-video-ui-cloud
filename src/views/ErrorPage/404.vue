@@ -1,269 +1,115 @@
 <template>
-    <div class='wscn-http404-container'>
-        <div class='wscn-http404'>
-            <div class='pic-404'>
-                <img class='pic-404__parent' :src='err404' alt='404'>
-                <img class='pic-404__child left' :src='errCloud' alt='404'>
-                <img class='pic-404__child mid' :src='errCloud' alt='404'>
-                <img class='pic-404__child right' :src='errCloud' alt='404'>
-            </div>
-            <div class='bullshit'>
-                <div class='bullshit__oops'>OOPS!</div>
-                <div class='bullshit__info'>
-                    All rights reserved
-                    <a class='bullshit__info-link' href='https://wallstreetcn.com' target='_blank'>wallstreetcn</a>
+    <div class='not-found-page'>
+        <div class='not-found-card'>
+            <div class='not-found-card__code'>404</div>
+        <div class='not-found-card__content'>
+            <span class='not-found-card__eyebrow'>暂时不可用</span>
+            <h1>这个页面暂时进不去。</h1>
+            <p>
+                可能是这个入口还没有对你的账号开放，也可能是页面位置刚刚调整。
+                你可以先回到首页继续工作，或者联系管理员确认可用功能。
+            </p>
+                <div class='not-found-actions'>
+                    <el-button type='primary' @click='goHome'>返回首页</el-button>
+                    <el-button plain @click='goBack'>返回上一页</el-button>
                 </div>
-                <div class='bullshit__headline'>{{ message }}</div>
-                <div class='bullshit__info'>
-                    Please check that the URL you entered is correct, or click the button below to return to the homepage.
-                </div>
-                <router-link to='/' class='bullshit__return-home'>Back to home</router-link>
             </div>
         </div>
     </div>
 </template>
-<script lang='ts'>
-import { defineComponent } from 'vue'
-import { useLayoutStore } from '/@/store/modules/layout'
 
-import err404 from '/@/assets/img/404.png'
-import errCloud from '/@/assets/img/404_cloud.png'
+<script lang='ts' setup>
+import { useRouter } from 'vue-router'
 
-export default defineComponent({
-    name: '404',
-    setup() {
-        const { color } = useLayoutStore().getSetting
-        return {
-            err404,
-            errCloud,
-            message: 'The webmaster said that you can not enter this page...',
-            color
-        }
-    }
-})
+const router = useRouter()
+
+const goHome = () => {
+    router.push('/')
+}
+
+const goBack = () => {
+    router.back()
+}
 </script>
 
 <style lang='postcss' scoped>
-.wscn-http404-container {
-    transform: translate(-50%, -50%);
-    position: absolute;
-    top: 40%;
-    left: 50%;
+.not-found-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+        radial-gradient(circle at 16% 18%, rgba(14, 165, 164, 0.18), transparent 24%),
+        radial-gradient(circle at 88% 30%, rgba(59, 130, 246, 0.14), transparent 24%),
+        linear-gradient(135deg, #06121d 0%, #0b1f31 42%, #11263a 100%);
 }
 
-.wscn-http404 {
-    position: relative;
-    width: 1200px;
-    padding: 0 50px;
+.not-found-card {
+    width: min(1040px, 100%);
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 28px;
+    padding: 42px;
+    border-radius: 30px;
+    background: rgba(248, 252, 255, 0.96);
+    box-shadow: 0 30px 90px rgba(2, 12, 23, 0.36);
     overflow: hidden;
+}
 
-    .pic-404 {
-        position: relative;
-        float: left;
-        width: 600px;
-        overflow: hidden;
+.not-found-card__code {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #0f766e, #0f172a);
+    color: #f0fdfa;
+    font-size: clamp(64px, 10vw, 110px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
 
-        &__parent {
-            width: 100%;
-        }
+.not-found-card__eyebrow {
+    display: inline-block;
+    color: #0f766e;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
 
-        &__child {
-            position: absolute;
+.not-found-card__content h1 {
+    margin: 16px 0 14px;
+    font-size: clamp(28px, 4vw, 42px);
+    line-height: 1.2;
+    color: #0f172a;
+}
 
-            &.left {
-                width: 80px;
-                top: 17px;
-                left: 220px;
-                opacity: 0;
-                animation-name: cloudLeft;
-                animation-duration: 2s;
-                animation-timing-function: linear;
-                animation-fill-mode: forwards;
-                animation-delay: 1s;
-            }
+.not-found-card__content p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #475569;
+}
 
-            &.mid {
-                width: 46px;
-                top: 10px;
-                left: 420px;
-                opacity: 0;
-                animation-name: cloudMid;
-                animation-duration: 2s;
-                animation-timing-function: linear;
-                animation-fill-mode: forwards;
-                animation-delay: 1.2s;
-            }
+.not-found-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+}
 
-            &.right {
-                width: 62px;
-                top: 100px;
-                left: 500px;
-                opacity: 0;
-                animation-name: cloudRight;
-                animation-duration: 2s;
-                animation-timing-function: linear;
-                animation-fill-mode: forwards;
-                animation-delay: 1s;
-            }
-
-            @keyframes cloudLeft {
-                0% {
-                    top: 17px;
-                    left: 220px;
-                    opacity: 0;
-                }
-
-                20% {
-                    top: 33px;
-                    left: 188px;
-                    opacity: 1;
-                }
-
-                80% {
-                    top: 81px;
-                    left: 92px;
-                    opacity: 1;
-                }
-
-                100% {
-                    top: 97px;
-                    left: 60px;
-                    opacity: 0;
-                }
-            }
-
-            @keyframes cloudMid {
-                0% {
-                    top: 10px;
-                    left: 420px;
-                    opacity: 0;
-                }
-
-                20% {
-                    top: 40px;
-                    left: 360px;
-                    opacity: 1;
-                }
-
-                70% {
-                    top: 130px;
-                    left: 180px;
-                    opacity: 1;
-                }
-
-                100% {
-                    top: 160px;
-                    left: 120px;
-                    opacity: 0;
-                }
-            }
-
-            @keyframes cloudRight {
-                0% {
-                    top: 100px;
-                    left: 500px;
-                    opacity: 0;
-                }
-
-                20% {
-                    top: 120px;
-                    left: 460px;
-                    opacity: 1;
-                }
-
-                80% {
-                    top: 180px;
-                    left: 340px;
-                    opacity: 1;
-                }
-
-                100% {
-                    top: 200px;
-                    left: 300px;
-                    opacity: 0;
-                }
-            }
-        }
+@media (max-width: 820px) {
+    .not-found-card {
+        grid-template-columns: 1fr;
+        padding: 28px;
     }
 
-    .bullshit {
-        position: relative;
-        float: left;
-        width: 300px;
-        padding: 30px 0;
-        overflow: hidden;
+    .not-found-card__code {
+        min-height: 160px;
+    }
 
-        .bullshit__info-link {
-            color: v-bind(color.primary);
-        }
-
-        &__oops {
-            font-size: 32px;
-            font-weight: bold;
-            line-height: 40px;
-            color: v-bind(color.primary);
-            opacity: 0;
-            margin-bottom: 20px;
-            animation-name: slideUp;
-            animation-duration: 0.5s;
-            animation-fill-mode: forwards;
-        }
-
-        &__headline {
-            font-size: 20px;
-            line-height: 24px;
-            color: #222;
-            font-weight: bold;
-            opacity: 0;
-            margin-bottom: 10px;
-            animation-name: slideUp;
-            animation-duration: 0.5s;
-            animation-delay: 0.1s;
-            animation-fill-mode: forwards;
-        }
-
-        &__info {
-            font-size: 13px;
-            line-height: 21px;
-            color: grey;
-            opacity: 0;
-            margin-bottom: 30px;
-            animation-name: slideUp;
-            animation-duration: 0.5s;
-            animation-delay: 0.2s;
-            animation-fill-mode: forwards;
-        }
-
-        &__return-home {
-            display: block;
-            float: left;
-            width: 110px;
-            height: 36px;
-            background: v-bind(color.primary);
-            border-radius: 100px;
-            text-align: center;
-            color: #fff;
-            opacity: 0;
-            font-size: 14px;
-            line-height: 36px;
-            cursor: pointer;
-            animation-name: slideUp;
-            animation-duration: 0.5s;
-            animation-delay: 0.3s;
-            animation-fill-mode: forwards;
-        }
-
-        @keyframes slideUp {
-            0% {
-                transform: translateY(60px);
-                opacity: 0;
-            }
-
-            100% {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
+    .not-found-actions {
+        flex-direction: column;
     }
 }
 </style>

@@ -1,9 +1,10 @@
 export enum IMenubarStatus {
-    PCE, // 电脑展开
-    PCN, // 电脑合并
-    PHE, // 手机展开
-    PHN // 手机合并
+    PCE,
+    PCN,
+    PHE,
+    PHN
 }
+
 export interface ISetting {
     theme: number
     showTags: boolean
@@ -11,54 +12,110 @@ export interface ISetting {
         primary: string
     }
     usePinyinSearch: boolean
-    mode: 'horizontal' | 'vertical' // 导航模式
+    mode: 'horizontal' | 'vertical'
 }
+
+export interface ITenantSummary {
+    id: number
+    tenantCode: string
+    tenantName: string
+    tenantShortName?: string | null
+    status: string
+    deployMode: string
+}
+
+export interface IPermissionFlags {
+    canManageUsers: boolean
+    canManageRoles: boolean
+    canManageRolePermissions: boolean
+    canManageTenantRoutes: boolean
+}
+
+export interface ITenantRoleProfile {
+    id: number
+    role_code: string
+    role_name: string
+    data_scope: string
+    role_level: number
+    can_manage_users: boolean
+    can_manage_roles: boolean
+    can_manage_role_permissions: boolean
+    can_manage_tenant_routes: boolean
+    is_system: boolean
+}
+
+export interface IUserInfo {
+    userId: number | string
+    username: string
+    email?: string | null
+    name: string
+    phone?: string | null
+    status: string
+    role: string
+    photoUrl?: string | null
+    tenantId?: number
+    tenantCode?: string
+    tenantRoleIds: number[]
+    tenantRoleCodes: string[]
+    tenantRoleNames?: string[]
+    tenantRoleProfiles: ITenantRoleProfile[]
+    globalRoleCodes: string[]
+    globalRoleNames?: string[]
+    permissionFlags: IPermissionFlags
+    dataScope: string
+    isPlatformSuperAdmin: boolean
+}
+
 export interface IMenubar {
     status: IMenubarStatus
     menuList: Array<IMenubarList>
     isPhone: boolean
 }
-export interface IUserInfo {
-    id?: number | string,
-    user_id?: number | string,
-    name: string,
-    username: string,
-    role: string[]
-}
+
 export interface ITags {
     tagsList: Array<ITagsList>
     cachedViews: string[]
     isNocacheView: boolean
 }
+
 export interface IStatus {
     isLoading: boolean
     ACCESS_TOKEN: string
+    REFRESH_TOKEN: string
+    isUserLoaded: boolean
+    isRoutesLoaded: boolean
+    isLoggingOut: boolean
 }
+
 export interface ILayout {
-    // 左侧导航栏
     menubar: IMenubar
-    // 用户信息
     userInfo: IUserInfo
-    // 标签栏
     tags: ITags
     setting: ISetting
-    status:IStatus
+    status: IStatus
+    currentTenant: ITenantSummary | null
+    tenantList: ITenantSummary[]
+    dynamicRouteNames: string[]
 }
+
+export interface IRouteMeta {
+    icon: string
+    title: string
+    permission?: string[]
+    activeMenu?: string
+    noCache?: boolean
+    hidden?: boolean
+    alwaysShow?: boolean
+    routeScope?: string
+}
+
 export interface IMenubarList {
     parentId?: number | string
     id?: number | string
     name: string
     path: string
-    redirect?: string | {name: string}
-    meta: {
-        icon: string
-        title: string
-        permission?: string[]
-        activeMenu?: string // 路由设置了该属性，则会高亮相对应的侧边栏
-        noCache?: boolean // 页面是否不缓存
-        hidden?: boolean // 是否隐藏路由
-        alwaysShow?: boolean // 当子路由只有一个的时候是否显示当前路由
-    }
+    redirect?: string | { name: string }
+    meta: IRouteMeta
     component: (() => Promise<typeof import('*.vue')>) | string
     children?: Array<IMenubarList>
 }

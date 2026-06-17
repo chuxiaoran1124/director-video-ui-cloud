@@ -89,23 +89,6 @@
                 clearable 
                 prefix-icon="ElIconSearch"
               />
-              <!-- 组织下拉框暁无使用 -->
-              <!-- <el-select 
-                :model-value="selectedGroup?.group_id" 
-                placeholder="选择组织" 
-                clearable 
-                size="default" 
-                style="width: 160px"
-                @change="handleGroupChange"
-              >
-                <el-option 
-                  v-for="group in userGroups" 
-                  :key="group.group_id" 
-                  :label="group.group_name" 
-                  :value="group.group_id"
-                />
-              </el-select> -->
-              
               <el-input 
                 v-model="searchLibTag" 
                 placeholder="搜索标签..." 
@@ -160,11 +143,8 @@
             </el-table-column> -->
             <el-table-column label="操作" width="180" align="center" fixed="right">
               <template #default="scope">
-                <!-- 模拟权限判定：只有创建者或管理员能编辑/删除 -->
                 <template v-if="canManage(scope.row)">
                   <el-button type="primary" plain size="mini" @click="handleEditLibrary(scope.row)">编辑</el-button>
-                  <!-- 组公开功能暁不抽绊 -->
-                  <!-- <el-button v-if="hasGroupWithRole2" type="warning" plain size="mini" @click="handleGroupShare(scope.row)">组公开</el-button> -->
                   <el-button type="danger" plain size="mini" @click="handleDeleteLibrary(scope.row)">删除</el-button>
                 </template>
                 <span v-else class="text-gray-400 text-xs italic">无权限</span>
@@ -308,6 +288,7 @@
 <script lang="ts">
 import { defineComponent, ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useLayoutStore } from '/@/store/modules/layout'
 import { 
     getScriptHistoryList, 
     updateScriptHistory, 
@@ -317,15 +298,20 @@ import {
     deleteScript
     // makeScriptGroupPublic
 } from '/@/api/material'
-import { getUserGroupInfo } from '/@/api/system/group'
 
 export default defineComponent({
   name: 'DocumentManagement',
   setup() {
+    const layoutStore = useLayoutStore()
+
     // 状态控制
     const activeTab = ref('history')
     const loading = ref(false)
-    const currentUser = ref<string>('admin') // 模拟当前登录人，实际需从 store 或 API 获取
+    const currentUserId = computed(() => String((layoutStore.getUserInfo as any)?.userId || ''))
+    const currentUserIsAdmin = computed(() => {
+      const userInfo = layoutStore.getUserInfo as any
+      return Boolean(userInfo?.isPlatformSuperAdmin || userInfo?.dataScope === 'tenant_all')
+    })
 
     // 历史脚本相关
     const historyData = ref<any[]>([])
@@ -348,8 +334,6 @@ export default defineComponent({
     const libraryData = ref<any[]>([])
     const searchLibrary = ref('')
     const searchLibTag = ref('')
-    const selectedGroup = ref<any>(null) // 选中的组
-    const userGroups = ref<any[]>([]) // 用户所属的组列表
     const libraryPage = reactive({ currentPage: 1, pageSize: 10 })
     const libraryTotal = ref(0)  // 新增：总数
     const libraryEditVisible = ref(false)
@@ -361,21 +345,14 @@ export default defineComponent({
       title: '',
       content: '',
       tags: [],
-      creator: '',
+      creatorId: '',
       originalRow: null
     })
 
-    // 模拟数据初始化
     // 权限判断逻辑
     const canManage = (row: any) => {
-      // 仅当是创建者或 admin 时才能管理
-      return currentUser.value === 'admin' || row.creator === currentUser.value
+      return currentUserIsAdmin.value || String(row.creatorId || '') === currentUserId.value
     }
-
-    // 检查用户是否有role为2的组
-    const hasGroupWithRole2 = computed(() => {
-      return userGroups.value.some((group: any) => group.role === 2)
-    })
 
     // 搜索过滤逻辑 - 由于 API 已处理分页和搜索，直接返回数据
     const filteredHistory = computed(() => {
@@ -425,39 +402,6 @@ export default defineComponent({
       fetchLibrary()
     }
 
-    // 处理组织选择变化
-    const handleGroupChange = (groupId: any) => {
-      if (!groupId) {
-        selectedGroup.value = null
-      } else {
-        selectedGroup.value = userGroups.value.find((g: any) => g.group_id === groupId) || null
-      }
-      libraryPage.currentPage = 1
-      fetchLibrary()
-    }
-
-    // 根据脚本权限编码和当前组CODE获取权限显示
-    // const getScriptPermission = (scriptUserGroupCode: string) => {
-    //   if (!scriptUserGroupCode || !selectedGroup.value) {
-    //     return '私有'
-    //   }
-    //   // 格式: |53NR-1|25XD-1 => 找到对应 group_code 的权限
-    //   const pattern = new RegExp(`\\|${selectedGroup.value.group_code}-(\\d+)\\|`)
-    //   const match = scriptUserGroupCode.match(pattern)
-    //   if (!match) {
-    //     return '私有'
-    //   }
-    //   const permissionCode = parseInt(match[1])
-    //   switch (permissionCode) {
-    //     case 1:
-    //       return '私有'
-    //     case 2:
-    //       return '组内共享'
-    //     default:
-    //       return '私有'
-    //   }
-    // }
-
     const fetchHistory = async () => {
       loading.value = true
       try {
@@ -491,8 +435,6 @@ export default defineComponent({
         const search: any = {}
         if (searchLibrary.value) search.scriptTitle = searchLibrary.value
         if (searchLibTag.value) search.scriptTags = [searchLibTag.value]
-        // 暂无使用group_code
-        // if (selectedGroup.value) search.group_code = selectedGroup.value.group_code
         const res = await getScriptPaginateList(libraryPage.currentPage, libraryPage.pageSize, search)
         if (res.data) {
           const pageData = res.data.data || {}
@@ -503,9 +445,8 @@ export default defineComponent({
             title: item.scriptTitle,
             content: item.scriptContent,
             tags: Array.isArray(item.scriptTags) ? item.scriptTags : (item.scriptTags ? item.scriptTags.split('|').filter((t: string) => t) : []),
-            creator: item.scriptCreateUserId,
+            creatorId: item.scriptCreateUserId,
             createdAt: item.scriptCreateTime,
-            scriptUserGroupCode: item.scriptUserGroupCode || '',
             originalData: item
           }))
         }
@@ -564,7 +505,6 @@ export default defineComponent({
       if (!historyEditForm.id) return
       try {
         loading.value = true
-        const taskTags = historyEditForm.tags.join('|')
         await updateScriptHistory(historyEditForm.id, {
           task_tags: historyEditForm.tags
         })
@@ -587,7 +527,7 @@ export default defineComponent({
         title: '', // 保持为空，强制用户输入
         content: row.content,
         tags: [...row.tags],
-        creator: currentUser.value,
+        creatorId: currentUserId.value,
         originalRow: null
       })
       libTagInputVisible.value = false
@@ -602,7 +542,7 @@ export default defineComponent({
         title: '',
         content: '',
         tags: [],
-        creator: currentUser.value,
+        creatorId: currentUserId.value,
         originalRow: null
       })
       libTagInputVisible.value = false
@@ -615,7 +555,7 @@ export default defineComponent({
         title: row.title,
         content: row.content,
         tags: [...row.tags],
-        creator: row.creator,
+        creatorId: row.creatorId,
         originalRow: row
       })
       libTagInputVisible.value = false
@@ -710,58 +650,7 @@ export default defineComponent({
       })
     }
 
-    // 组公开脚本 - 暂不实现
-    // const handleGroupShare = (row: any) => {
-    //   if (!selectedGroup.value) {
-    //     ElMessage.warning('请先选择一个组')
-    //     return
-    //   }
-    //   ElMessageBox.confirm(`确定将此脚本设置为 "${selectedGroup.value.group_name}" 组内公开吗？`, '确认共享', {
-    //     type: 'info'
-    //   }).then(async () => {
-    //     try {
-    //       loading.value = true
-    //       // 调用组公开API
-    //       await makeScriptGroupPublic([row.id], selectedGroup.value.group_code)
-    //       // 更新权限编码：将对应组的权限改为2（组内共享）
-    //       const groupCode = selectedGroup.value.group_code
-    //       const pattern = new RegExp(`\\|${groupCode}-(\\d+)\\|`)
-    //       if (pattern.test(row.scriptUserGroupCode)) {
-    //         // 已存在该组的权限记录，更新为2
-    //         row.scriptUserGroupCode = row.scriptUserGroupCode.replace(pattern, `|${groupCode}-2|`)
-    //       } else {
-    //         // 不存在该组的权限记录，添加到末尾
-    //         row.scriptUserGroupCode = (row.scriptUserGroupCode || '') + `|${groupCode}-2|`
-    //       }
-    //       ElMessage.success('脚本已设置为组内公开')
-    //     } catch (error) {
-    //       ElMessage.error('设置失败')
-    //       console.error(error)
-    //     } finally {
-    //       loading.value = false
-    //     }
-    //   })
-    // }
-
-    // 获取当前用户所属的组
-    const fetchUserGroups = async () => {
-      try {
-        const res = await getUserGroupInfo()
-        if (res.data && res.data.data && res.data.data.length > 0) {
-          userGroups.value = res.data.data
-          // 默认选择第一个组
-          selectedGroup.value = res.data.data[0]
-        }
-      } catch (error) {
-        ElMessage.error('获取用户组信息失败')
-        console.error(error)
-      }
-    }
-
     onMounted(async () => {
-      // 先加载用户组信息，因为脚本库查询依赖 group_code
-      await fetchUserGroups()
-      // 并行加载历史记录和脚本库
       await Promise.all([
         fetchHistory(),
         fetchLibrary()
@@ -806,8 +695,6 @@ export default defineComponent({
       newTag,
       searchLibrary,
       searchLibTag,
-      selectedGroup,
-      userGroups,
       libTagInputVisible,
       libTagInputRef,
       newLibTag,
@@ -818,13 +705,10 @@ export default defineComponent({
       libraryEditVisible,
       libraryEditForm,
       canManage,
-      hasGroupWithRole2,
-      // getScriptPermission,
       resetHistorySearch,
       resetLibrarySearch,
       handleHistorySearch,
       handleLibrarySearch,
-      handleGroupChange,
       fetchHistory,
       fetchLibrary,
       handleEditHistory,
@@ -839,9 +723,7 @@ export default defineComponent({
       addLibraryTag,
       removeLibraryTag,
       saveLibraryEdit,
-      handleDeleteLibrary,
-      // handleGroupShare,
-      fetchUserGroups
+      handleDeleteLibrary
     }
   }
 })

@@ -1162,6 +1162,88 @@ export function getCornerMarkList() {
 }
 
 /**
+ * 分页查询角标素材
+ * @param page 页码
+ * @param pageSize 每页大小
+ * @param search 搜索条件
+ */
+export function getCornerMarkPaginateList(page: number = 1, pageSize: number = 10, search: any = {}) {
+    return request({
+        url: '/api/material/corner-mark/paginate/',
+        method: 'post',
+        data: {
+            page,
+            pageSize,
+            ...(search && { search })
+        }
+    })
+}
+
+/**
+ * 创建角标素材
+ * @param formData 角标表单数据
+ */
+export function createCornerMarkMaterial(formData: FormData) {
+    return request({
+        url: '/api/material/corner-mark/create/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 更新角标素材
+ * @param formData 角标表单数据
+ */
+export function updateCornerMarkMaterial(formData: FormData) {
+    return request({
+        url: '/api/material/corner-mark/update/',
+        method: 'post',
+        data: formData,
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+}
+
+/**
+ * 删除角标素材
+ * @param cornerMarkId 角标主键
+ */
+export function deleteCornerMarkMaterial(cornerMarkId: number | string) {
+    return request({
+        url: '/api/material/corner-mark/delete/',
+        method: 'post',
+        data: { cornerMarkId },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
+ * 校验角标名称是否可用
+ * @param name 角标名称
+ * @param cornerMarkId 编辑时可传当前主键
+ */
+export function validateCornerMarkName(name: string, cornerMarkId?: number | string) {
+    return request({
+        url: '/api/material/corner-mark/validate-name/',
+        method: 'post',
+        data: {
+            name,
+            ...(cornerMarkId !== undefined && cornerMarkId !== null ? { cornerMarkId } : {})
+        },
+        headers: {
+            'Content-Type': 'application/json;charset=UTF-8'
+        }
+    })
+}
+
+/**
  * 角标置顶/取消置顶
  * @param id 角标ID
  */

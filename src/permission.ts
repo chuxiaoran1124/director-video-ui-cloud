@@ -1,65 +1,88 @@
 import router from '/@/router'
-import { configure, start, done } from 'nprogress'
-import { RouteRecordRaw } from 'vue-router'
-import { decode, encode } from '/@/utils/tools'
+import { configure, done, start } from 'nprogress'
+import { encode } from '/@/utils/tools'
 import { useLayoutStore } from '/@/store/modules/layout'
 
 configure({ showSpinner: false })
 
-const loginRoutePath = '/Login'
+const loginRoutePath = '/login'
 const defaultRoutePath = '/'
+const whiteList = new Set([loginRoutePath, '/error/401', '/error/404'])
 
 router.beforeEach(async(to, from) => {
     start()
-    const { getStatus, getMenubar, getTags, setToken, logout, GenerateRoutes, getUser, concatAllowRoutes, changeTagNavList, addCachedViews, changeNocacheViewStatus } = useLayoutStore()
-    
-    // 修改页面title
-    const reg = new RegExp(/^(.+)(\s\|\s.+)$/)
-    const appTitle = import.meta.env.VITE_APP_TITLE
-    document.title = !to.meta.title
-        ? appTitle
-        : appTitle.match(reg) 
-            ? appTitle.replace(reg, `${to.meta.title}$2`) 
-            : `${to.meta.title} | ${appTitle}`
-    // 判断当前是否在登陆页面
-    if (to.path.toLocaleLowerCase() === loginRoutePath.toLocaleLowerCase()) {
-        done()
-        if(getStatus.ACCESS_TOKEN) return typeof to.query.from === 'string' ? decode(to.query.from) : defaultRoutePath
-        return
-    }
-    // 判断是否登录（从 sessionStorage 检查）
-    const sessionToken = sessionStorage.getItem('token')
-    if (!sessionToken) {
-        return loginRoutePath + (to.fullPath ? `?from=${encode(to.fullPath)}` : '')
-    }
-    // 如果 pinia 状态丢失，自动恢复
-    if (!getStatus.ACCESS_TOKEN) {
-        setToken(sessionToken)
-        await getUser() // 恢复token时也重新获取用户信息
-    }
+    const layoutStore = useLayoutStore()
+    const { getStatus, getMenubar, changeTagNavList, addCachedViews, getTags, changeNocacheViewStatus } = layoutStore
 
+    const appTitle = import.meta.env.VITE_APP_TITLE || '内容支持工具'
+    document.title = to.meta.title ? `${to.meta.title} | ${appTitle}` : appTitle
 
-    // 判断是否还没添加过路由
-    if(getMenubar.menuList.length === 0) {
-        //await getUser() // 获取用户信息
-        await GenerateRoutes() // 获取路由
-        for(let i = 0;i < getMenubar.menuList.length;i++) {
-            router.addRoute(getMenubar.menuList[i] as RouteRecordRaw)
+    if (to.path.toLowerCase() === loginRoutePath) {
+        if (getStatus.ACCESS_TOKEN) {
+            done()
+            return layoutStore.getDefaultLandingPath()
         }
-        // 不再把静态路由合并到菜单，保持与登录后一致的纯动态菜单
-        return to.fullPath
+        done()
+        return true
     }
-    changeTagNavList(to) // 切换导航，记录打开的导航(标签页)
 
-    // 离开当前页面时是否需要添加当前页面缓存
-    !new RegExp(/^\/redirect\//).test(from.path) 
-        && getTags.tagsList.some(v => v.name === from.name) 
-        && !getTags.cachedViews.some(v => v === from.name)
-        && !getTags.isNocacheView
-        && addCachedViews({ name: from.name as string, noCache: from.meta.noCache as boolean })
+    if (!getStatus.ACCESS_TOKEN && !sessionStorage.getItem('accessToken')) {
+        done()
+        return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
+    }
 
-    // 缓存重置
+    const hadRoutesBeforeBootstrap = getStatus.isRoutesLoaded && getMenubar.menuList.length > 0
+
+    try {
+        await layoutStore.bootstrapSession()
+    } catch (error) {
+        layoutStore.clearAuthState()
+        done()
+        return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
+    }
+
+    const hasRoutesAfterBootstrap = layoutStore.getStatus.isRoutesLoaded && layoutStore.getMenubar.menuList.length > 0
+
+    if (!hadRoutesBeforeBootstrap && hasRoutesAfterBootstrap) {
+        const hydratedTarget = router.resolve(to.fullPath)
+        if (hydratedTarget.matched.length > 0) {
+            return {
+                path: hydratedTarget.fullPath,
+                replace: true
+            }
+        }
+        return layoutStore.getDefaultLandingPath()
+    }
+
+    if (to.path === '/') {
+        return layoutStore.getDefaultLandingPath()
+    }
+
+    const resolvedTarget = router.resolve(to.fullPath)
+    if (!whiteList.has(to.path) && to.matched.length === 0 && resolvedTarget.matched.length > 0) {
+        return {
+            path: resolvedTarget.fullPath,
+            replace: true
+        }
+    }
+
+    if (!whiteList.has(to.path) && to.matched.length === 0) {
+        done()
+        return '/error/404'
+    }
+
+    changeTagNavList(to)
+
+    if (
+        !/^\/redirect\//.test(from.path) &&
+        getTags.tagsList.some((item) => item.name === from.name) &&
+        !getTags.cachedViews.some((item) => item === from.name) &&
+        !getTags.isNocacheView
+    ) {
+        addCachedViews({ name: from.name as string, noCache: Boolean(from.meta.noCache) })
+    }
     changeNocacheViewStatus(false)
+    return true
 })
 
 router.afterEach(() => {

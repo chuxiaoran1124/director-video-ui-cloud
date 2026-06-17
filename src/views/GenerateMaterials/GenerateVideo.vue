@@ -111,7 +111,7 @@
                   class="text-xs"
                   :class="scope.row.isDownloaded === 1 ? 'text-green-600' : 'text-gray-400'"
                 >
-                  {{ scope.row.isDownloaded === 1 ? '素材已下载' : '素材未下载' }}
+                  {{ scope.row.isDownloaded === 1 ? '已导出到本地' : '未导出到本地' }}
                 </span>
               </div>
             </template>
@@ -300,7 +300,7 @@
               </el-col>
             </el-row>
 
-            <el-row v-if="videoForm.mode === 0" :gutter="20" class="mt-2">
+            <el-row v-if="enableAdvancedPostProcess && videoForm.mode === 0" :gutter="20" class="mt-2">
                                       <el-col :span="12">
                                         <el-form-item class="!mb-2">
                                           <template #label><span class="text-gray-700">启用字幕</span></template>
@@ -319,7 +319,7 @@
                         </el-row>
 
             <!-- 角标选择 -->
-            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
+            <el-row :gutter="20" class="mt-2" v-if="enableAdvancedPostProcess && videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                                     <div class="flex items-start gap-3">
@@ -366,7 +366,7 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20" class="mt-2" v-if="videoForm.videoType !== 1">
+            <el-row :gutter="20" class="mt-2" v-if="enableAdvancedPostProcess && videoForm.videoType !== 1">
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                   <div class="flex items-start gap-3">
@@ -418,18 +418,6 @@
                 />
               </el-form-item>
             </div>
-
-            <!-- 上传文件夹 -->
-                        <div class="mt-2">
-                          <el-form-item class="!mb-2">
-                            <template #label><span class="text-gray-700">视频上传文件夹<span class="text-xs text-gray-400">（共享文件夹存储路径）</span></span></template>
-                            <el-input
-                              v-model="videoForm.filename"
-                              placeholder="请输入文件夹名称，留空则使用默认路径"
-                              clearable
-                            />
-                          </el-form-item>
-                        </div>
 
                         <!-- 文案模式：文案部分 -->
                         <div v-if="videoForm.mode === 0" class="mt-2">
@@ -499,6 +487,7 @@
                    {{ generationButtonText }}
                  </el-button>
                  <el-button
+                   v-if="enableOvernightDispatch"
                    size="large"
                    class="!w-48 !h-12 !font-bold rounded-xl border-orange-300 text-orange-500 hover:!text-orange-600 hover:!border-orange-400"
                    :loading="isGenerating && submitDispatchMode === 'overnight'"
@@ -508,7 +497,7 @@
                    {{ overnightGenerationButtonText }}
                  </el-button>
                </div>
-               <p class="text-xs text-gray-400">通宵预排会在每日 22:00 至次日 09:00 窗口内进入生成，用于分流。</p>
+               <p v-if="enableOvernightDispatch" class="text-xs text-gray-400">通宵预排会在每日 22:00 至次日 09:00 窗口内进入生成，用于分流。</p>
             </div>
           </el-form>
         </div>
@@ -517,7 +506,7 @@
       <!-- 右侧预览与结果区 -->
       <div class="w-[440px] space-y-4">
         <!-- 预览效果 -->
-        <div v-show="shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div v-if="shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
@@ -533,7 +522,7 @@
                     @update:config="handleSubtitleConfigUpdate"
                   />
         </div>
-        <div v-show="!shouldShowSubtitlePreview" class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div v-else class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                   <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                     <i class="el-icon-picture-outline text-orange-500"></i>预览效果
                   </h3>
@@ -912,21 +901,31 @@
             @click="selectRel(item)"
           >
             <!-- 数字人封面图 -->
-            <div v-if="item.digitalHumanCoverUrl" class="w-3/4 mx-auto aspect-[3/4] overflow-hidden bg-gray-200 relative">
+            <div class="w-3/4 mx-auto aspect-[3/4] overflow-hidden bg-gray-200 relative flex items-center justify-center">
               <img 
+                v-if="item.digitalHumanCoverUrl"
                 :src="item.digitalHumanCoverUrl" 
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                @error="(e) => e.target.src = 'https://via.placeholder.com/150x200?text=Error'"
+                @error="handleRelCoverError(item)"
               >
+              <video
+                v-else-if="item.digitalHumanUrl"
+                :src="item.digitalHumanUrl"
+                class="w-full h-full object-cover"
+                muted
+                preload="metadata"
+                playsinline
+              />
+              <span v-else class="text-xs text-gray-400">暂无封面</span>
             </div>
-            <!-- 预设鍚嶇О和试鍚 -->
+            <!-- 预设名称和试听 -->
             <div class="p-3 bg-white">
               <p class="text-xs text-gray-700 font-medium line-clamp-2 mb-2">{{ item.name }}</p>
               <div class="flex items-center justify-center pt-2 border-t border-blue-200">
                 <el-button type="text" size="small" icon="el-icon-headset" class="!text-blue-500 !p-0" @click.stop="playVoice(item.voiceUrl, item.voice)">试听</el-button>
               </div>
             </div>
-            <!-- 閫変腑标记 -->
+            <!-- 选中标记 -->
             <div v-if="videoForm.relId === item.id" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10">
               <i class="el-icon-check text-white text-sm"></i>
             </div>
@@ -996,12 +995,15 @@ import { ElMessage } from 'element-plus'
 import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
+import { getTenantDetail } from '/@/api/tenant'
+import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 
 // --- 数据定义 ---
+const layoutStore = useLayoutStore()
 const taskStore = useTaskStore()
 
 // 页面状态
@@ -1077,7 +1079,6 @@ const videoForm = reactive({
   mode: 0 as 0 | 1,
   cornerMark: '',
   previewImg: '',
-  filename: '',
   label: ''
 })
 
@@ -1430,11 +1431,13 @@ const currentBannerOverlaySubmitUrl = computed(() => {
 })
 
 const shouldApplySubtitle = computed(() => {
+  if (!enableAdvancedPostProcess.value) return false
   if (videoForm.mode !== 0 || videoForm.videoType !== 0 || videoForm.language === 'th') return false
   return videoForm.subtitleSelector === 1
 })
 
 const shouldEnableSubtitlePipeline = computed(() => {
+  if (!enableAdvancedPostProcess.value) return false
   if (videoForm.videoType !== 0) return false
   return shouldApplySubtitle.value || !!videoForm.cornerMark || !!selectedBannerOverlayId.value
 })
@@ -1472,6 +1475,47 @@ const loadRecentSubtitleConfig = async () => {
   Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
   await nextTick()
   await (subtitlePreviewRef.value as any)?.setConfig?.({ ...subtitleConfig })
+}
+
+const resetPostProcessSelections = () => {
+  videoForm.subtitleSelector = 0
+  videoForm.cornerMark = ''
+  selectedBannerOverlayId.value = ''
+  selectedBannerOverlayBase64.value = ''
+  subtitlePreviewFrameBase64.value = ''
+  Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
+}
+
+const loadTenantRuntimeConfig = async () => {
+  if (!currentTenantId.value) {
+    tenantRuntimeConfig.enablePostProcessPipeline = false
+    tenantRuntimeConfig.enableSubtitlePostProcess = false
+    tenantRuntimeConfig.enableCornerMarkPostProcess = false
+    tenantRuntimeConfig.enableBannerOverlayPostProcess = false
+    resetPostProcessSelections()
+    return
+  }
+
+  try {
+    const response = await getTenantDetail(currentTenantId.value)
+    const runtimeConfig = response.data?.data?.runtimeConfig || {}
+    tenantRuntimeConfig.enablePostProcessPipeline = Boolean(runtimeConfig.enablePostProcessPipeline)
+    tenantRuntimeConfig.enableSubtitlePostProcess = Boolean(runtimeConfig.enableSubtitlePostProcess)
+    tenantRuntimeConfig.enableCornerMarkPostProcess = Boolean(runtimeConfig.enableCornerMarkPostProcess)
+    tenantRuntimeConfig.enableBannerOverlayPostProcess = Boolean(runtimeConfig.enableBannerOverlayPostProcess)
+  } catch (error) {
+    console.error('加载团队增强成片配置失败:', error)
+    tenantRuntimeConfig.enablePostProcessPipeline = false
+    tenantRuntimeConfig.enableSubtitlePostProcess = false
+    tenantRuntimeConfig.enableCornerMarkPostProcess = false
+    tenantRuntimeConfig.enableBannerOverlayPostProcess = false
+  }
+
+  if (!tenantRuntimeConfig.enablePostProcessPipeline) {
+    resetPostProcessSelections()
+  } else if (videoForm.subtitleSelector !== 1) {
+    videoForm.subtitleSelector = 1
+  }
 }
 
 // 配音选择器状态
@@ -1542,6 +1586,18 @@ const saveScriptDialog = reactive({
   visible: false,
   form: { title: '', tags: [] as string[], newTag: '' }
 })
+
+const tenantRuntimeConfig = reactive({
+  enablePostProcessPipeline: false,
+  enableSubtitlePostProcess: false,
+  enableCornerMarkPostProcess: false,
+  enableBannerOverlayPostProcess: false,
+})
+
+const currentTenantId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
+const enableAdvancedPostProcess = computed(() => tenantRuntimeConfig.enablePostProcessPipeline)
+// 第一阶段只开放即时生成，通宵预排入口暂不对前端开放。
+const enableOvernightDispatch = false
 
 const videoPreview = reactive({
   visible: false,
@@ -1725,6 +1781,39 @@ const extractAudioUrl = (urlString: string): string => {
   return urlString
 }
 
+const isVideoLikeUrl = (url: string) => {
+  return /\.(mp4|mov|m4v|avi|mkv|webm)(\?|#|$)/i.test(url || '')
+}
+
+const isImageLikeUrl = (url: string) => {
+  return /^data:image\//i.test(url || '') || /\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/i.test(url || '')
+}
+
+const getBindingCoverUrl = (binding: any) => {
+  const coverCandidates = [
+    binding.digitalHumanCoverUrl,
+    binding.digital_human_cover_url,
+    binding.coverUrl,
+    binding.cover_url,
+    binding.imageUrl,
+    binding.image_url,
+    binding.img
+  ]
+  const coverUrl = coverCandidates.find((url: string) => url && !isVideoLikeUrl(url))
+  if (coverUrl) return coverUrl
+
+  const digitalHumanUrl = binding.digitalHumanUrl || binding.digital_human_url || ''
+  return isImageLikeUrl(digitalHumanUrl) ? digitalHumanUrl : ''
+}
+
+const getBindingVideoUrl = (binding: any) => {
+  return binding.digitalHumanUrl || binding.digital_human_url || binding.videoUrl || binding.video_url || ''
+}
+
+const handleRelCoverError = (item: any) => {
+  item.digitalHumanCoverUrl = ''
+}
+
 // 加载配音列表（仅加载第一页）
 const loadVoiceList = async (searchName?: string) => {
   try {
@@ -1804,11 +1893,11 @@ const loadBindingList = async (voiceName?: string, digitalHumanName?: string) =>
           voiceId: binding.voiceId,
           digitalHumanId: binding.digitalHumanId,
           title: binding.title,
-          digitalHumanUrl: binding.digitalHumanUrl,  // 淇濆瓨视频URL
-          digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,  // 数字人封面图
-          voiceUrl: voiceUrl,
-          // 淇濈暀鍘熷数据
-          ...binding
+          // 保留原始数据
+          ...binding,
+          digitalHumanUrl: getBindingVideoUrl(binding),  // 保存视频 URL
+          digitalHumanCoverUrl: getBindingCoverUrl(binding),  // 数字人封面图
+          voiceUrl: voiceUrl
         }
       })
       console.log('加载的绑定关系列表:', relList.value)
@@ -1846,6 +1935,7 @@ watch(() => videoForm.voice, (newVal, oldVal) => {
 
 // 组件挂载时加载任务列表、数字人列表、配音列表和绑定关系列表
 onMounted(() => {
+  loadTenantRuntimeConfig()
   loadVideoTasks()
   loadVideoWaitingInfo()
   loadDigitalHumanList()
@@ -1899,11 +1989,25 @@ watch(() => videoForm.mode, () => {
 watch(showCreate, (val) => {
   if (val) {
     stopVideoTaskAutoRefresh()
-    loadRecentSubtitleConfig()
+    if (enableAdvancedPostProcess.value) {
+      loadRecentSubtitleConfig()
+    } else {
+      Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
+    }
   } else {
     loadVideoTasks()
     loadVideoWaitingInfo()
     startVideoTaskAutoRefresh()
+  }
+})
+
+watch(currentTenantId, () => {
+  loadTenantRuntimeConfig()
+})
+
+watch(enableAdvancedPostProcess, (enabled) => {
+  if (!enabled) {
+    resetPostProcessSelections()
   }
 })
 
@@ -2011,13 +2115,12 @@ const resetForm = () => {
   videoForm.voiceUrl = ''
   videoForm.script = ''
   videoForm.language = 'zh'
-  videoForm.subtitleSelector = 1
+  videoForm.subtitleSelector = enableAdvancedPostProcess.value ? 1 : 0
   videoForm.subtitleColor = 'yellow'
   videoForm.cornerMark = ''
   selectedBannerOverlayId.value = ''
   selectedBannerOverlayBase64.value = ''
   subtitlePreviewFrameBase64.value = ''
-  videoForm.filename = ''
   videoForm.label = ''
   videoForm.videoType = 0
   videoForm.mode = 0
@@ -2081,25 +2184,40 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
   // 优先使用当前弹窗点击项（支持滚动分页后选中），避免仅依赖 relList 前 50 条
   const rel = selectedRel || relList.value.find((r: any) => r.id === val)
   if (rel) {
+    // 记录当前选中的预设，确保提交流程能按预设模式取外部 ID。
+    videoForm.relId = rel.id
     relName.value = rel.name
     videoForm.digitalHuman = rel.human || rel.digitalHumanName
     videoForm.voice = rel.voice || rel.voiceName
     videoForm.label = rel.title || ''
     videoForm.digitalHumanExternalId = rel.digitalHumanExternalId || ''
     videoForm.voiceExternalId = rel.voiceExternalId || ''
-
-    // 字幕预览：优先封面图 URL，其次视频 URL，通过后端代理转 base64
-    if (shouldShowSubtitlePreview.value) {
-      const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
-      subtitlePreviewFrameBase64.value = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
-    }
-
-    // 表单缩略图（同样通过代理取视频首帧）
-    if (rel.digitalHumanUrl) {
-      videoForm.previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
-    }
+    videoForm.previewImg = rel.digitalHumanCoverUrl || rel.coverUrl || ''
 
     ElMessage.success(`已应用联动配置： ${rel.digitalHumanName || rel.human} & ${rel.voiceName || rel.voice}`)
+
+    // 预览属于附加体验，异步补齐，避免阻塞预设选择弹窗关闭。
+    const currentRelId = String(rel.id)
+    void (async () => {
+      try {
+        if (shouldShowSubtitlePreview.value) {
+          const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
+          const previewBase64 = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
+          if (String(videoForm.relId) === currentRelId) {
+            subtitlePreviewFrameBase64.value = previewBase64
+          }
+        }
+
+        if (!videoForm.previewImg && rel.digitalHumanUrl) {
+          const previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
+          if (String(videoForm.relId) === currentRelId && previewImg) {
+            videoForm.previewImg = previewImg
+          }
+        }
+      } catch (error) {
+        console.error('联动预设预览补齐失败:', error)
+      }
+    })()
   }
 }
 
@@ -2313,6 +2431,21 @@ const selectScript = (script: any) => {
   ElMessage.success('文案已成功导入')
 }
 
+const saveCurrentScriptToHistory = async () => {
+  if (videoForm.mode !== 0 || !videoForm.script?.trim()) {
+    return
+  }
+
+  try {
+    await createScriptHistory({
+      task_content: videoForm.script.trim(),
+      task_tags: []
+    })
+  } catch (error) {
+    console.error('写入历史文案失败:', error)
+  }
+}
+
 const openSaveScriptDialog = () => {
   saveScriptDialog.form.title = ''
   saveScriptDialog.form.tags = []
@@ -2354,13 +2487,24 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
   if (isGenerating.value) {
     return
   }
-  
-        if (!videoForm.title || !videoForm.digitalHuman) {
+
+  const effectiveDispatchMode = dispatchMode === 'overnight' && !enableOvernightDispatch
+    ? 'immediate'
+    : dispatchMode
+
+  const selectedRel = videoForm.relId
+    ? (relSelectorDialog.allList.find((item: any) => String(item.id) === String(videoForm.relId))
+      || relList.value.find((item: any) => String(item.id) === String(videoForm.relId)))
+    : null
+  const effectiveHumanName = videoForm.digitalHuman || selectedRel?.digitalHumanName || selectedRel?.human || ''
+  const effectiveVoiceName = videoForm.voice || selectedRel?.voiceName || selectedRel?.voice || ''
+
+  if (!videoForm.title || !effectiveHumanName) {
     return ElMessage.warning('请先完整配置标题和数字人')
   }
   
   // 文案模式需要配音
-  if (videoForm.mode === 0 && !videoForm.voice) {
+  if (videoForm.mode === 0 && !effectiveVoiceName) {
     return ElMessage.warning('请选择配音')
   }
   
@@ -2372,11 +2516,11 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     return ElMessage.warning('请上传音频文件')
   }
   
-  submitDispatchMode.value = dispatchMode
+  submitDispatchMode.value = effectiveDispatchMode
   isGenerating.value = true
   resultVideo.value = ''
   genProgress.value = 0
-  genStage.value = dispatchMode === 'overnight'
+  genStage.value = effectiveDispatchMode === 'overnight'
     ? (videoForm.mode === 1 ? '正在上传音频并加入通宵预排...' : '正在创建通宵预排任务...')
     : (videoForm.mode === 1 ? '正在上传音频并创建任务...' : '正在上传素材...')
 
@@ -2387,20 +2531,20 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     if (videoForm.mode === 0) {
       if (videoForm.relId) {
         // 使用绑定预设：直接从 relList 取 voiceExternalId / digitalHumanExternalId
-        const rel = relList.value.find((r: any) => r.id === videoForm.relId)
-        digitalHumanId = rel?.digitalHumanExternalId || videoForm.digitalHumanExternalId || videoForm.digitalHuman
-        voiceId = rel?.voiceExternalId || videoForm.voiceExternalId || videoForm.voice
+        const rel = selectedRel
+        digitalHumanId = rel?.digitalHumanExternalId || videoForm.digitalHumanExternalId || effectiveHumanName
+        voiceId = rel?.voiceExternalId || videoForm.voiceExternalId || effectiveVoiceName
         console.log('[提交-绑定预设] rel:', rel?.name, '| digitalHumanExternalId:', digitalHumanId, '| voiceExternalId:', voiceId)
       } else {
         // 单独选择：取各自列表externalId
-        digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
-        voiceId = videoForm.voiceExternalId || voiceOptions.value.find((voice: any) => voice.name === videoForm.voice)?.externalId || videoForm.voice
-        console.log('[提交-单独选择] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId, '| voice:', videoForm.voice, '| externalId:', voiceId)
+        digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === effectiveHumanName)?.externalId || effectiveHumanName
+        voiceId = videoForm.voiceExternalId || voiceOptions.value.find((voice: any) => voice.name === effectiveVoiceName)?.externalId || effectiveVoiceName
+        console.log('[提交-单独选择] digitalHuman:', effectiveHumanName, '| externalId:', digitalHumanId, '| voice:', effectiveVoiceName, '| externalId:', voiceId)
       }
     } else {
       // 音频模式：只取数字人 ID
-      digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)?.externalId || videoForm.digitalHuman
-      console.log('[提交-音频模式] digitalHuman:', videoForm.digitalHuman, '| externalId:', digitalHumanId)
+      digitalHumanId = videoForm.digitalHumanExternalId || humanOptions.value.find((h: any) => h.name === effectiveHumanName)?.externalId || effectiveHumanName
+      console.log('[提交-音频模式] digitalHuman:', effectiveHumanName, '| externalId:', digitalHumanId)
     }
     
     // 确定语言（自动时默认 zh）
@@ -2423,7 +2567,6 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
       formData.append('file', audioFile.value)
     }
     
-        if (videoForm.filename) formData.append('filename', videoForm.filename)
     // 文案模式传配音 ID，音频模式不传
     if (videoForm.mode === 0 && voiceId) {
       formData.append('voice_id', voiceId)
@@ -2431,7 +2574,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     formData.append('digital_human_id', digitalHumanId)
     formData.append('language', language)
     formData.append('speechRate', '1')
-    formData.append('dispatch_mode', dispatchMode)
+    formData.append('dispatch_mode', effectiveDispatchMode)
     const bannerOverlayUrl = currentBannerOverlaySubmitUrl.value
     if (bannerOverlayUrl) {
       formData.append('banner_overlay_url', bannerOverlayUrl)
@@ -2511,8 +2654,8 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     let response
     if (videoForm.mode === 0) {
       // 文案模式：调用原创建视频任务接口
-      genProgress.value = dispatchMode === 'overnight' ? 15 : 20
-      genStage.value = dispatchMode === 'overnight' ? '正在提交通宵预排任务...' : '正在提交文案任务...'
+      genProgress.value = effectiveDispatchMode === 'overnight' ? 15 : 20
+      genStage.value = effectiveDispatchMode === 'overnight' ? '正在提交通宵预排任务...' : '正在提交文案任务...'
       response = await createVideoTask(formData)
       console.log('文案模式提交完成:', response)
     } else {
@@ -2526,20 +2669,21 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
           formData.append('corner_mark_url', selectedCornerMark.photoUrl)
         }
       }
-      genProgress.value = dispatchMode === 'overnight' ? 25 : 35
-      genStage.value = dispatchMode === 'overnight' ? '正在上传音频并创建预排，请稍候...' : '正在上传音频，请稍候...'
+      genProgress.value = effectiveDispatchMode === 'overnight' ? 25 : 35
+      genStage.value = effectiveDispatchMode === 'overnight' ? '正在上传音频并创建预排，请稍候...' : '正在上传音频，请稍候...'
       console.log('音频模式提交数据:', Object.fromEntries(formData.entries()))
       response = await createAudioVideoTask(formData)
       console.log('音频模式提交完成:', response)
     }
     
     if (response && response.data) {
+      await saveCurrentScriptToHistory()
       genProgress.value = 100
-      genStage.value = dispatchMode === 'overnight'
+      genStage.value = effectiveDispatchMode === 'overnight'
         ? '任务已加入通宵预排队列'
         : (videoForm.mode === 1 ? '音频上传完成，任务已进入队列' : '任务已提交，正在进入队列')
       // 提交成功，立即返回列表并清空表单
-      if (dispatchMode === 'overnight') {
+      if (effectiveDispatchMode === 'overnight') {
         ElMessage.success('任务已加入通宵预排队列，将在 22:00-09:00 窗口内开始生成')
       } else {
         ElMessage.success(videoForm.mode === 1 ? '音频上传成功，任务已创建并进入队列' : '任务已提交，请在列表中查看生成进度')
@@ -3159,11 +3303,11 @@ const loadMoreRels = async () => {
           voiceId: binding.voiceId,
           digitalHumanId: binding.digitalHumanId,
           title: binding.title,
-          digitalHumanUrl: binding.digitalHumanUrl,
-          digitalHumanCoverUrl: binding.digitalHumanCoverUrl || binding.coverUrl || binding.digitalHumanUrl,
+          ...binding,
+          digitalHumanUrl: getBindingVideoUrl(binding),
+          digitalHumanCoverUrl: getBindingCoverUrl(binding),
           voiceUrl,
-          language: binding.language || videoForm.language,
-          ...binding
+          language: binding.language || videoForm.language
         }
       })
 

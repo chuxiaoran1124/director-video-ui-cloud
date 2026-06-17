@@ -4,20 +4,16 @@
     <div class="mb-6 flex justify-between items-end">
       <div>
         <h1 class="text-2xl font-bold text-slate-800">快速克隆生成</h1>
-        <p class="text-slate-500 text-sm mt-1">一键克隆数字人和声音资产，支持批量任务追踪。</p>
+        <p class="text-slate-500 text-sm mt-1">一键克隆数字人和声音资产，当前阶段先开放单条克隆链路。</p>
       </div>
       <div v-if="!isCreating">
-        <el-button size="large" @click="handleCreateBatch">
-          <el-icon class="mr-1"><el-icon-upload /></el-icon>
-          批量上传
-        </el-button>
         <el-button type="primary" size="large" @click="handleCreateNew">
           <el-icon class="mr-1"><el-icon-plus /></el-icon>
           新建克隆任务
         </el-button>
       </div>
       <div v-else>
-        <el-button @click="isCreating = false" icon="el-icon-back">返回任务列表</el-button>
+        <el-button @click="handleBackToList" icon="el-icon-back">返回任务列表</el-button>
       </div>
     </div>
 
@@ -139,10 +135,10 @@
     <div v-else class="animate-fade-in">
       <!-- 步骤条 -->
       <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 max-w-4xl mx-auto border border-slate-100">
-        <el-steps :active="activeStep" finish-status="success" align-center>
+          <el-steps :active="activeStep" finish-status="success" align-center>
           <el-step title="上传素材" />
-          <el-step :title="uploadMode === 'batch' ? '批量提交' : '同步克隆'" />
-          <el-step :title="uploadMode === 'batch' ? '任务追踪' : '预览确认'" />
+          <el-step title="同步克隆" />
+          <el-step title="预览确认" />
         </el-steps>
       </div>
 
@@ -152,19 +148,13 @@
         <div v-if="activeStep === 0" class="animate-fade-in">
           <!-- 上传区域 -->
           <div class="bg-white p-10 rounded-2xl shadow-sm border border-slate-100">
-             <div class="mb-8 flex justify-center">
-               <el-radio-group v-model="uploadMode" size="large">
-                 <el-radio-button label="single">单条上传</el-radio-button>
-                 <el-radio-button label="batch">批量上传</el-radio-button>
-               </el-radio-group>
-             </div>
              <!-- 上传说明 -->
              <div class="flex flex-col items-center mb-10 text-center">
                 <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 text-4xl mb-4 shadow-inner">
                   <el-icon><el-icon-video-camera /></el-icon>
                 </div>
-                <h3 class="text-2xl font-bold text-slate-800">{{ uploadMode === 'batch' ? '批量上传克隆视频' : '上传克隆视频' }}</h3>
-                <p class="text-slate-400 mt-2 max-w-sm">{{ uploadMode === 'batch' ? '批量任务仅支持竖版中文素材，提交后将逐个进入克隆队列。' : '系统将从该视频中提取形象与声音特征。' }}</p>
+                <h3 class="text-2xl font-bold text-slate-800">上传克隆视频</h3>
+                <p class="text-slate-400 mt-2 max-w-sm">系统将从该视频中提取形象与声音特征，当前阶段不开放批量入口。</p>
              </div>
              <div v-if="uploadMode === 'single'" class="w-2/3 mx-auto">
                <el-upload ref="videoUploadRef" class="!w-full" drag action="#" :auto-upload="false" :on-change="handleFileChange" :on-exceed="handleVideoExceed" :limit="1" accept="video/mp4,.mov">
@@ -178,7 +168,7 @@
                   </template>
                </el-upload>
              </div>
-             <div v-else class="space-y-5">
+             <div v-else-if="enableBatchCreate" class="space-y-5">
                <el-upload
                  ref="batchUploadRef"
                  class="!w-full"
@@ -248,7 +238,6 @@
                   <div class="text-sm text-slate-600 font-medium mb-2">核心语言</div>
                   <el-radio-group v-model="form.language">
                     <el-radio :label="'zh'" size="large">中文</el-radio>
-                    <el-radio :label="'th'" size="large">泰语</el-radio>
                   </el-radio-group>
                 </div>
               </div>
@@ -261,15 +250,6 @@
                   <div class="text-sm text-slate-600 font-medium mb-2">核心语言</div>
                   <el-tag type="success" effect="light">中文</el-tag>
                 </div>
-              </div>
-              <div class="mt-8 pb-4 border-b border-slate-50 flex items-center gap-3">
-                <span class="text-sm text-slate-600 font-medium">视频是否含字幕</span>
-               <el-switch
-                 v-model="form.isSubtitle"
-                 active-text="有字幕"
-                 inactive-text="无字幕"
-               />
-                <span class="text-xs text-slate-400">将影响字幕消除预处理步骤</span>
               </div>
               <div class="mt-4 pb-4 border-b border-slate-50 flex items-center gap-3">
                 <span class="text-sm text-slate-600 font-medium">视频有无声音</span>
@@ -310,9 +290,16 @@
                   <el-option label="男" value="male" />
                   <el-option label="女" value="female" />
                 </el-select>
-                <el-button type="primary" size="large" class="px-8" :loading="nameValidationLoading" :disabled="!canStartProcessing" @click="startProcessing">开始任务</el-button>
+                <el-button type="primary" size="large" class="px-8" :loading="singleSubmitting" :disabled="!canStartProcessing || singleSubmitting" @click="startProcessing">开始任务</el-button>
              </div>
-              <div v-else class="mt-4 pt-2 flex items-center justify-between gap-4">
+              <div v-if="uploadMode === 'single' && singleSubmitting" class="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-4">
+                <div class="flex items-center justify-between text-sm text-slate-600 mb-2">
+                  <span>{{ singleSubmitStatusText }}</span>
+                  <span class="font-semibold text-blue-600">{{ singleUploadProgress }}%</span>
+                </div>
+                <el-progress :percentage="singleUploadProgress" :stroke-width="8" striped striped-flow :show-text="false" />
+              </div>
+              <div v-else-if="enableBatchCreate" class="mt-4 pt-2 flex items-center justify-between gap-4">
                 <div class="flex-1 max-w-xl">
                   <div class="text-sm text-slate-500">
                     已选择 {{ batchFiles.length }} 个视频，素材上传成功后进入处理队列。
@@ -490,12 +477,15 @@ const isPlaying = ref(false)
 let timer: any = null
 let pollTimer: any = null  // 杞瀹氭椂鍣?
 let nameValidateTimer: any = null
+let listPollTimer: ReturnType<typeof setInterval> | null = null
 
 const taskStore = useTaskStore()
 const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
 const previewVideoRef = ref<HTMLVideoElement | null>(null)
 const previewAudioRef = ref<HTMLAudioElement | null>(null)
+// 云上版当前只开放单条快速克隆，批量入口统一隐藏。
+const enableBatchCreate = false
 const uploadMode = ref<'single' | 'batch'>('single')
 const batchUploadRef = ref()
 const batchSubmitting = ref(false)
@@ -515,6 +505,9 @@ type BatchUploadItem = {
 }
 
 const batchFiles = ref<BatchUploadItem[]>([])
+const singleSubmitting = ref(false)
+const singleUploadProgress = ref(0)
+const singleSubmitStatusText = ref('正在上传视频...')
 
 const form = reactive({
   humanName: '',
@@ -596,11 +589,13 @@ const waitingBeforeInfo = reactive({
 })
 
 const taskList = ref<any[]>([])
+let fastTaskSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 // --- Lifecycle ---
 onMounted(() => {
   loadTaskList()
   loadWaitingBefore()
+  startListPolling()
   
   // 鐩戝惉鍒嗛〉鏀瑰彉锛岄噸鏂板姞杞芥暟鎹?
   watch([currentPage, pageSize], () => {
@@ -611,7 +606,15 @@ onMounted(() => {
 // --- Methods ---
 const loadTaskList = async () => {
   try {
-    const res = await getFastTaskList(currentPage.value, pageSize.value)
+    const search: Record<string, any> = {}
+    if (searchQuery.value.trim()) {
+      search.digitalHumanName = searchQuery.value.trim()
+    }
+    const res = await getFastTaskList(
+      currentPage.value,
+      pageSize.value,
+      Object.keys(search).length > 0 ? search : undefined
+    )
     if (res.data && res.data.code === 200) {
       const responseData = res.data.data
       const taskListData = responseData?.data || []
@@ -749,6 +752,32 @@ const refreshList = async () => {
     ElMessage.error('刷新失败，请稍后重试')
   }
 }
+
+const stopListPolling = () => {
+  if (listPollTimer) {
+    clearInterval(listPollTimer)
+    listPollTimer = null
+  }
+}
+
+const startListPolling = () => {
+  stopListPolling()
+  listPollTimer = setInterval(() => {
+    if (isCreating.value) return
+    loadTaskList()
+    loadWaitingBefore()
+  }, 3000)
+}
+
+watch(searchQuery, () => {
+  if (fastTaskSearchTimer) {
+    clearTimeout(fastTaskSearchTimer)
+  }
+  fastTaskSearchTimer = setTimeout(() => {
+    currentPage.value = 1
+    loadTaskList()
+  }, 250)
+})
 
 const resetNameValidationState = () => {
   nameValidationState.value = 'idle'
@@ -934,19 +963,35 @@ const resetCreateForm = () => {
   videoRatioValid.value = false
   batchFiles.value = []
   batchSubmitting.value = false
+  singleSubmitting.value = false
+  singleUploadProgress.value = 0
+  singleSubmitStatusText.value = '正在上传视频...'
   resetNameValidationState()
 }
 
 const handleCreateNew = () => {
   isCreating.value = true
+  stopListPolling()
   uploadMode.value = 'single'
   resetCreateForm()
 }
 
 const handleCreateBatch = () => {
+  if (!enableBatchCreate) {
+    ElMessage.warning('当前版本暂未开放批量快速克隆')
+    return
+  }
   isCreating.value = true
+  stopListPolling()
   uploadMode.value = 'batch'
   resetCreateForm()
+}
+
+const handleBackToList = async () => {
+  isCreating.value = false
+  resetCreateForm()
+  await Promise.all([loadTaskList(), loadWaitingBefore()])
+  startListPolling()
 }
 
 const parseVoiceUrl = (voiceUrl: string) => {
@@ -1163,8 +1208,13 @@ const startProcessing = async () => {
 
   const nameValid = await validateName(finalName, true)
   if (!nameValid) return
+  if (singleSubmitting.value) return
   
   try {
+    singleSubmitting.value = true
+    singleUploadProgress.value = 0
+    singleSubmitStatusText.value = '正在上传视频到云端...'
+
     // 鏋勫缓 FormData
     const formData = new FormData()
     formData.append('file', form.rawFile!)
@@ -1178,36 +1228,33 @@ const startProcessing = async () => {
     formData.append('is_video_dubbing', form.hasVideoDubbing ? 'true' : 'false')
 
     // 璋冪敤API鎻愪氦浠诲姟
-    const res = await createFastTask(formData)
+    const res = await createFastTask(formData, {
+      hideLoading: true,
+      onUploadProgress: (event: ProgressEvent) => {
+        if (!event.total) return
+        singleUploadProgress.value = Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100)))
+        singleSubmitStatusText.value = singleUploadProgress.value >= 100
+          ? '素材已上传，正在创建任务...'
+          : '正在上传视频到云端...'
+      }
+    })
     
     if (res.data && res.data.code === 200) {
-      // 鑾峰彇浠诲姟ID
-      const taskId = res.data.data?.id
-      if (!taskId) {
-        ElMessage.error('任务创建成功但未返回任务ID，请尝试刷新列表')
-        return
-      }
-      
-      form.currentTaskId = taskId
-      
-      // 鍚屾鍒板叏灞€浠诲姟涓績锛堟殏鏈惎鐢級
-      // taskStore.addTask({
-      //   taskType: 'VIDEO_TASK',
-      //   subTitle: `璧勪骇锛?{form.humanName}`,
-      //   status: 'running'
-      // })
-
-      activeStep.value = 1
-      ElMessage.success('视频上传完成，任务排队处理中...')
-      
-      // 鍚姩杞
-      pollTaskProgress()
+      singleUploadProgress.value = 100
+      singleSubmitStatusText.value = '任务创建完成，正在刷新列表...'
+      await Promise.all([loadTaskList(), loadWaitingBefore()])
+      isCreating.value = false
+      resetCreateForm()
+      startListPolling()
+      ElMessage.success('视频上传完成，任务已加入队列')
     } else {
       ElMessage.error(res.data?.message || '提交失败，请稍后重试')
     }
   } catch (error: any) {
     console.error('Failed to create fast task:', error)
     ElMessage.error(error.message || '提交失败，请稍后重试')
+  } finally {
+    singleSubmitting.value = false
   }
 }
 
@@ -1355,6 +1402,7 @@ watch(
 onUnmounted(() => { 
   if (timer) clearInterval(timer)
   if (pollTimer) clearInterval(pollTimer)
+  stopListPolling()
   if (nameValidateTimer) clearTimeout(nameValidateTimer)
 })
 </script>

@@ -7,6 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "jest ./test",
+    "test:stage1": "node ./测试文件/脚本/前端第一阶段联调测试.js",
+    "test:full": "node ./测试文件/脚本/完整功能联调测试.js",
     "eslint": "npx eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "stylelint": "npx stylelint **/*.{css,vue} --fix"
   },
@@ -48,6 +50,7 @@
     "nprogress": "^0.2.0",
     "pinia": "^2.0.11",
     "pinyin": "^2.10.2",
+    "playwright": "^1.60.0",
     "postcss": "^8.4.6",
     "postcss-import": "^14.0.2",
     "postcss-simple-vars": "^6.0.3",

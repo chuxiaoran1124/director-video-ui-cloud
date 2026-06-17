@@ -13,18 +13,34 @@
         }'
         :collapse-transition='false'
         :unique-opened='false'
-        @select='onOpenChange'
     >
-        <menubar-item v-for='v in filterMenubarData' :key='v.path' :index='v.path' :menu-list='v' />
+        <menubar-item
+            v-for='v in filterMenubarData'
+            :key='v.path'
+            :menu-list='v'
+            :resolved-path='resolveMenuPath("", v.path)'
+        />
     </el-menu>
 </template>
 
 <script lang='ts'>
 import { defineComponent, computed } from 'vue'
 import MenubarItem from '/@/layout/components/menubarItem.vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { IMenubarList } from '/@/type/store/layout'
 import { useLayoutStore } from '/@/store/modules/layout'
+
+const resolveMenuPathValue = (parentPath: string, currentPath?: string) => {
+    const routePath = String(currentPath || '')
+    if (!routePath) {
+        return parentPath || '/'
+    }
+    if (routePath.startsWith('/')) {
+        return routePath
+    }
+    const normalizedParent = parentPath && parentPath !== '/' ? parentPath.replace(/\/$/, '') : ''
+    return `${normalizedParent}/${routePath}`.replace(/\/{2,}/g, '/')
+}
 
 // 过滤隐藏的菜单，并提取单条的子菜单
 const filterMenubar = (menuList:IMenubarList[]) => {
@@ -34,7 +50,15 @@ const filterMenubar = (menuList:IMenubarList[]) => {
             let child = v.children && v.children.filter(v => !v.meta.hidden)
             let currentItem = v
             if(!v.meta.alwaysShow && child && child.length === 1) {
-                [currentItem] = child
+                const [singleChild] = child
+                currentItem = {
+                    ...singleChild,
+                    path: resolveMenuPathValue(v.path, singleChild.path),
+                    meta: {
+                        ...singleChild.meta,
+                        activeMenu: singleChild.meta?.activeMenu || v.path
+                    }
+                }
             }
             arr.push(currentItem)
             if(currentItem.children && currentItem.children.length > 0) {
@@ -45,7 +69,6 @@ const filterMenubar = (menuList:IMenubarList[]) => {
     }
     return f(menuList)
 }
-
 export default defineComponent ({
     name: 'LayoutMenubar',
     components: {
@@ -53,30 +76,29 @@ export default defineComponent ({
     },
     setup() {
         const route = useRoute()
-        const router = useRouter()
-        const { getMenubar, setRoutes, changeCollapsed, getSetting } = useLayoutStore()
+        const { getMenubar, getSetting } = useLayoutStore()
 
-        const filterMenubarData = filterMenubar(getMenubar.menuList)
-        setRoutes(filterMenubarData)
+        const resolveMenuPath = (parentPath: string, currentPath?: string) => {
+            return resolveMenuPathValue(parentPath, currentPath)
+        }
+
+        const filterMenubarData = computed(() => filterMenubar(getMenubar.menuList))
 
         const defaultOpeneds = computed(() => {
-            return filterMenubarData.map(v => v.path)
+            return filterMenubarData.value.map(v => v.path)
         })
 
         const activeMenu = computed(() => {
             if(route.meta.activeMenu) return route.meta.activeMenu
             return route.path
         })
-        const onOpenChange = (d: any) => {
-            router.push({ path: d })
-        }
         return {
             getMenubar,
             filterMenubarData,
             activeMenu,
             defaultOpeneds,
-            onOpenChange,
-            getSetting
+            getSetting,
+            resolveMenuPath
         }
     }
 })
