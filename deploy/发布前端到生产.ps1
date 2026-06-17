@@ -58,6 +58,7 @@ SOURCE_DIR="$WORK_ROOT/frontend_source_$(date +%Y%m%d%H%M%S)"
 rm -rf "$SOURCE_DIR"
 mkdir -p "$SOURCE_DIR"
 unzip -oq "$SOURCE_ARCHIVE" -d "$SOURCE_DIR"
+find "$SOURCE_DIR" -type f -name '*.sh' -exec sed -i 's/\r$//' {} +
 chmod +x "$SOURCE_DIR"/deploy/server/*.sh
 bash "$SOURCE_DIR/deploy/server/frontend-deploy.sh" "$ROOT_DIR" "$SOURCE_DIR" "$DIST_ARCHIVE"
 rm -f "$SOURCE_ARCHIVE" "$DIST_ARCHIVE"
