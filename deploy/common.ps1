@@ -73,6 +73,75 @@ function Invoke-GitPush {
     }
 }
 
+function Get-ReleaseTempDirectory {
+    param(
+        [string]$FolderName = 'director-video-cloud-release'
+    )
+
+    $tempPath = Join-Path $env:TEMP $FolderName
+    New-Item -ItemType Directory -Force -Path $tempPath | Out-Null
+    return $tempPath
+}
+
+function New-GitReleaseArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Ref,
+        [Parameter(Mandatory = $true)]
+        [string]$ArchiveName
+    )
+
+    $archivePath = Join-Path (Get-ReleaseTempDirectory) $ArchiveName
+    Remove-Item $archivePath -ErrorAction SilentlyContinue
+    & git -C $RepoPath archive --format=zip --output=$archivePath $Ref
+    if ($LASTEXITCODE -ne 0) {
+        throw "打包仓库 $RepoPath 失败。"
+    }
+    return $archivePath
+}
+
+function New-DirectoryZipArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDir,
+        [Parameter(Mandatory = $true)]
+        [string]$ArchiveName
+    )
+
+    $archivePath = Join-Path (Get-ReleaseTempDirectory) $ArchiveName
+    Remove-Item $archivePath -ErrorAction SilentlyContinue
+
+    Push-Location $SourceDir
+    try {
+        & tar.exe -a -c -f $archivePath *
+        if ($LASTEXITCODE -ne 0) {
+            throw "目录 $SourceDir 压缩失败。"
+        }
+    } finally {
+        Pop-Location
+    }
+
+    return $archivePath
+}
+
+function Send-FileToRemote {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+        [Parameter(Mandatory = $true)]
+        [string]$LocalPath,
+        [Parameter(Mandatory = $true)]
+        [string]$RemotePath
+    )
+
+    & scp.exe -q $LocalPath "$($Config.Server.SshTarget):$RemotePath"
+    if ($LASTEXITCODE -ne 0) {
+        throw "上传文件到服务器失败：$LocalPath -> $RemotePath"
+    }
+}
+
 function Convert-ToBashSingleQuotedText {
     param(
         [AllowNull()]

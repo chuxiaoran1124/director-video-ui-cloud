@@ -7,7 +7,7 @@ function Get-ProductionDeployConfig {
             RootDir = '/home/director-video-service-cloud'
             ComposeDir = '/home/director-video-service-cloud'
             SiteUrl = 'https://qqxxkj.com'
-            BackendHealthUrl = 'http://127.0.0.1:8000/api/user/current-user/'
+            BackendHealthUrl = 'http://127.0.0.1:18000/api/user/current-user/'
         }
         Local = @{
             FrontendRepo = 'E:\qianduan\director-video-ui-cloud'

@@ -39,6 +39,7 @@
                     <el-dropdown-item v-if="false">
                         <el-link href='https://github.com/hsiangleev/element-plus-admin' target='_blank' :underline='false'>项目地址</el-link>
                     </el-dropdown-item>
+                    <el-dropdown-item @click='openPasswordDialog'>修改密码</el-dropdown-item>
                     <el-dropdown-item  @click='logout'>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
             </template>
@@ -67,10 +68,44 @@
         <Screenfull />
         <Search />
     </div>
+
+    <el-dialog v-model='passwordDialogVisible' title='修改密码' width='460px' destroy-on-close>
+        <el-form ref='passwordFormRef' :model='passwordForm' :rules='passwordRules' label-position='top' autocomplete='off'>
+            <el-form-item label='原密码' prop='oldPassword'>
+                <el-input
+                    v-model='passwordForm.oldPassword'
+                    placeholder='请输入当前登录密码'
+                    show-password
+                    autocomplete='new-password'
+                />
+            </el-form-item>
+            <el-form-item label='新密码' prop='newPassword'>
+                <el-input
+                    v-model='passwordForm.newPassword'
+                    placeholder='请输入新的登录密码'
+                    show-password
+                    autocomplete='new-password'
+                />
+            </el-form-item>
+            <el-form-item label='确认新密码' prop='confirmPassword'>
+                <el-input
+                    v-model='passwordForm.confirmPassword'
+                    placeholder='请再次输入新的登录密码'
+                    show-password
+                    autocomplete='new-password'
+                />
+            </el-form-item>
+        </el-form>
+
+        <template #footer>
+            <el-button @click='passwordDialogVisible = false'>取消</el-button>
+            <el-button type='primary' :loading='passwordSubmitting' @click='submitPasswordChange'>确认修改</el-button>
+        </template>
+    </el-dialog>
 </template>
 
 <script lang='ts'>
-import { defineComponent, reactive, watch } from 'vue'
+import { defineComponent, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useRoute, RouteLocationNormalizedLoaded } from 'vue-router'
@@ -79,7 +114,8 @@ import Screenfull from '/@/layout/components/screenfull.vue'
 import Search from '/@/layout/components/search.vue'
 import LayoutMenubar from '/@/layout/components/menubar.vue'
 import icon from '/@/assets/img/icon.png'
-import { ElMessageBox } from 'element-plus'
+import { changePassword } from '/@/api/user'
+import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 
 
 interface IBreadcrumbList {
@@ -121,6 +157,71 @@ export default defineComponent ({
         const { getMenubar, getUserInfo, getSetting, getCurrentTenant, getTenantList } = storeToRefs(layoutStore)
         const { changeCollapsed, logout } = layoutStore
         const route = useRoute()
+        const passwordDialogVisible = ref(false)
+        const passwordSubmitting = ref(false)
+        const passwordFormRef = ref<FormInstance>()
+        const passwordForm = reactive({
+            oldPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+        })
+        const passwordRules = reactive<FormRules>({
+            oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+            newPassword: [{ required: true, message: '请输入新密码', trigger: 'blur' }],
+            confirmPassword: [
+                { required: true, message: '请再次输入新密码', trigger: 'blur' },
+                {
+                    validator: (_rule, value, callback) => {
+                        if (!value) {
+                            callback(new Error('请再次输入新密码'))
+                            return
+                        }
+                        if (value !== passwordForm.newPassword) {
+                            callback(new Error('两次输入的新密码不一致'))
+                            return
+                        }
+                        callback()
+                    },
+                    trigger: 'blur'
+                }
+            ]
+        })
+
+        const resetPasswordForm = () => {
+            passwordForm.oldPassword = ''
+            passwordForm.newPassword = ''
+            passwordForm.confirmPassword = ''
+            passwordFormRef.value?.clearValidate()
+        }
+
+        const openPasswordDialog = () => {
+            resetPasswordForm()
+            passwordDialogVisible.value = true
+        }
+
+        const submitPasswordChange = async() => {
+            if (!passwordFormRef.value) {
+                return
+            }
+            const valid = await passwordFormRef.value.validate().catch(() => false)
+            if (!valid) {
+                return
+            }
+
+            passwordSubmitting.value = true
+            try {
+                await changePassword({
+                    oldPassword: passwordForm.oldPassword,
+                    newPassword: passwordForm.newPassword
+                })
+                ElMessage.success('密码修改成功')
+                passwordDialogVisible.value = false
+                resetPasswordForm()
+            } finally {
+                passwordSubmitting.value = false
+            }
+        }
+
         const handleTenantSwitch = async(tenantId: number) => {
             if (tenantId === getCurrentTenant.value?.id) {
                 return
@@ -147,7 +248,14 @@ export default defineComponent ({
             icon,
             currentTenant: getCurrentTenant,
             tenantList: getTenantList,
-            handleTenantSwitch
+            handleTenantSwitch,
+            openPasswordDialog,
+            passwordDialogVisible,
+            passwordSubmitting,
+            passwordFormRef,
+            passwordForm,
+            passwordRules,
+            submitPasswordChange
         }
     }
 })

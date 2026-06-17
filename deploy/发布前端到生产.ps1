@@ -20,13 +20,50 @@ if (-not $SkipPush) {
     Invoke-GitPush -RepoPath $repoPath -Branch $targetBranch
 }
 
+$sourceArchivePath = New-GitReleaseArchive `
+    -RepoPath $repoPath `
+    -Ref $targetBranch `
+    -ArchiveName 'director-video-ui-cloud-source-release.zip'
+
+Write-Step '本地构建前端静态资源'
+& npm.cmd run build --prefix $repoPath
+if ($LASTEXITCODE -ne 0) {
+    throw '前端本地打包失败，请先处理上面的报错。'
+}
+
+$distArchivePath = New-DirectoryZipArchive `
+    -SourceDir (Join-Path $repoPath 'dist') `
+    -ArchiveName 'director-video-ui-cloud-dist-release.zip'
+
+$remoteSourceArchivePath = '/tmp/director-video-ui-cloud-source-release.zip'
+$remoteDistArchivePath = '/tmp/director-video-ui-cloud-dist-release.zip'
+
+Write-Step '上传前端源码包与静态资源包到生产机'
+Send-FileToRemote -Config $config -LocalPath $sourceArchivePath -RemotePath $remoteSourceArchivePath
+Send-FileToRemote -Config $config -LocalPath $distArchivePath -RemotePath $remoteDistArchivePath
+
 Write-Step "发布前端到生产机 $($config.Server.Host)"
-Invoke-RemoteRepoBranchScript `
-    -Config $config `
-    -RemoteRepoDir $config.Frontend.RepoDir `
-    -Branch $targetBranch `
-    -ServerScriptPath 'deploy/server/frontend-deploy.sh' `
-    -ScriptArgs @($config.Server.RootDir)
+$rootDirText = Convert-ToBashSingleQuotedText $config.Server.RootDir
+$repoDirText = Convert-ToBashSingleQuotedText $config.Frontend.RepoDir
+$sourceArchivePathText = Convert-ToBashSingleQuotedText $remoteSourceArchivePath
+$distArchivePathText = Convert-ToBashSingleQuotedText $remoteDistArchivePath
+$remoteScript = @"
+set -euo pipefail
+ROOT_DIR=$rootDirText
+REPO_DIR=$repoDirText
+SOURCE_ARCHIVE=$sourceArchivePathText
+DIST_ARCHIVE=$distArchivePathText
+WORK_ROOT="\$ROOT_DIR/.release_work"
+SOURCE_DIR="\$WORK_ROOT/frontend_source_\$(date +%Y%m%d%H%M%S)"
+rm -rf "\$SOURCE_DIR"
+mkdir -p "\$SOURCE_DIR"
+unzip -oq "\$SOURCE_ARCHIVE" -d "\$SOURCE_DIR"
+chmod +x "\$SOURCE_DIR"/deploy/server/*.sh
+bash "\$SOURCE_DIR/deploy/server/frontend-deploy.sh" "\$ROOT_DIR" "\$SOURCE_DIR" "\$DIST_ARCHIVE"
+rm -f "\$SOURCE_ARCHIVE" "\$DIST_ARCHIVE"
+rm -rf "\$WORK_ROOT"
+"@
+Invoke-RemoteBashScript -SshTarget $config.Server.SshTarget -ScriptContent $remoteScript
 
 if (-not $SkipHealthCheck) {
     Write-Step '执行前端健康检查'

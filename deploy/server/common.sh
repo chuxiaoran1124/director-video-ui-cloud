@@ -12,8 +12,12 @@ compose_up_services() {
 print_repo_revision() {
   local repo_dir="$1"
   cd "$repo_dir"
-  echo "[git] branch=$(git branch --show-current || true)"
-  echo "[git] commit=$(git rev-parse --short HEAD)"
+  if [ -d "$repo_dir/.git" ]; then
+    echo "[git] branch=$(git branch --show-current || true)"
+    echo "[git] commit=$(git rev-parse --short HEAD)"
+  else
+    echo "[release] source_dir=$repo_dir"
+  fi
 }
 
 inspect_container_state() {

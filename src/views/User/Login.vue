@@ -24,12 +24,33 @@
                     <p>输入账号密码后，系统会自动打开你当前可用的工作页面。</p>
                 </div>
 
-                <el-form ref='ruleFormRef' :model='form' :rules='rules' label-position='top' @keyup.enter='onSubmit'>
+                <el-form ref='ruleFormRef' :model='form' :rules='rules' label-position='top' autocomplete='off' @keyup.enter='onSubmit'>
+                    <input type='text' name='fake_username' autocomplete='username' class='login-page__hidden-input'>
+                    <input type='password' name='fake_password' autocomplete='current-password' class='login-page__hidden-input'>
                     <el-form-item label='用户名' prop='username'>
-                        <el-input v-model='form.username' placeholder='请输入用户名' size='large' />
+                        <el-input
+                            v-model='form.username'
+                            placeholder='请输入用户名'
+                            size='large'
+                            :readonly='autofillGuard'
+                            name='content_support_username'
+                            autocomplete='off'
+                            @focus='releaseAutofillGuard'
+                            @mousedown='releaseAutofillGuard'
+                        />
                     </el-form-item>
                     <el-form-item label='密码' prop='password'>
-                        <el-input v-model='form.password' placeholder='请输入密码' size='large' show-password />
+                        <el-input
+                            v-model='form.password'
+                            placeholder='请输入密码'
+                            size='large'
+                            show-password
+                            :readonly='autofillGuard'
+                            name='content_support_password'
+                            autocomplete='new-password'
+                            @focus='releaseAutofillGuard'
+                            @mousedown='releaseAutofillGuard'
+                        />
                     </el-form-item>
                     <el-form-item>
                         <el-button type='primary' size='large' class='login-button' :loading='submitting' @click='onSubmit'>
@@ -47,17 +68,18 @@
 </template>
 
 <script lang='ts' setup>
-import { reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { ElNotification, FormInstance, FormRules } from 'element-plus'
 import { useLayoutStore } from '/@/store/modules/layout'
 
 const layoutStore = useLayoutStore()
 const ruleFormRef = ref<FormInstance>()
 const submitting = ref(false)
+const autofillGuard = ref(true)
 
 const form = reactive({
-    username: 'platform_admin',
-    password: 'Cloud@123456'
+    username: '',
+    password: ''
 })
 
 const rules = reactive<FormRules>({
@@ -67,6 +89,17 @@ const rules = reactive<FormRules>({
     password: [
         { required: true, message: '密码不能为空', trigger: 'blur' }
     ]
+})
+
+const releaseAutofillGuard = () => {
+    autofillGuard.value = false
+}
+
+onMounted(() => {
+    nextTick(() => {
+        form.username = ''
+        form.password = ''
+    })
 })
 
 const onSubmit = async() => {
@@ -246,6 +279,17 @@ const onSubmit = async() => {
     margin-top: 12px;
     color: #64748b;
     font-size: 13px;
+}
+
+.login-page__hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
 }
 
 ::v-deep(.el-input__wrapper) {

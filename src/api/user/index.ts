@@ -126,6 +126,14 @@ export function changePassword(payload: { oldPassword: string; newPassword: stri
     })
 }
 
+export function resetUserPassword(payload: { userId: number; tenantId?: number; newPassword: string }): Promise<AxiosResponse<IResponse<null>>> {
+    return request({
+        url: '/api/user/reset-password/',
+        method: 'post',
+        data: payload
+    })
+}
+
 export function getRoleList(tenantId?: number): Promise<AxiosResponse<IResponse<IUserRoleItem[]>>> {
     return request({
         url: '/api/user/get-role-list/',

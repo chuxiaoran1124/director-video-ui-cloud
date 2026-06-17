@@ -119,6 +119,7 @@
                     <template #default='{ row }'>
                         <div class='action-group'>
                             <el-button type='primary' link @click='openEditDialog(row)'>编辑</el-button>
+                            <el-button v-if='canResetPassword(row)' type='primary' link @click='openResetPasswordDialog(row)'>重置密码</el-button>
                             <el-button type='danger' link @click='handleDelete(row)'>移除</el-button>
                         </div>
                     </template>
@@ -212,6 +213,35 @@
                 <el-button type='primary' class='workspace-primary-btn' :loading='updating' @click='submitEdit'>保存修改</el-button>
             </template>
         </el-dialog>
+
+        <el-dialog v-model='resetPasswordDialogVisible' title='重置成员密码' width='460px' destroy-on-close>
+            <el-form ref='resetPasswordFormRef' :model='resetPasswordForm' :rules='resetPasswordRules' label-position='top' autocomplete='off'>
+                <el-form-item label='成员账号'>
+                    <el-input :model-value='resetPasswordForm.username' disabled />
+                </el-form-item>
+                <el-form-item label='新密码' prop='newPassword'>
+                    <el-input
+                        v-model='resetPasswordForm.newPassword'
+                        placeholder='请输入新的登录密码'
+                        show-password
+                        autocomplete='new-password'
+                    />
+                </el-form-item>
+                <el-form-item label='确认新密码' prop='confirmPassword'>
+                    <el-input
+                        v-model='resetPasswordForm.confirmPassword'
+                        placeholder='请再次输入新的登录密码'
+                        show-password
+                        autocomplete='new-password'
+                    />
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <el-button @click='resetPasswordDialogVisible = false'>取消</el-button>
+                <el-button type='primary' class='workspace-primary-btn' :loading='resettingPassword' @click='submitResetPassword'>确认重置</el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -225,6 +255,7 @@ import {
     getUserList,
     IUserListItem,
     IUserRoleItem,
+    resetUserPassword,
     updateUser
 } from '/@/api/user'
 import { getTenantList, ITenantListItem } from '/@/api/tenant'
@@ -235,13 +266,16 @@ import WorkspaceHero from '/@/views/User/components/WorkspaceHero.vue'
 const layoutStore = useLayoutStore()
 const createFormRef = ref<FormInstance>()
 const editFormRef = ref<FormInstance>()
+const resetPasswordFormRef = ref<FormInstance>()
 const tenantList = ref<ITenantListItem[]>([])
 const roleOptions = ref<IUserRoleItem[]>([])
 const userList = ref<IUserListItem[]>([])
 const createDialogVisible = ref(false)
 const editDialogVisible = ref(false)
+const resetPasswordDialogVisible = ref(false)
 const creating = ref(false)
 const updating = ref(false)
+const resettingPassword = ref(false)
 
 const selectedTenantId = ref<number | undefined>(layoutStore.getCurrentTenant?.id)
 const search = reactive({
@@ -269,6 +303,13 @@ const editForm = reactive({
     status: 'active'
 })
 
+const resetPasswordForm = reactive({
+    userId: 0,
+    username: '',
+    newPassword: '',
+    confirmPassword: ''
+})
+
 const rules = reactive<FormRules>({
     tenantId: [{ required: true, message: '请选择团队', trigger: 'change' }],
     username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
@@ -282,7 +323,29 @@ const editRules = reactive<FormRules>({
     status: [{ required: true, message: '请选择状态', trigger: 'change' }]
 })
 
+const resetPasswordRules = reactive<FormRules>({
+    newPassword: [{ required: true, message: '请输入新密码', trigger: 'blur' }],
+    confirmPassword: [
+        { required: true, message: '请再次输入新密码', trigger: 'blur' },
+        {
+            validator: (_rule, value, callback) => {
+                if (!value) {
+                    callback(new Error('请再次输入新密码'))
+                    return
+                }
+                if (value !== resetPasswordForm.newPassword) {
+                    callback(new Error('两次输入的新密码不一致'))
+                    return
+                }
+                callback()
+            },
+            trigger: 'blur'
+        }
+    ]
+})
+
 const currentTenantId = computed(() => selectedTenantId.value || layoutStore.getCurrentTenant?.id)
+const currentUserId = computed(() => Number(layoutStore.getUserInfo.userId || 0))
 const currentTenantName = computed(() => {
     return tenantList.value.find((item) => item.id === currentTenantId.value)?.tenantName || layoutStore.getCurrentTenant?.tenantName || '当前团队'
 })
@@ -316,6 +379,14 @@ const resetEditForm = () => {
     editForm.phone = ''
     editForm.tenantRoleCode = ''
     editForm.status = 'active'
+}
+
+const resetResetPasswordForm = () => {
+    resetPasswordForm.userId = 0
+    resetPasswordForm.username = ''
+    resetPasswordForm.newPassword = ''
+    resetPasswordForm.confirmPassword = ''
+    resetPasswordFormRef.value?.clearValidate()
 }
 
 const loadTenantOptions = async() => {
@@ -386,6 +457,15 @@ const openEditDialog = async(row: IUserListItem) => {
     editDialogVisible.value = true
 }
 
+const canResetPassword = (row: IUserListItem) => row.userId !== currentUserId.value
+
+const openResetPasswordDialog = (row: IUserListItem) => {
+    resetResetPasswordForm()
+    resetPasswordForm.userId = row.userId
+    resetPasswordForm.username = row.name || row.username
+    resetPasswordDialogVisible.value = true
+}
+
 const submitCreate = async() => {
     if (!createFormRef.value) {
         return
@@ -434,6 +514,30 @@ const submitEdit = async() => {
         await loadUserList()
     } finally {
         updating.value = false
+    }
+}
+
+const submitResetPassword = async() => {
+    if (!resetPasswordFormRef.value) {
+        return
+    }
+    const valid = await resetPasswordFormRef.value.validate().catch(() => false)
+    if (!valid) {
+        return
+    }
+
+    resettingPassword.value = true
+    try {
+        await resetUserPassword({
+            tenantId: currentTenantId.value,
+            userId: resetPasswordForm.userId,
+            newPassword: resetPasswordForm.newPassword
+        })
+        ElMessage.success('成员密码已重置')
+        resetPasswordDialogVisible.value = false
+        resetResetPasswordForm()
+    } finally {
+        resettingPassword.value = false
     }
 }
 
