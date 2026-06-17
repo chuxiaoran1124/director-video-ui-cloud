@@ -53,15 +53,15 @@ ROOT_DIR=__ROOT_DIR__
 REPO_DIR=__REPO_DIR__
 SOURCE_ARCHIVE=__SOURCE_ARCHIVE__
 DIST_ARCHIVE=__DIST_ARCHIVE__
-WORK_ROOT="\$ROOT_DIR/.release_work"
-SOURCE_DIR="\$WORK_ROOT/frontend_source_\$(date +%Y%m%d%H%M%S)"
-rm -rf "\$SOURCE_DIR"
-mkdir -p "\$SOURCE_DIR"
-unzip -oq "\$SOURCE_ARCHIVE" -d "\$SOURCE_DIR"
-chmod +x "\$SOURCE_DIR"/deploy/server/*.sh
-bash "\$SOURCE_DIR/deploy/server/frontend-deploy.sh" "\$ROOT_DIR" "\$SOURCE_DIR" "\$DIST_ARCHIVE"
-rm -f "\$SOURCE_ARCHIVE" "\$DIST_ARCHIVE"
-rm -rf "\$WORK_ROOT"
+WORK_ROOT="$ROOT_DIR/.release_work"
+SOURCE_DIR="$WORK_ROOT/frontend_source_$(date +%Y%m%d%H%M%S)"
+rm -rf "$SOURCE_DIR"
+mkdir -p "$SOURCE_DIR"
+unzip -oq "$SOURCE_ARCHIVE" -d "$SOURCE_DIR"
+chmod +x "$SOURCE_DIR"/deploy/server/*.sh
+bash "$SOURCE_DIR/deploy/server/frontend-deploy.sh" "$ROOT_DIR" "$SOURCE_DIR" "$DIST_ARCHIVE"
+rm -f "$SOURCE_ARCHIVE" "$DIST_ARCHIVE"
+rm -rf "$WORK_ROOT"
 '@
 $remoteScript = $remoteScript.Replace('__ROOT_DIR__', $rootDirText)
 $remoteScript = $remoteScript.Replace('__REPO_DIR__', $repoDirText)
