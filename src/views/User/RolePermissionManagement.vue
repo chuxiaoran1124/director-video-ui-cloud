@@ -1,29 +1,29 @@
 <template>
     <div class='workspace-page'>
         <WorkspaceHero
-            eyebrow='身份配置'
-            title='账号能力配置'
-            description='把团队会用到的身份体系、功能范围和操作权限放在一处维护。你可以先建身份，再把页面入口和操作按钮按岗位配好。'
+            eyebrow='岗位配置'
+            title='岗位与权限'
+            description='把团队会用到的岗位、可见范围和后台管理权限放在一处维护。你可以先建岗位，再把页面入口和页面操作按岗位配好。'
         >
             <template #actions>
-                <el-button class='workspace-ghost-btn' @click='loadRoleList'>刷新身份</el-button>
-                <el-button type='primary' class='workspace-primary-btn' @click='openCreateDialog'>新增身份</el-button>
+                <el-button class='workspace-ghost-btn' @click='loadRoleList'>刷新岗位</el-button>
+                <el-button type='primary' class='workspace-primary-btn' @click='openCreateDialog'>新增岗位</el-button>
             </template>
             <template #metrics>
                 <div class='metric-card'>
                     <span>当前团队</span>
                     <strong>{{ currentTenantName }}</strong>
-                    <small>平台管理员可切换团队检查身份配置</small>
+                    <small>平台管理员可切换团队检查岗位配置</small>
                 </div>
                 <div class='metric-card'>
-                    <span>身份数量</span>
+                    <span>岗位数量</span>
                     <strong>{{ roleList.length }}</strong>
-                    <small>含系统内置身份和自定义身份</small>
+                    <small>含系统内置岗位和自定义岗位</small>
                 </div>
                 <div class='metric-card'>
                     <span>当前选中</span>
                     <strong>{{ currentRoleDisplayName }}</strong>
-                    <small>右侧保存时会同步这个身份的功能范围</small>
+                    <small>右侧保存时会同步这个岗位的功能范围</small>
                 </div>
             </template>
         </WorkspaceHero>
@@ -57,7 +57,7 @@
                         :disabled='!selectedRole || selectedRole.isSystem'
                         @click='openEditDialog'
                     >
-                        编辑身份
+                        编辑岗位
                     </el-button>
                     <el-button
                         type='danger'
@@ -65,7 +65,7 @@
                         :disabled='!selectedRole || selectedRole.isSystem'
                         @click='handleDeleteRole'
                     >
-                        删除身份
+                        删除岗位
                     </el-button>
                 </div>
             </div>
@@ -77,28 +77,28 @@
             @role-change='handleRoleChange'
         />
 
-        <el-dialog v-model='createDialogVisible' title='新增身份' width='620px' destroy-on-close>
+        <el-dialog v-model='createDialogVisible' title='新增岗位' width='620px' destroy-on-close>
             <el-form ref='createFormRef' :model='roleForm' :rules='roleRules' label-position='top'>
-                <el-form-item label='身份名称' prop='roleName'>
+                <el-form-item label='岗位名称' prop='roleName'>
                     <el-input v-model='roleForm.roleName' placeholder='例如：内容质检员' />
                 </el-form-item>
-                <el-form-item label='身份描述' prop='description'>
-                    <el-input v-model='roleForm.description' placeholder='简单描述这个身份的职责' />
+                <el-form-item label='岗位说明' prop='description'>
+                    <el-input v-model='roleForm.description' placeholder='简单描述这个岗位负责什么' />
                 </el-form-item>
-                <el-form-item label='可见范围' prop='dataScope'>
+                <el-form-item label='数据范围' prop='dataScope'>
                     <el-select v-model='roleForm.dataScope'>
                         <el-option label='仅本人内容' value='self' />
                         <el-option label='团队全部内容' value='tenant_all' />
                     </el-select>
                 </el-form-item>
-                <el-form-item label='身份优先级' prop='roleLevel'>
+                <el-form-item label='管理级别（数字越小权限越高）' prop='roleLevel'>
                     <el-input-number v-model='roleForm.roleLevel' :min='1' :max='999' />
                 </el-form-item>
-                <el-form-item label='管理能力'>
-                    <el-checkbox v-model='roleForm.canManageUsers'>可管理成员</el-checkbox>
-                    <el-checkbox v-model='roleForm.canManageRoles'>可管理身份</el-checkbox>
-                    <el-checkbox v-model='roleForm.canManageRolePermissions'>可配置功能范围</el-checkbox>
-                    <el-checkbox v-if='layoutStore.getUserInfo.isPlatformSuperAdmin' v-model='roleForm.canManageTenantRoutes'>可维护团队功能范围</el-checkbox>
+                <el-form-item label='后台管理权限'>
+                    <el-checkbox v-model='roleForm.canManageUsers'>成员管理</el-checkbox>
+                    <el-checkbox v-model='roleForm.canManageRoles'>岗位管理</el-checkbox>
+                    <el-checkbox v-model='roleForm.canManageRolePermissions'>页面授权</el-checkbox>
+                    <el-checkbox v-if='layoutStore.getUserInfo.isPlatformSuperAdmin' v-model='roleForm.canManageTenantRoutes'>团队功能开关</el-checkbox>
                 </el-form-item>
             </el-form>
 
@@ -108,28 +108,28 @@
             </template>
         </el-dialog>
 
-        <el-dialog v-model='editDialogVisible' title='编辑身份' width='620px' destroy-on-close>
+        <el-dialog v-model='editDialogVisible' title='编辑岗位' width='620px' destroy-on-close>
             <el-form ref='editFormRef' :model='roleForm' :rules='roleRules' label-position='top'>
-                <el-form-item label='身份名称' prop='roleName'>
+                <el-form-item label='岗位名称' prop='roleName'>
                     <el-input v-model='roleForm.roleName' placeholder='例如：内容质检员' />
                 </el-form-item>
-                <el-form-item label='身份描述' prop='description'>
-                    <el-input v-model='roleForm.description' placeholder='简单描述这个身份的职责' />
+                <el-form-item label='岗位说明' prop='description'>
+                    <el-input v-model='roleForm.description' placeholder='简单描述这个岗位负责什么' />
                 </el-form-item>
-                <el-form-item label='可见范围' prop='dataScope'>
+                <el-form-item label='数据范围' prop='dataScope'>
                     <el-select v-model='roleForm.dataScope'>
                         <el-option label='仅本人内容' value='self' />
                         <el-option label='团队全部内容' value='tenant_all' />
                     </el-select>
                 </el-form-item>
-                <el-form-item label='身份优先级' prop='roleLevel'>
+                <el-form-item label='管理级别（数字越小权限越高）' prop='roleLevel'>
                     <el-input-number v-model='roleForm.roleLevel' :min='1' :max='999' />
                 </el-form-item>
-                <el-form-item label='管理能力'>
-                    <el-checkbox v-model='roleForm.canManageUsers'>可管理成员</el-checkbox>
-                    <el-checkbox v-model='roleForm.canManageRoles'>可管理身份</el-checkbox>
-                    <el-checkbox v-model='roleForm.canManageRolePermissions'>可配置功能范围</el-checkbox>
-                    <el-checkbox v-if='layoutStore.getUserInfo.isPlatformSuperAdmin' v-model='roleForm.canManageTenantRoutes'>可维护团队功能范围</el-checkbox>
+                <el-form-item label='后台管理权限'>
+                    <el-checkbox v-model='roleForm.canManageUsers'>成员管理</el-checkbox>
+                    <el-checkbox v-model='roleForm.canManageRoles'>岗位管理</el-checkbox>
+                    <el-checkbox v-model='roleForm.canManageRolePermissions'>页面授权</el-checkbox>
+                    <el-checkbox v-if='layoutStore.getUserInfo.isPlatformSuperAdmin' v-model='roleForm.canManageTenantRoutes'>团队功能开关</el-checkbox>
                 </el-form-item>
             </el-form>
 
@@ -174,9 +174,9 @@ const roleForm = reactive({
 })
 
 const roleRules = reactive<FormRules>({
-    roleName: [{ required: true, message: '请输入身份名称', trigger: 'blur' }],
+    roleName: [{ required: true, message: '请输入岗位名称', trigger: 'blur' }],
     dataScope: [{ required: true, message: '请选择可见范围', trigger: 'change' }],
-    roleLevel: [{ required: true, message: '请输入优先级', trigger: 'change' }]
+    roleLevel: [{ required: true, message: '请输入管理级别', trigger: 'change' }]
 })
 
 const currentTenantName = computed(() => {
@@ -184,7 +184,7 @@ const currentTenantName = computed(() => {
 })
 
 const currentRoleDisplayName = computed(() => {
-    return selectedRole.value ? getRoleDisplayName(selectedRole.value.roleName) : '未选择身份'
+    return selectedRole.value ? getRoleDisplayName(selectedRole.value.roleName) : '未选择岗位'
 })
 
 function resetRoleForm() {
@@ -258,7 +258,7 @@ const submitCreate = async() => {
             tenantId: selectedTenantId.value,
             ...roleForm
         })
-        ElMessage.success(response.data.message || '身份创建成功')
+        ElMessage.success(response.data.message || '岗位创建成功')
         createDialogVisible.value = false
         await loadRoleList()
         selectedRole.value = roleList.value.find((item) => item.id === response.data.data.id)
@@ -281,7 +281,7 @@ const submitEdit = async() => {
             tenantId: selectedTenantId.value,
             ...roleForm
         })
-        ElMessage.success('身份更新成功')
+        ElMessage.success('岗位更新成功')
         editDialogVisible.value = false
         await loadRoleList()
         selectedRole.value = roleList.value.find((item) => item.id === selectedRole.value?.id)
@@ -295,8 +295,8 @@ const handleDeleteRole = async() => {
         return
     }
     await ElMessageBox.confirm(
-        `删除 ${getRoleDisplayName(selectedRole.value.roleName)} 后，这个自定义身份将无法继续分配，是否继续？`,
-        '删除身份',
+        `删除 ${getRoleDisplayName(selectedRole.value.roleName)} 后，这个自定义岗位将无法继续分配，是否继续？`,
+        '删除岗位',
         {
             type: 'warning',
             confirmButtonText: '确认删除',
@@ -306,7 +306,7 @@ const handleDeleteRole = async() => {
     await deleteRole(selectedRole.value.id, {
         tenantId: selectedTenantId.value
     })
-    ElMessage.success('身份已删除')
+    ElMessage.success('岗位已删除')
     selectedRole.value = undefined
     await loadRoleList()
 }

@@ -472,6 +472,7 @@ import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { createDubbingTask, getDubbingTaskList, deleteDubbingTask, checkDubbingName, getDubbingTaskDetail, getVoiceList, getScriptPaginateList, getScriptHistoryList, createScript } from '/@/api/material'
+import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl } from '/@/utils/download'
 
 // --- 数据定义 ---
 
@@ -707,34 +708,28 @@ const handleCreateNew = () => {
 }
 
 const resolveAudioUrl = (audio: any) => {
-  return audio?.baseVoiceUrl || audio?.audioUrl || audio?.url || ''
+  return normalizeAssetUrl(audio?.baseVoiceUrl || audio?.audioUrl || audio?.url || '')
 }
 
 const startDownloadByUrl = async (url: string, fileName: string) => {
-  if (!url) {
+  const normalizedUrl = normalizeAssetUrl(url)
+  if (!normalizedUrl) {
     ElMessage.warning('音频URL不可用')
     return
   }
 
   try {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    const blob = await response.blob()
-    const blobUrl = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = blobUrl
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(blobUrl)
-    document.body.removeChild(a)
+    const extensionMatch = fileName.match(/\.[a-zA-Z0-9]+$/)
+    const fallbackBaseName = fileName.replace(/\.[^/.]+$/, '') || 'audio'
+    await downloadProxyFile(normalizedUrl, {
+      assetType: 'audio',
+      fallbackBaseName,
+      defaultExtension: extensionMatch?.[0] || '.mp3'
+    })
     ElMessage.success('下载已开始')
   } catch (error) {
-    // 某些外链可能被 CORS 拦截，直接打开原链接作为降级方案
-    window.open(url, '_blank')
-    ElMessage.warning('直接下载失败，已尝试打开原始链接')
+    console.error('下载音频失败:', error)
+    ElMessage.error('下载失败，请重试')
   }
 }
 
@@ -1134,7 +1129,7 @@ const batchDownloadAudios = async () => {
     return
   }
 
-  const validAudios = selectedAudios.value.filter(a => a.taskStatus === '2' && (a.baseVoiceUrl || a.audioUrl))
+  const validAudios = selectedAudios.value.filter(a => a.taskStatus === '2' && resolveAudioUrl(a))
   const invalidCount = selectedAudios.value.length - validAudios.length
 
   if (validAudios.length === 0) {
@@ -1150,11 +1145,13 @@ const batchDownloadAudios = async () => {
     let failedCount = 0
 
     const downloadPromises = validAudios.map(audio =>
-      fetch(audio.baseVoiceUrl || audio.audioUrl)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          return response.blob()
-        })
+      fetchProxyBlob(resolveAudioUrl(audio), {
+        taskId: audio.id,
+        assetType: 'audio',
+        fallbackBaseName: `${audio.title || 'audio'}-${audio.id}`,
+        defaultExtension: '.mp3'
+      })
+        .then(response => response.blob)
         .then(blob => {
           const fileName = `${audio.title || 'audio'}-${audio.id}.mp3`
           zip.file(fileName, blob)

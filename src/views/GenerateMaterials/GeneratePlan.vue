@@ -783,6 +783,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore } from '/@/store/modules/task'
 import { createPlanVideo, createPlanVideoTask, deletePlanVideoTask, deletePlanVideo, getPlanVideoList, getScriptPaginateList, getScriptHistoryList, createScript, getDigitalHumanList, getVoiceList, getBindingList, startPlanVideoTask, startAllPlanTasks, getCornerMarkList, toTopCornerMark } from '/@/api/material/index'
 import request from '/@/utils/request'
+import { downloadProxyFile, normalizeAssetUrl } from '/@/utils/download'
 
 const DEFAULT_PLAN_SUBTITLE_CONFIG = {
   font_name: '竹言体',
@@ -1206,106 +1207,44 @@ const openVideoPreview = (url?: string) => {
 
 // 下载视频
 const downloadVideo = (task: any) => {
-  if (!task.videoUrl) {
+  const targetUrl = normalizeAssetUrl(task.videoUrl)
+  if (!targetUrl) {
     ElMessage.warning('暂无可下载的视频文件')
     return
   }
   
-  try {
-    // 使用fetch获取文件，然后用Blob方式下载
-    fetch(task.videoUrl)
-      .then(response => response.blob())
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        
-        // 获取文件名
-        const urlParts = task.videoUrl.split('/')
-        let fileName = urlParts[urlParts.length - 1] || task.name + '.mp4'
-        if (fileName && !fileName.includes('.')) {
-          fileName = fileName + '.mp4'
-        }
-        
-        link.download = fileName
-        link.style.display = 'none'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        ElMessage.success('视频下载已开始')
-      })
-      .catch(error => {
-        console.error('下载视频失败:', error)
-        ElMessage.error('下载视频失败，请重试')
-      })
-  } catch (error) {
+  downloadProxyFile(targetUrl, {
+    taskId: task.id,
+    assetType: 'video',
+    fallbackBaseName: `${task.name || task.title || 'plan-video'}-${task.id}`,
+    defaultExtension: '.mp4'
+  }).then(() => {
+    ElMessage.success('视频下载已开始')
+  }).catch((error) => {
     console.error('下载视频失败:', error)
     ElMessage.error('下载视频失败，请重试')
-  }
+  })
 }
 
 // 下载音频
 const downloadAudio = (task: any) => {
-  let audioUrl = task.baseVoiceUrl || task.base_voice_url || task.voice_url || task.voiceAudio
+  let audioUrl = normalizeAssetUrl(task.baseVoiceUrl || task.base_voice_url || task.voice_url || task.voiceAudio)
   
   if (!audioUrl) {
     ElMessage.warning('暂无可下载的音频文件')
     return
   }
-  
-  // 处理URL数组格式的字符串，如 "['https://...']"
-  if (typeof audioUrl === 'string' && audioUrl.includes('[')) {
-    try {
-      // 使用正则表达式提取URL
-      const urlMatch = audioUrl.match(/https?:\/\/[^\s'"]+/)
-      if (urlMatch && urlMatch[0]) {
-        audioUrl = urlMatch[0]
-      }
-    } catch (e) {
-      console.error('解析音频URL失败:', e)
-    }
-  }
-  
-  if (!audioUrl || audioUrl.includes('[')) {
-    ElMessage.warning('音频URL格式不正确')
-    return
-  }
-  
-  try {
-    // 使用fetch获取文件，然后用Blob方式下载
-    fetch(audioUrl)
-      .then(response => response.blob())
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        
-        // 获取文件名
-        const urlParts = audioUrl.split('/')
-        let fileName = urlParts[urlParts.length - 1] || task.voice_name + '.mp3'
-        if (fileName && !fileName.includes('.')) {
-          fileName = fileName + '.mp3'
-        }
-        
-        link.download = fileName
-        link.style.display = 'none'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        ElMessage.success('音频下载已开始')
-      })
-      .catch(error => {
-        console.error('下载音频失败:', error)
-        ElMessage.error('下载音频失败，请重试')
-      })
-  } catch (error) {
+  downloadProxyFile(audioUrl, {
+    taskId: task.id,
+    assetType: 'audio',
+    fallbackBaseName: `${task.voice_name || task.name || task.title || 'plan-audio'}-${task.id}`,
+    defaultExtension: '.mp3'
+  }).then(() => {
+    ElMessage.success('音频下载已开始')
+  }).catch((error) => {
     console.error('下载音频失败:', error)
     ElMessage.error('下载音频失败，请重试')
-  }
+  })
 }
 
 // 绑定关系切换逻辑

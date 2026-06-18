@@ -34,6 +34,7 @@
           </el-input>
           <el-select v-model="filterStatus" placeholder="任务状态" clearable class="!w-40">
             <el-option label="全部状态" value="" />
+            <el-option label="等待中" value="waiting" />
             <el-option label="克隆中" value="processing" />
             <el-option label="已成功" value="success" />
             <el-option label="已失败" value="failed" />
@@ -342,7 +343,7 @@
                       <!-- 实际视频播放 -->
                       <video 
                         v-if="currentAsset?.videoUrl"
-                        :src="currentAsset.videoUrl"
+                        :src="resolveAssetUrl(currentAsset.videoUrl)"
                         controls
                         class="w-full h-full object-contain"
                         controlsList="nodownload"
@@ -361,7 +362,7 @@
                    <div class="w-full bg-blue-50 rounded-2xl p-6 mb-6">
                       <audio 
                         v-if="currentAsset?.voiceUrl"
-                        :src="parseVoiceUrl(currentAsset.voiceUrl)"
+                        :src="resolveAssetUrl(currentAsset.voiceUrl)"
                         controls
                         class="w-full mb-6"
                         controlsList="nodownload"
@@ -408,7 +409,7 @@
             <video 
               v-if="currentAsset.videoUrl"
               ref="previewVideoRef"
-              :src="currentAsset.videoUrl" 
+              :src="resolveAssetUrl(currentAsset.videoUrl)" 
               controls 
               class="w-full h-full object-contain"
               controlsList="nodownload"
@@ -428,7 +429,7 @@
             <audio 
               v-if="currentAsset.voiceUrl"
               ref="previewAudioRef"
-              :src="parseVoiceUrl(currentAsset.voiceUrl)"
+              :src="resolveAssetUrl(currentAsset.voiceUrl)"
               controls
               class="w-full mb-6"
               controlsList="nodownload"
@@ -455,7 +456,7 @@
       <template #footer>
         <div class="flex justify-end gap-2">
           <el-button @click="previewVisible = false">关闭预览</el-button>
-          <el-button type="primary">导出资产包</el-button>
+          <el-button type="primary" :loading="assetExporting" @click="exportAssetPackage">导出资产包</el-button>
         </div>
       </template>
     </el-dialog>
@@ -465,8 +466,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import JSZip from 'jszip'
 import { useTaskStore } from '/@/store/modules/task'
 import { createFastTask, getFastTaskList, deleteFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
+import { fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -484,6 +487,7 @@ const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
 const previewVideoRef = ref<HTMLVideoElement | null>(null)
 const previewAudioRef = ref<HTMLAudioElement | null>(null)
+const assetExporting = ref(false)
 // 云上版当前只开放单条快速克隆，批量入口统一隐藏。
 const enableBatchCreate = false
 const uploadMode = ref<'single' | 'batch'>('single')
@@ -526,6 +530,8 @@ const stopMedia = (mediaEl: HTMLMediaElement | null) => {
   if (!mediaEl) return
   mediaEl.pause()
   mediaEl.currentTime = 0
+  mediaEl.removeAttribute('src')
+  mediaEl.load?.()
 }
 
 const handlePreviewClosed = () => {
@@ -622,12 +628,12 @@ const loadTaskList = async () => {
       
       taskList.value = taskListData.map((item: any) => {
         const taskStatus = Number(item.taskStatus)
-        let statusType = 'processing'  // 鐢ㄤ簬UI鏍峰紡
+        let statusType = 'processing'
         let progress = 50
         
-        // 0=绛夊緟涓? 1=闊抽鍏嬮殕涓? 2=鏁板瓧浜哄厠闅嗕腑, 3=瀹屾垚, -1=澶辫触
+        // 0=等待中, 1=生成音频中, 2=生成视频中, 3=完成, -1=失败
         if (taskStatus === 0) {
-          statusType = 'processing'
+          statusType = 'waiting'
           progress = 5
         } else if (taskStatus === 1) {
           statusType = 'processing'
@@ -693,7 +699,7 @@ const paginatedTaskList = computed(() => {
 })
 
 const getStatusType = (status: string) => {
-  const map: any = { success: 'success', processing: 'primary', failed: 'danger' }
+  const map: any = { waiting: 'info', success: 'success', processing: 'primary', failed: 'danger' }
   return map[status] || 'info'
 }
 
@@ -702,7 +708,7 @@ const getStatusLabel = (row: any) => {
   
   // 如果是数字状态码
   if (typeof taskStatus === 'number') {
-    const map: any = { 0: '等待中', 1: '音频克隆中', 2: '数字人克隆中', 3: '已完成', 4: '任务失败', '-1': '任务失败' }
+    const map: any = { 0: '等待中', 1: '生成音频中', 2: '生成视频中', 3: '已完成', 4: '任务失败', '-1': '任务失败' }
     return map[taskStatus] || '未知状态'
   }
   
@@ -721,21 +727,21 @@ const getStatusDotClass = (row: any) => {
   }
   
   // 根据字符串状态
-  const map: any = { success: 'bg-green-500', processing: 'bg-blue-500 animate-pulse', failed: 'bg-red-500' }
+  const map: any = { waiting: 'bg-slate-400', success: 'bg-green-500', processing: 'bg-blue-500 animate-pulse', failed: 'bg-red-500' }
   return map[taskStatus] || 'bg-slate-300'
 }
 
 const getStatusTextClass = (row: any) => {
   const status = row.status || row.taskStatus
-  const map: any = { success: 'text-green-600', processing: 'text-blue-600', 0: 'text-slate-600', 1: 'text-blue-600', 2: 'text-orange-600', 3: 'text-green-600', 4: 'text-red-600', '-1': 'text-red-600', failed: 'text-red-600' }
+  const map: any = { waiting: 'text-slate-600', success: 'text-green-600', processing: 'text-blue-600', 0: 'text-slate-600', 1: 'text-blue-600', 2: 'text-orange-600', 3: 'text-green-600', 4: 'text-red-600', '-1': 'text-red-600', failed: 'text-red-600' }
   return map[status] || 'text-slate-500'
 }
 
 const getProgressText = (taskStatus: number) => {
   const map: Record<number, string> = {
     0: '等待中',
-    1: '音频克隆中',
-    2: '数字人克隆中',
+    1: '生成音频中',
+    2: '生成视频中',
     3: '已完成',
     4: '任务失败',
     [-1]: '任务失败'
@@ -994,23 +1000,56 @@ const handleBackToList = async () => {
   startListPolling()
 }
 
-const parseVoiceUrl = (voiceUrl: string) => {
-  if (!voiceUrl) return ''
-  // 澶勭悊鏍煎紡: "['https://...']" 鎴?JSON鏁扮粍鏍煎紡
+const resolveAssetUrl = (rawUrl: string) => normalizeAssetUrl(rawUrl)
+
+const exportAssetPackage = async () => {
+  if (!currentAsset.value) {
+    ElMessage.warning('暂无可导出的资产')
+    return
+  }
+
+  const videoUrl = resolveAssetUrl(currentAsset.value.videoUrl)
+  const voiceUrl = resolveAssetUrl(currentAsset.value.voiceUrl)
+
+  if (!videoUrl && !voiceUrl) {
+    ElMessage.warning('当前资产还没有可导出的音视频文件')
+    return
+  }
+
+  const assetBaseName = sanitizeFileName(currentAsset.value.name || `asset-${currentAsset.value.id || Date.now()}`, 'asset')
+  assetExporting.value = true
+
   try {
-    if (voiceUrl.startsWith("['") && voiceUrl.endsWith("']")) {
-      // 鍗曞紩鍙锋牸寮忥細['https://...']
-      const url = voiceUrl.slice(2, -2)
-      return url
-    } else if (voiceUrl.startsWith('[') && voiceUrl.endsWith(']')) {
-      // JSON鏁扮粍鏍煎紡锛歔'https://...']
-      const parsed = JSON.parse(voiceUrl)
-      return Array.isArray(parsed) ? parsed[0] : voiceUrl
+    const zip = new JSZip()
+
+    if (videoUrl) {
+      const { blob, fileName } = await fetchProxyBlob(videoUrl, {
+        taskId: currentAsset.value.id,
+        assetType: 'video',
+        fallbackBaseName: `${assetBaseName}-video`,
+        defaultExtension: '.mp4'
+      })
+      zip.file(fileName, blob)
     }
-    return voiceUrl
+
+    if (voiceUrl) {
+      const { blob, fileName } = await fetchProxyBlob(voiceUrl, {
+        taskId: currentAsset.value.id,
+        assetType: 'audio',
+        fallbackBaseName: `${assetBaseName}-audio`,
+        defaultExtension: '.mp3'
+      })
+      zip.file(fileName, blob)
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    triggerBlobDownload(zipBlob, `${assetBaseName}-assets.zip`)
+    ElMessage.success('资产包导出成功')
   } catch (error) {
-    console.error('Failed to parse voice URL:', error)
-    return voiceUrl
+    console.error('导出资产包失败:', error)
+    ElMessage.error('导出资产包失败，请稍后重试')
+  } finally {
+    assetExporting.value = false
   }
 }
 

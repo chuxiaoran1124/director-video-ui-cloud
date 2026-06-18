@@ -21,6 +21,11 @@ export interface ITenantDetailResponse extends ITenantSummary {
     runtimeConfig: Record<string, any>
     schedulerConfig: Record<string, any>
     storageConfig: Record<string, any>
+    initialAdmin?: {
+        username: string
+        enabled: boolean
+        name?: string
+    }
 }
 
 export interface ICreateTenantPayload {
@@ -31,6 +36,12 @@ export interface ICreateTenantPayload {
     contactPhone?: string
     contactEmail?: string
     remark?: string
+    adminUsername: string
+    adminPassword: string
+    adminName?: string
+    adminPhone?: string
+    adminEmail?: string
+    adminEnabled?: boolean
 }
 
 export function createTenant(payload: ICreateTenantPayload): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
@@ -68,6 +79,19 @@ export function updateTenantRuntimeConfig(payload: { tenantId: number; enablePos
 export function updateTenantSchedulerPriorityConfig(payload: { tenantId: number; priorityMode: string }): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
     return request({
         url: '/api/tenant/scheduler-config/update/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function updateTenantSchedulerQuotaConfig(payload: {
+    tenantId: number
+    maxConcurrency: number
+    maxVideoTaskConcurrency: number
+    maxFastTaskConcurrency: number
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+    return request({
+        url: '/api/tenant/scheduler-config/quota/update/',
         method: 'post',
         data: payload
     })

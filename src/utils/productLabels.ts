@@ -2,7 +2,7 @@ const routeTitleMap: Record<string, string> = {
     dashboard: '工作台',
     permission: '账号与功能',
     'menu-management': '功能导航',
-    'role-permission-management': '账号能力配置',
+    'role-permission-management': '岗位与权限',
     'user-management': '成员管理',
     'tenant-management': '团队管理',
     'tenant-route-management': '团队功能范围',
@@ -19,7 +19,7 @@ const permissionLabelMap: Record<string, string> = {
     create: '新增',
     edit: '编辑',
     delete: '删除',
-    assign: '分配'
+    assign: '授权'
 }
 
 const roleLabelMap: Record<string, string> = {

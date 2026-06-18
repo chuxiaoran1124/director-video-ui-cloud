@@ -254,13 +254,13 @@
               <el-table-column label="横幅图" min-width="160" align="center">
                 <template #default="scope">
                   <div
-                    v-if="scope.row.imageUrl"
+                    v-if="scope.row.previewUrl || scope.row.imageUrl"
                     class="banner-thumb-bg w-28 h-12 rounded-md border border-gray-200 overflow-hidden cursor-pointer"
                     @click="openBannerPreview(scope.row)"
                   >
-                    <img :src="scope.row.imageUrl" class="w-full h-full object-cover" />
+                    <img :src="scope.row.previewUrl || scope.row.imageUrl" class="w-full h-full object-contain bg-white" />
                   </div>
-                  <span v-else class="text-xs text-gray-400">暂无合成图</span>
+                  <span v-else class="text-xs text-gray-400">暂无横幅图</span>
                 </template>
               </el-table-column>
               <el-table-column prop="updateTime" label="更新时间" width="180" align="center" />
@@ -650,6 +650,7 @@ import { defineComponent, ref, onMounted, onUnmounted, computed, reactive, nextT
 import TagManager from '/@/components/TagManager/index.vue'
 import MaterialCornerMarkPanel from '/@/views/PriorDisposal/components/MaterialCornerMarkPanel.vue'
 import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding, bannerOverlayPreview, bannerOverlaySave, downloadFileByProxy } from '/@/api/material/index'
+import { normalizeAssetUrl } from '/@/utils/download'
 import request from '/@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -802,6 +803,7 @@ export default defineComponent({
         id: Number(item?.id ?? 0),
         name: item?.title || item?.name || '',
         imageUrl: item?.overlayUrl || item?.overlay_url || '',
+        previewUrl: item?.outputUrl || item?.output_url || item?.overlayUrl || item?.overlay_url || '',
         overlayUrl: item?.overlayUrl || item?.overlay_url || '',
         outputUrl: item?.outputUrl || item?.output_url || '',
         updateTime: item?.updateTime || item?.update_time || item?.createTime || item?.create_time || '',
@@ -1710,7 +1712,7 @@ export default defineComponent({
     }
 
     function openBannerPreview(row: any) {
-      bannerPreviewDialog.url = row?.outputUrl || row?.imageUrl || ''
+      bannerPreviewDialog.url = row?.previewUrl || row?.outputUrl || row?.imageUrl || ''
       bannerPreviewDialog.visible = !!bannerPreviewDialog.url
     }
 
@@ -1859,6 +1861,53 @@ export default defineComponent({
     // 音频播放相关
     const audioPlayer = ref(null as HTMLAudioElement | null)
     const currentPlayingVoice = ref(null as any)
+    const currentAudioObjectUrl = ref('')
+
+    const revokeCurrentAudioObjectUrl = () => {
+      if (!currentAudioObjectUrl.value) {
+        return
+      }
+      URL.revokeObjectURL(currentAudioObjectUrl.value)
+      currentAudioObjectUrl.value = ''
+    }
+
+    const resetAudioPlayer = () => {
+      if (audioPlayer.value) {
+        ;(audioPlayer.value as any)._aborted = true
+        audioPlayer.value.pause()
+        audioPlayer.value.removeAttribute('src')
+        audioPlayer.value.load?.()
+        audioPlayer.value = null
+      }
+      revokeCurrentAudioObjectUrl()
+      currentPlayingVoice.value = null
+    }
+
+    const resolveVoicePreviewSource = async (voice: any): Promise<{ src: string; objectUrl: string }> => {
+      const normalizedUrl = normalizeAssetUrl(voice?.url)
+      if (!normalizedUrl) {
+        return { src: '', objectUrl: '' }
+      }
+
+      try {
+        const res = await downloadFileByProxy(normalizedUrl, voice?.id, 'audio')
+        const blob = res.data as Blob
+        if (blob instanceof Blob) {
+          const objectUrl = URL.createObjectURL(blob)
+          return {
+            src: objectUrl,
+            objectUrl,
+          }
+        }
+      } catch (error) {
+        console.warn('声音试听代理拉流失败，回退到原始地址播放', error)
+      }
+
+      return {
+        src: normalizedUrl,
+        objectUrl: '',
+      }
+    }
     
     // 鎼滅储鏁版嵁鍒濆鍖?
     const searchVoice = ref('')
@@ -2237,16 +2286,9 @@ export default defineComponent({
     }
 
     // 音频播放功能
-    const playVoice = (voice: any) => {
-      let url = voice.url
-
-      // 处理 "['https://...']" 格式
-      if (url && !url.startsWith('http')) {
-        const match = url.match(/https?:\/\/[^'"\]\)\s]+/)
-        if (match) url = match[0]
-      }
-
-      if (!url) {
+    const playVoice = async (voice: any) => {
+      const normalizedUrl = normalizeAssetUrl(voice?.url)
+      if (!normalizedUrl) {
         ElMessage.warning('该声音文件不存在')
         return
       }
@@ -2262,13 +2304,26 @@ export default defineComponent({
       }
 
       // 不同音频：停止当前，播放新的
-      if (audioPlayer.value) {
-        ;(audioPlayer.value as any)._aborted = true
-        audioPlayer.value.pause()
-        audioPlayer.value.src = ''
-        audioPlayer.value = null
-      }
+      resetAudioPlayer()
       currentPlayingVoice.value = voice
+
+      const { src, objectUrl } = await resolveVoicePreviewSource(voice)
+      if (!src) {
+        currentPlayingVoice.value = null
+        ElMessage.warning('该声音文件不存在')
+        return
+      }
+
+      if (currentPlayingVoice.value !== voice) {
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl)
+        }
+        return
+      }
+
+      if (objectUrl) {
+        currentAudioObjectUrl.value = objectUrl
+      }
 
       const audio = new Audio()
       audioPlayer.value = audio
@@ -2276,20 +2331,17 @@ export default defineComponent({
       audio.addEventListener('error', () => {
         if ((audio as any)._aborted) return
         ElMessage.error('音频播放失败，请检查文件地址')
-        audioPlayer.value = null
-        currentPlayingVoice.value = null
+        resetAudioPlayer()
       })
 
-      audio.src = url
+      audio.src = src
       audio.play().catch(error => {
         ElMessage.error('音频播放失败: ' + (error.message || ''))
-        audioPlayer.value = null
-        currentPlayingVoice.value = null
+        resetAudioPlayer()
       })
 
       audio.onended = () => {
-        audioPlayer.value = null
-        currentPlayingVoice.value = null
+        resetAudioPlayer()
       }
     }
 
@@ -2478,6 +2530,7 @@ export default defineComponent({
         clearTimeout(bannerNameCheckTimer)
         bannerNameCheckTimer = null
       }
+      resetAudioPlayer()
     })
 
     // 鐩戝惉鏁板瓧浜哄垎椤靛彉鍖?

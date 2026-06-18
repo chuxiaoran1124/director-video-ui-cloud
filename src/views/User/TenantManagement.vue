@@ -94,7 +94,7 @@
                         </template>
                     </el-table-column>
                     <el-table-column prop='userCount' label='成员数' width='100' />
-                    <el-table-column prop='roleCount' label='身份数' width='100' />
+                    <el-table-column prop='roleCount' label='岗位数' width='100' />
                     <el-table-column prop='status' label='状态' width='120'>
                         <template #default='{ row }'>
                             <el-tag :type="row.status === 'active' ? 'success' : 'info'" effect='light'>
@@ -138,7 +138,7 @@
                                 <strong>{{ tenantDetail.userCount }}</strong>
                             </div>
                             <div class='detail-metric'>
-                                <span>身份数量</span>
+                                <span>岗位数量</span>
                                 <strong>{{ tenantDetail.roleCount }}</strong>
                             </div>
                         </div>
@@ -219,17 +219,55 @@
                                 </div>
                             </section>
 
-                            <section class='capability-card'>
+                            <section class='capability-card capability-card--editable'>
                                 <header>
                                     <h4>处理额度</h4>
-                                    <span>帮助判断调度资源边界</span>
+                                    <span>用于控制复杂任务进入、视频线程占用和音频处理并发。</span>
                                 </header>
-                                <ul class='capability-list'>
-                                    <li>同时处理上限：{{ tenantDetail.schedulerConfig.maxConcurrency }}</li>
-                                    <li>视频任务上限：{{ tenantDetail.schedulerConfig.maxVideoTaskConcurrency }}</li>
-                                    <li>快速任务上限：{{ tenantDetail.schedulerConfig.maxFastTaskConcurrency }}</li>
-                                    <li>后处理上限：{{ tenantDetail.schedulerConfig.maxPostProcessConcurrency }}</li>
-                                </ul>
+                                <div class='quota-panel'>
+                                    <div class='quota-field'>
+                                        <span>复杂任务线程</span>
+                                        <el-input-number
+                                            v-model='schedulerComplexWorkers'
+                                            :min='1'
+                                            :max='100'
+                                            :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
+                                        />
+                                        <small>决定有多少条复杂任务可以同时进入执行态。</small>
+                                    </div>
+                                    <div class='quota-field'>
+                                        <span>视频线程</span>
+                                        <el-input-number
+                                            v-model='schedulerVideoSlots'
+                                            :min='1'
+                                            :max='100'
+                                            :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
+                                        />
+                                        <small>限制真正进入第三方视频服务的并发数量。</small>
+                                    </div>
+                                    <div class='quota-field'>
+                                        <span>音频线程</span>
+                                        <el-input-number
+                                            v-model='schedulerAudioWorkers'
+                                            :min='1'
+                                            :max='100'
+                                            :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
+                                        />
+                                        <small>控制快速任务里的音频克隆并发。</small>
+                                    </div>
+                                    <div class='priority-panel__footer'>
+                                        <el-button
+                                            v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
+                                            type='primary'
+                                            class='workspace-primary-btn'
+                                            :loading='savingSchedulerQuotaConfig'
+                                            @click='saveSchedulerQuotaConfig'
+                                        >
+                                            保存额度
+                                        </el-button>
+                                        <span v-else class='toggle-panel__hint'>仅平台管理员可调整团队的处理额度。</span>
+                                    </div>
+                                </div>
                             </section>
 
                             <section class='capability-card'>
@@ -272,6 +310,36 @@
                 <el-form-item label='备注'>
                     <el-input v-model='createForm.remark' type='textarea' :rows='3' placeholder='可记录接入说明或业务备注' />
                 </el-form-item>
+                <el-divider content-position='left'>首个团队管理员账号</el-divider>
+                <el-alert
+                    type='info'
+                    :closable='false'
+                    show-icon
+                    title='团队创建完成后，这个账号就是该团队的第一个管理员。若当前不启用，它将无法直接登录。'
+                    class='create-form__alert'
+                />
+                <el-form-item label='登录账号' prop='adminUsername'>
+                    <el-input v-model='createForm.adminUsername' placeholder='例如：huadong_admin' />
+                </el-form-item>
+                <el-form-item label='登录密码' prop='adminPassword'>
+                    <el-input v-model='createForm.adminPassword' type='password' show-password placeholder='至少 6 位' />
+                </el-form-item>
+                <el-form-item label='管理员姓名'>
+                    <el-input v-model='createForm.adminName' placeholder='选填，便于识别负责人' />
+                </el-form-item>
+                <el-form-item label='管理员电话'>
+                    <el-input v-model='createForm.adminPhone' placeholder='选填' />
+                </el-form-item>
+                <el-form-item label='管理员邮箱'>
+                    <el-input v-model='createForm.adminEmail' placeholder='选填' />
+                </el-form-item>
+                <el-form-item label='账号状态'>
+                    <el-switch
+                        v-model='createForm.adminEnabled'
+                        active-text='创建后立即启用'
+                        inactive-text='先创建，暂不启用'
+                    />
+                </el-form-item>
             </el-form>
 
             <template #footer>
@@ -292,7 +360,8 @@ import {
     ITenantDetailResponse,
     ITenantListItem,
     updateTenantRuntimeConfig,
-    updateTenantSchedulerPriorityConfig
+    updateTenantSchedulerPriorityConfig,
+    updateTenantSchedulerQuotaConfig
 } from '/@/api/tenant'
 import {
     getDeployModeDisplayName,
@@ -315,8 +384,12 @@ const tenantList = ref<ITenantListItem[]>([])
 const tenantDetail = ref<ITenantDetailResponse | null>(null)
 const postProcessPipelineEnabled = ref(false)
 const schedulerPriorityMode = ref('balanced')
+const schedulerComplexWorkers = ref(1)
+const schedulerVideoSlots = ref(1)
+const schedulerAudioWorkers = ref(1)
 const savingRuntimeConfig = ref(false)
 const savingSchedulerPriorityConfig = ref(false)
+const savingSchedulerQuotaConfig = ref(false)
 const createDialogVisible = ref(false)
 const creatingTenant = ref(false)
 const schedulerPriorityOptions = [
@@ -337,9 +410,9 @@ const schedulerPriorityOptions = [
     }
 ]
 const schedulerPriorityOrderMap: Record<string, string[]> = {
-    video_first: ['单条视频', '数字人克隆', '快速克隆'],
-    balanced: ['数字人克隆', '单条视频', '快速克隆'],
-    asset_first: ['快速克隆', '数字人克隆', '单条视频']
+    video_first: ['单条视频', '快速任务', '数字人克隆'],
+    balanced: ['快速任务', '数字人克隆', '单条视频'],
+    asset_first: ['快速任务', '数字人克隆', '单条视频']
 }
 
 const createForm = reactive<ICreateTenantPayload>({
@@ -349,12 +422,23 @@ const createForm = reactive<ICreateTenantPayload>({
     contactName: '',
     contactPhone: '',
     contactEmail: '',
-    remark: ''
+    remark: '',
+    adminUsername: '',
+    adminPassword: '',
+    adminName: '',
+    adminPhone: '',
+    adminEmail: '',
+    adminEnabled: true
 })
 
 const createRules = reactive<FormRules>({
     tenantName: [{ required: true, message: '请输入团队名称', trigger: 'blur' }],
-    tenantCode: [{ required: true, message: '请输入团队编码', trigger: 'blur' }]
+    tenantCode: [{ required: true, message: '请输入团队编码', trigger: 'blur' }],
+    adminUsername: [{ required: true, message: '请输入首个团队管理员账号', trigger: 'blur' }],
+    adminPassword: [
+        { required: true, message: '请输入首个团队管理员密码', trigger: 'blur' },
+        { min: 6, message: '密码至少 6 位', trigger: 'blur' }
+    ]
 })
 
 const activeTenantCount = computed(() => tenantList.value.filter((item) => item.status === 'active').length)
@@ -376,6 +460,11 @@ const formatDeployModeLabel = (mode: string) => getDeployModeDisplayName(mode)
 const formatStorageProviderLabel = (provider: string) => getStorageProviderDisplayName(provider)
 
 const buildTenantInitial = (tenantName: string) => tenantName.trim().slice(0, 1).toUpperCase()
+const syncSchedulerQuotaState = (detail?: ITenantDetailResponse | null) => {
+    schedulerComplexWorkers.value = Number(detail?.schedulerConfig?.maxConcurrency || 1)
+    schedulerVideoSlots.value = Number(detail?.schedulerConfig?.maxVideoTaskConcurrency || 1)
+    schedulerAudioWorkers.value = Number(detail?.schedulerConfig?.maxFastTaskConcurrency || 1)
+}
 
 const resetCreateForm = () => {
     createForm.tenantCode = ''
@@ -385,6 +474,12 @@ const resetCreateForm = () => {
     createForm.contactPhone = ''
     createForm.contactEmail = ''
     createForm.remark = ''
+    createForm.adminUsername = ''
+    createForm.adminPassword = ''
+    createForm.adminName = ''
+    createForm.adminPhone = ''
+    createForm.adminEmail = ''
+    createForm.adminEnabled = true
 }
 
 const loadTenants = async() => {
@@ -412,6 +507,7 @@ const loadTenantDetail = async(tenantId: number) => {
     tenantDetail.value = response.data.data
     postProcessPipelineEnabled.value = Boolean(response.data.data?.runtimeConfig?.enablePostProcessPipeline)
     schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
+    syncSchedulerQuotaState(response.data.data)
 }
 
 const openCreateDialog = () => {
@@ -443,6 +539,7 @@ const saveRuntimeConfig = async() => {
         })
         tenantDetail.value = response.data.data
         postProcessPipelineEnabled.value = Boolean(response.data.data?.runtimeConfig?.enablePostProcessPipeline)
+        syncSchedulerQuotaState(response.data.data)
         ElMessage.success(postProcessPipelineEnabled.value ? '该团队已开放增强成片能力' : '该团队已关闭增强成片能力')
     } catch (error: any) {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
@@ -463,11 +560,34 @@ const saveSchedulerPriorityConfig = async() => {
         })
         tenantDetail.value = response.data.data
         schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || schedulerPriorityMode.value
+        syncSchedulerQuotaState(response.data.data)
         ElMessage.success(`该团队已切换为${response.data.data?.schedulerConfig?.priorityModeLabel || '当前'}模式`)
     } catch (error: any) {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
         savingSchedulerPriorityConfig.value = false
+    }
+}
+
+const saveSchedulerQuotaConfig = async() => {
+    if (!tenantDetail.value?.id) {
+        return
+    }
+    savingSchedulerQuotaConfig.value = true
+    try {
+        const response = await updateTenantSchedulerQuotaConfig({
+            tenantId: tenantDetail.value.id,
+            maxConcurrency: schedulerComplexWorkers.value,
+            maxVideoTaskConcurrency: schedulerVideoSlots.value,
+            maxFastTaskConcurrency: schedulerAudioWorkers.value
+        })
+        tenantDetail.value = response.data.data
+        syncSchedulerQuotaState(response.data.data)
+        ElMessage.success('该团队的处理额度已更新')
+    } catch (error: any) {
+        ElMessage.error(error?.message || '保存失败，请稍后重试')
+    } finally {
+        savingSchedulerQuotaConfig.value = false
     }
 }
 
@@ -484,7 +604,13 @@ const submitCreateTenant = async() => {
     try {
         const response = await createTenant({ ...createForm })
         createDialogVisible.value = false
-        ElMessage.success(response.data.message || '团队创建成功')
+        const initialAdmin = response.data.data?.initialAdmin
+        if (initialAdmin?.username) {
+            const statusText = initialAdmin.enabled ? '已启用' : '已创建但未启用'
+            ElMessage.success(`团队创建成功，首个管理员账号：${initialAdmin.username}（${statusText}）`)
+        } else {
+            ElMessage.success(response.data.message || '团队创建成功')
+        }
         await loadTenants()
         if (response.data.data?.id) {
             await loadTenantDetail(response.data.data.id)
@@ -614,9 +740,34 @@ onMounted(loadTenants)
     flex-wrap: wrap;
 }
 
+.quota-panel {
+    display: grid;
+    gap: 14px;
+}
+
+.quota-field {
+    display: grid;
+    gap: 8px;
+}
+
+.quota-field span {
+    color: #223250;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.quota-field small {
+    color: #7f8ea7;
+    line-height: 1.6;
+}
+
 .workspace-ghost-btn {
     border-radius: 12px;
     border-color: rgba(78, 110, 178, 0.18);
+}
+
+.create-form__alert {
+    margin-bottom: 18px;
 }
 
 .metric-card {

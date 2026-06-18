@@ -3,7 +3,7 @@
         <aside class='strategy-editor__sidebar'>
             <div class='strategy-editor__section-head'>
                 <div>
-                    <span class='strategy-editor__eyebrow'>身份列表</span>
+                    <span class='strategy-editor__eyebrow'>岗位列表</span>
                     <h3>按岗位配置开放范围</h3>
                 </div>
             </div>
@@ -19,23 +19,23 @@
                 >
                     <div class='role-card__head'>
                         <strong>{{ formatRoleName(role.roleName) }}</strong>
-                        <el-tag size='small' effect='plain'>Lv.{{ role.roleLevel }}</el-tag>
+                        <el-tag size='small' effect='plain'>级别 {{ role.roleLevel }}</el-tag>
                     </div>
                     <div class='role-card__meta'>
                         <span>{{ formatDataScopeLabel(role.dataScope) }}</span>
                         <span v-if='role.isSystem'>系统内置</span>
-                        <span v-else>自定义身份</span>
+                        <span v-else>自定义岗位</span>
                     </div>
                     <div class='role-card__caps'>
                         <el-tag v-if='role.canManageUsers' size='small' effect='light'>成员管理</el-tag>
-                        <el-tag v-if='role.canManageRoles' size='small' effect='light'>身份维护</el-tag>
-                        <el-tag v-if='role.canManageRolePermissions' size='small' effect='light'>能力配置</el-tag>
-                        <el-tag v-if='role.canManageTenantRoutes' size='small' effect='light'>策略维护</el-tag>
+                        <el-tag v-if='role.canManageRoles' size='small' effect='light'>岗位管理</el-tag>
+                        <el-tag v-if='role.canManageRolePermissions' size='small' effect='light'>页面授权</el-tag>
+                        <el-tag v-if='role.canManageTenantRoutes' size='small' effect='light'>团队功能开关</el-tag>
                     </div>
                 </button>
             </div>
 
-            <el-empty v-else description='当前团队还没有可配置身份' />
+            <el-empty v-else description='当前团队还没有可配置岗位' />
         </aside>
 
         <section class='strategy-editor__main'>
@@ -43,8 +43,8 @@
                 <div class='editor-summary'>
                     <div>
                         <span class='strategy-editor__eyebrow'>当前焦点</span>
-                        <h3>{{ currentRole ? formatRoleName(currentRole.roleName) : '请选择身份' }}</h3>
-                        <p>先勾选左侧页面入口，再为当前页面配置可执行动作。保存后会直接影响这个身份在前端能看到和能操作的范围。</p>
+                        <h3>{{ currentRole ? formatRoleName(currentRole.roleName) : '请选择岗位' }}</h3>
+                        <p>{{ summaryDescription }}</p>
                     </div>
                     <div class='editor-summary__actions'>
                         <div class='editor-summary__stats'>
@@ -52,7 +52,7 @@
                                 <span>已选页面</span>
                                 <strong>{{ checkedRouteIds.length }}</strong>
                             </div>
-                            <div>
+                            <div v-if='showActionPermissions'>
                                 <span>动作字典</span>
                                 <strong>{{ permissionList.length }}</strong>
                             </div>
@@ -76,7 +76,7 @@
                         <div class='editor-panel__header'>
                             <div>
                                 <h4>功能入口</h4>
-                                <p>勾选后表示这个身份能在工作台里看到对应入口。</p>
+                                <p>勾选后表示这个岗位能在工作台里看到对应入口。</p>
                             </div>
                         </div>
                     </template>
@@ -102,12 +102,12 @@
                     </el-tree>
                 </el-card>
 
-                <el-card shadow='never' class='editor-panel'>
+                <el-card v-if='showActionPermissions' shadow='never' class='editor-panel'>
                     <template #header>
                         <div class='editor-panel__header'>
                             <div>
-                                <h4>可执行动作</h4>
-                                <p>动作只会对当前选中的页面生效，未勾选页面时这里不会写入权限。</p>
+                                <h4>页面操作权限</h4>
+                                <p>这里控制当前页面上的按钮权限，比如能不能查看、新增、编辑、删除、授权。未勾选左侧页面时，这里不会生效。</p>
                             </div>
                         </div>
                     </template>
@@ -159,10 +159,13 @@ import {
     getRoleDisplayName
 } from '/@/utils/productLabels'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     tenantId?: number
     roleList: IUserRoleItem[]
-}>()
+    showActionPermissions?: boolean
+}>(), {
+    showActionPermissions: true
+})
 const emit = defineEmits<{
     (event: 'role-change', role: IUserRoleItem | undefined): void
 }>()
@@ -184,6 +187,13 @@ const treeProps = {
 }
 
 const currentRole = computed(() => props.roleList.find((item) => item.id === currentRoleId.value))
+const showActionPermissions = computed(() => props.showActionPermissions)
+const summaryDescription = computed(() => {
+    if (showActionPermissions.value) {
+        return '先勾选左侧页面入口，再为当前页面配置页面操作权限。保存后会直接影响这个岗位在前端能看到和能操作的范围。管理级别数字越小，权限越高。'
+    }
+    return '这里只维护页面入口是否对当前岗位开放。保存后会直接影响这个岗位在前端能看到的工作页面范围。'
+})
 
 const flatRouteMap = computed(() => {
     const map = new Map<number, IMenubarList>()
@@ -240,10 +250,7 @@ function getDefaultViewPermissionId() {
 }
 
 async function loadBaseOptions() {
-    const [routeResponse, permissionResponse] = await Promise.all([
-        getRouteCatalog(),
-        getPermissionList()
-    ])
+    const [routeResponse, permissionResponse] = await Promise.all([getRouteCatalog(), getPermissionList()])
     routeCatalog.value = routeResponse.data.data || []
     permissionList.value = permissionResponse.data.data || []
 }
@@ -329,12 +336,13 @@ function handleNodeClick(route: IMenubarList) {
 
 async function savePermissions() {
     if (!currentRoleId.value) {
-        ElMessage.warning('请先选择成员身份')
+        ElMessage.warning('请先选择岗位')
         return
     }
 
     saving.value = true
     try {
+        const defaultViewPermissionId = getDefaultViewPermissionId()
         await updateRoleRoutePermission({
             tenantId: props.tenantId,
             permissions: [
@@ -343,7 +351,9 @@ async function savePermissions() {
                     routeId: checkedRouteIds.value,
                     routePermissions: checkedRouteIds.value.map((routeId) => ({
                         routeId,
-                        permissionIds: routePermissionMap[routeId] || []
+                        permissionIds: showActionPermissions.value
+                            ? (routePermissionMap[routeId] || [])
+                            : (defaultViewPermissionId ? [defaultViewPermissionId] : [])
                     }))
                 }
             ]

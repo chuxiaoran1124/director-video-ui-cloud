@@ -3,7 +3,7 @@
         <WorkspaceHero
             eyebrow='开放策略'
             title='团队开放策略'
-            description='按团队查看当前开放的工作入口和可执行动作。平台管理员可以切换不同团队巡检，团队管理员则只会维护自己负责空间的可用范围。'
+            description='按团队查看当前开放的工作入口。平台管理员可以切换不同团队巡检，团队管理员则只会维护自己负责空间的可用范围。'
         >
             <template #actions>
                 <el-button class='workspace-ghost-btn' @click='loadRoleList'>刷新策略</el-button>
@@ -53,7 +53,7 @@
                     />
                 </div>
                 <div class='toolbar__summary'>
-                    <span>建议先选身份，再勾选可见页面和可执行动作。</span>
+                    <span>建议先选身份，再勾选这个身份可见的工作页面。</span>
                 </div>
             </div>
         </el-card>
@@ -61,6 +61,7 @@
         <RoleRoutePermissionEditor
             :tenant-id='selectedTenantId'
             :role-list='roleList'
+            :show-action-permissions='false'
             @role-change='handleRoleChange'
         />
     </div>

@@ -202,7 +202,6 @@
                       <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频语言 <span class="text-xs text-gray-400 font-normal">（语言配置仅适用于视频文案配置）</span></span>
                       <el-radio-group v-model="videoForm.language">
                         <el-radio :label="'zh'" size="large">中文</el-radio>
-                        <el-radio :label="'th'" size="large">泰语</el-radio>
                       </el-radio-group>
                     </template>
                   </div>
@@ -308,12 +307,11 @@
                                             v-model="videoForm.subtitleSelector" 
                                             :active-value="1" 
                                             :inactive-value="0"
-                                :disabled="videoForm.videoType === 1 || videoForm.language === 'th'"
+                                :disabled="videoForm.videoType === 1"
                                 active-text="开启"
                                 inactive-text="关闭"
                               />
                               <span v-if="videoForm.videoType === 1" class="text-xs text-gray-400 ml-2">横版模式下不支持字幕</span>
-                              <span v-if="videoForm.language === 'th'" class="text-xs text-gray-400 ml-2">泰语暂不支持字幕</span>
                             </el-form-item>
                           </el-col>
                         </el-row>
@@ -424,7 +422,6 @@
                           <div class="flex items-center justify-between mb-2">
                             <span class="text-gray-600 text-sm font-bold flex items-center gap-1">
                               视频文案内容 <span class="text-red-500">*</span>
-                              <span v-if="videoForm.language === 'th'" class="text-xs text-gray-400 font-normal">（您已选择泰语，请输入泰语文字）</span>
                             </span>
                             <div class="flex gap-2">
                               <el-button size="mini" plain @click="openScriptSelector('library')">文案库导入</el-button>
@@ -793,7 +790,7 @@
           <div v-for="item in bannerOverlaySelectorDialog.displayList" :key="item.id" class="relative cursor-pointer group text-center" @click="selectBannerOverlay(item)">
             <div class="aspect-auto rounded-lg overflow-hidden border-2 transition-all shadow-sm p-2 bg-white h-[260px] flex items-center justify-center"
                  :class="String(selectedBannerOverlayId) === String(item.id) ? 'border-blue-500 shadow-lg shadow-blue-300/50' : 'border-blue-300 group-hover:border-blue-400 group-hover:shadow-md'">
-              <img :src="item.overlayUrl || item.outputUrl" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform" :alt="item.name">
+              <img :src="item.outputUrl || item.overlayUrl" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform" :alt="item.name">
             </div>
             <div class="mt-3">
               <p class="text-sm text-gray-700 font-medium truncate text-center">{{ item.name }}</p>
@@ -974,7 +971,7 @@
                </el-button>
              </div>
              <div class="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border-2 border-green-100">
-               <audio :src="videoPreview.voiceUrl" controls class="w-full h-10"></audio>
+               <audio :src="resolveAssetUrl(videoPreview.voiceUrl)" controls class="w-full h-10"></audio>
              </div>
           </div>
        </div>
@@ -1001,6 +998,7 @@ import { useTaskStore } from '/@/store/modules/task'
 import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
+import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl } from '/@/utils/download'
 
 // --- 数据定义 ---
 const layoutStore = useLayoutStore()
@@ -1286,6 +1284,7 @@ const voiceScrollRef = ref<HTMLElement | null>(null)
 // 字幕预览相关
 const subtitlePreviewRef = ref<InstanceType<typeof SubtitlePreview> | null>(null)
 const subtitlePreviewFrameBase64 = ref('')
+let previewRefreshSeq = 0
 const DEFAULT_SUBTITLE_CONFIG = {
   font_size: 18,
   margin_v: 74,
@@ -1361,37 +1360,49 @@ const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<strin
   return ''
 }
 
+const findCurrentDigitalHuman = (item?: any) => {
+  if (item) return item
+
+  const currentExternalId = String(videoForm.digitalHumanExternalId || '')
+  const currentName = String(videoForm.digitalHuman || '')
+  const candidateList = [...humanOptions.value, ...humanSelectorDialog.allList]
+
+  const matchedByExternalId = currentExternalId
+    ? candidateList.find((human: any) => String(human.externalId || '') === currentExternalId)
+    : null
+  if (matchedByExternalId) return matchedByExternalId
+
+  const matchedByName = currentName
+    ? candidateList.find((human: any) => String(human.name || '') === currentName)
+    : null
+  if (matchedByName) return matchedByName
+
+  if (videoForm.relId) {
+    const rel = relSelectorDialog.allList.find((entry: any) => String(entry.id) === String(videoForm.relId))
+      || relList.value.find((entry: any) => String(entry.id) === String(videoForm.relId))
+    if (rel) {
+      return {
+        name: rel.human || rel.digitalHumanName || currentName,
+        externalId: rel.digitalHumanExternalId || rel.externalId || '',
+        img: rel.digitalHumanCoverUrl || rel.coverUrl || '',
+        coverUrl: rel.digitalHumanCoverUrl || rel.coverUrl || '',
+        videoUrl: rel.digitalHumanUrl || ''
+      }
+    }
+  }
+
+  return null
+}
+
 // 获取当前选中的数字人视频URL
 const currentDigitalHumanVideoUrl = computed(() => {
-  if (videoForm.digitalHuman) {
-    const human = humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
-    if (human?.videoUrl) return human.videoUrl
-    // 兜底：弹窗分页加载出的形象可能不在 humanOptions（首页）中
-    const humanFromDialog = humanSelectorDialog.allList.find((h: any) => h.name === videoForm.digitalHuman)
-    if (humanFromDialog?.videoUrl) return humanFromDialog.videoUrl
-  }
-  if (videoForm.relId) {
-    const rel = relList.value.find((r: any) => r.id === videoForm.relId)
-    if (rel?.digitalHumanUrl) return rel.digitalHumanUrl
-  }
-  return ''
+  return findCurrentDigitalHuman()?.videoUrl || ''
 })
 
 // 获取当前选中数字人的封面图（横版预览用）
 const currentDigitalHumanImg = computed(() => {
-  if (videoForm.digitalHuman) {
-    const human = humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
-    if (human?.coverUrl) return human.coverUrl
-    if (human?.img) return human.img
-    const humanFromDialog = humanSelectorDialog.allList.find((h: any) => h.name === videoForm.digitalHuman)
-    if (humanFromDialog?.coverUrl) return humanFromDialog.coverUrl
-    if (humanFromDialog?.img) return humanFromDialog.img
-  }
-  if (videoForm.relId) {
-    const rel = relList.value.find((r: any) => r.id === videoForm.relId)
-    if (rel?.digitalHumanCoverUrl) return rel.digitalHumanCoverUrl
-  }
-  return ''
+  const currentHuman = findCurrentDigitalHuman()
+  return currentHuman?.coverUrl || currentHuman?.img || ''
 })
 
 // 获取当前选中角标 URL（供预览组件实时叠加）
@@ -1482,6 +1493,7 @@ const resetPostProcessSelections = () => {
   videoForm.cornerMark = ''
   selectedBannerOverlayId.value = ''
   selectedBannerOverlayBase64.value = ''
+  previewRefreshSeq += 1
   subtitlePreviewFrameBase64.value = ''
   Object.assign(subtitleConfig, DEFAULT_SUBTITLE_CONFIG)
 }
@@ -1609,6 +1621,8 @@ const videoPreview = reactive({
   isDownloaded: 0,
 })
 
+const resolveAssetUrl = (rawUrl: string) => normalizeAssetUrl(rawUrl)
+
 // 监听关键配置变化，重置配音状鎬?// --- 閫昏緫处理 ---
 
 const buildVideoTaskSearch = () => {
@@ -1652,10 +1666,10 @@ const loadVideoTasks = async () => {
       digitalHumanId: task.digitalHumanId,
       createTime: task.createTime ? new Date(task.createTime).toLocaleString('zh-CN') : new Date().toLocaleString(),
       updateTime: task.updateTime ? new Date(task.updateTime).toLocaleString('zh-CN') : '',
-      videoUrl: task.videoUrl || task.video_url || '',
+      videoUrl: resolveAssetUrl(task.videoUrl || task.video_url || ''),
       videoCoverUrl: task.videoCoverUrl || task.video_cover_url || '',
       taskStatus: task.taskStatus || '0',
-      baseVoiceUrl: task.baseVoiceUrl || task.base_voice_url || '',
+      baseVoiceUrl: resolveAssetUrl(task.baseVoiceUrl || task.base_voice_url || ''),
       isDownloaded: Number(task.isDownloaded ?? task.is_downloaded ?? 0),
     }))
 
@@ -1957,10 +1971,11 @@ watch(() => videoForm.videoType, (val) => {
   }
 })
 
-// 切换为泰语时自动关闭字幕
+// 当前云上版暂不开放泰语，若旧状态带入则自动回落为中文
 watch(() => videoForm.language, (val) => {
   if (val === 'th') {
     videoForm.subtitleSelector = 0
+    videoForm.language = 'zh'
   }
 })
 
@@ -1968,6 +1983,7 @@ watch(() => shouldShowSubtitlePreview.value, async (val) => {
   if (val) {
     await refreshPreview()
   } else {
+    previewRefreshSeq += 1
     subtitlePreviewFrameBase64.value = ''
   }
 })
@@ -1983,6 +1999,7 @@ watch(() => videoForm.mode, () => {
   videoForm.digitalHumanExternalId = ''
   videoForm.previewImg = ''
   videoForm.label = ''
+  previewRefreshSeq += 1
   subtitlePreviewFrameBase64.value = ''
 })
 
@@ -2023,9 +2040,9 @@ const handleBackToList = () => {
 
 const handleViewVideo = (video: any) => {
   videoPreview.taskId = Number(video.id ?? 0) || null
-  videoPreview.url = video.videoUrl
+  videoPreview.url = resolveAssetUrl(video.videoUrl)
   videoPreview.coverUrl = video.videoCoverUrl
-  videoPreview.voiceUrl = video.baseVoiceUrl
+  videoPreview.voiceUrl = resolveAssetUrl(video.baseVoiceUrl)
   videoPreview.title = video.title
   videoPreview.isDownloaded = Number(video.isDownloaded ?? 0)
   videoPreview.visible = true
@@ -2120,6 +2137,7 @@ const resetForm = () => {
   videoForm.cornerMark = ''
   selectedBannerOverlayId.value = ''
   selectedBannerOverlayBase64.value = ''
+  previewRefreshSeq += 1
   subtitlePreviewFrameBase64.value = ''
   videoForm.label = ''
   videoForm.videoType = 0
@@ -2169,7 +2187,10 @@ const resetForm = () => {
   submitDispatchMode.value = 'immediate'
 }
 
-const getHumanImg = (name: string) => humanOptions.value.find((h: any) => h.name === name)?.img || ''
+const getHumanImg = (name: string) => {
+  const human = [...humanOptions.value, ...humanSelectorDialog.allList].find((item: any) => item.name === name)
+  return human?.img || human?.coverUrl || ''
+}
 
 const handleRelChange = async (val: any, selectedRel?: any) => {
   if (!val) {
@@ -2721,24 +2742,20 @@ const previewResult = () => {
 
 // 下载视频
 const downloadVideo = async () => {
-  if (!videoPreview.url) {
+  const targetUrl = resolveAssetUrl(videoPreview.url)
+  if (!targetUrl) {
     ElMessage.warning('视频URL不可用')
     console.log('videoPreview:', videoPreview)
     return
   }
   
   try {
-    console.log('开始下载视频', videoPreview.url)
-    const response = await downloadFileByProxy(videoPreview.url, videoPreview.taskId, 'video')
-    const blob = response.data as Blob
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `video-${new Date().getTime()}.mp4`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    await downloadProxyFile(targetUrl, {
+      taskId: videoPreview.taskId,
+      assetType: 'video',
+      fallbackBaseName: `${videoPreview.title || 'video'}-${videoPreview.taskId || new Date().getTime()}`,
+      defaultExtension: '.mp4'
+    })
     markVideoDownloadedLocally(videoPreview.taskId)
     ElMessage.success('下载已开始')
   } catch (error) {
@@ -2749,50 +2766,21 @@ const downloadVideo = async () => {
 
 // 下载音频
 const downloadAudio = async () => {
-  if (!videoPreview.voiceUrl) {
+  const targetUrl = resolveAssetUrl(videoPreview.voiceUrl)
+  if (!targetUrl) {
     ElMessage.warning('音频URL不可用')
     console.log('videoPreview:', videoPreview)
     return
   }
   
   try {
-    console.log('开始下载音频', videoPreview.voiceUrl)
-    
-    // 方法1：尝试用 fetch 下载
-    try {
-      const response = await fetch(videoPreview.voiceUrl)
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `audio-${new Date().getTime()}.mp3`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        
-        setTimeout(() => {
-          ElMessage.success('下载已开始')
-        }, 2000)
-      } else {
-        throw new Error('fetch 返回非 200 状态码')
-      }
-    } catch (fetchError) {
-      console.log('fetch失败，尝试直接跳转下载', fetchError)
-      // 方法2：直接用 window.location.href 跳转下载
-      const link = document.createElement('a')
-      link.href = videoPreview.voiceUrl
-      link.download = `audio-${new Date().getTime()}.mp3`
-      link.target = '_blank'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
-      setTimeout(() => {
-        ElMessage.success('下载已开始')
-      }, 1000)
-    }
+    await downloadProxyFile(targetUrl, {
+      taskId: videoPreview.taskId,
+      assetType: 'audio',
+      fallbackBaseName: `${videoPreview.title || 'audio'}-${videoPreview.taskId || new Date().getTime()}`,
+      defaultExtension: '.mp3'
+    })
+    ElMessage.success('下载已开始')
   } catch (error) {
     console.error('下载音频失败:', error)
     ElMessage.error('下载失败，请重试')
@@ -2800,7 +2788,7 @@ const downloadAudio = async () => {
 }
 
 const downloadResult = () => {
-  ElMessage.success('正在导出视频文件...')
+  downloadVideo()
 }
 
 // 搜索视频
@@ -2812,14 +2800,6 @@ const handleSearch = async () => {
     console.error('搜索失败:', error)
     ElMessage.error('搜索失败，请重试')
   }
-}
-
-// 将 TOS 外部地址转成代理路径，解决 CORS
-const toProxyUrl = (url: string) => {
-  if (url && url.includes('tos-cn-beijing.volces.com')) {
-    return url.replace(/^https?:\/\/[^/]+/, '/tos-proxy')
-  }
-  return url
 }
 
 // 批量下载视频
@@ -2846,8 +2826,13 @@ const batchDownloadVideos = async () => {
 
     // 并行下载所有视频
     const downloadPromises = validVideos.map(video =>
-      downloadFileByProxy(video.videoUrl, video.id, 'video')
-        .then(response => response.data as Blob)
+      fetchProxyBlob(video.videoUrl, {
+        taskId: video.id,
+        assetType: 'video',
+        fallbackBaseName: `${video.title || 'video'}-${video.id}`,
+        defaultExtension: '.mp4'
+      })
+        .then(response => response.blob)
         .then(blob => {
           const fileName = `${video.title || 'video'}-${video.id}.mp4`
           zip.file(fileName, blob)
@@ -2899,7 +2884,7 @@ const batchDownloadAudios = async () => {
     return
   }
 
-  const validVideos = selectedVideos.value.filter(v => v.taskStatus === '5' && v.baseVoiceUrl)
+  const validVideos = selectedVideos.value.filter(v => v.taskStatus === '5' && resolveAssetUrl(v.baseVoiceUrl))
   const invalidCount = selectedVideos.value.length - validVideos.length
 
   if (validVideos.length === 0) {
@@ -2916,11 +2901,13 @@ const batchDownloadAudios = async () => {
 
     // 并行下载所有音频
     const downloadPromises = validVideos.map(video =>
-      fetch(toProxyUrl(video.baseVoiceUrl))
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          return response.blob()
-        })
+      fetchProxyBlob(video.baseVoiceUrl, {
+        taskId: video.id,
+        assetType: 'audio',
+        fallbackBaseName: `${video.title || 'audio'}-${video.id}`,
+        defaultExtension: '.mp3'
+      })
+        .then(response => response.blob)
         .then(blob => {
           const fileName = `${video.title || 'audio'}-${video.id}.mp3`
           zip.file(fileName, blob)
@@ -3056,12 +3043,24 @@ const selectHuman = async (item: any) => {
  * - 文案竖版开字幕：前端即时渲染（SubtitlePreview） * - 其他情况：直接显示封面图
  */
 const refreshPreview = async (item?: any) => {
-  const digitalHuman = item || humanOptions.value.find((h: any) => h.name === videoForm.digitalHuman)
-  if (!digitalHuman) return
+  const currentSeq = ++previewRefreshSeq
+  const digitalHuman = findCurrentDigitalHuman(item)
+  if (!digitalHuman) {
+    if (currentSeq === previewRefreshSeq) {
+      subtitlePreviewFrameBase64.value = ''
+    }
+    return
+  }
   
   // 文案竖版且启用了字幕能力时，请求后端即时渲染
   if (shouldShowSubtitlePreview.value) {
-    subtitlePreviewFrameBase64.value = await getFrameBase64(digitalHuman.coverUrl || '', digitalHuman.videoUrl || '')
+    subtitlePreviewFrameBase64.value = ''
+    const nextFrameBase64 = await getFrameBase64(
+      digitalHuman.coverUrl || digitalHuman.img || '',
+      digitalHuman.videoUrl || ''
+    )
+    if (currentSeq !== previewRefreshSeq) return
+    subtitlePreviewFrameBase64.value = nextFrameBase64
   }
   // 其他情况封面预览依赖 currentDigitalHumanImg 计算属性自动更新，无需额外操作
 }

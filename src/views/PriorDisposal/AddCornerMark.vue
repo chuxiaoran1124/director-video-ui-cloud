@@ -530,6 +530,7 @@ import {
   deleteCornerMarkTask,
   getCornerMarkList
 } from '/@/api/material'
+import { downloadProxyFile, fetchProxyBlob } from '/@/utils/download'
 
 // --- Types ---
 interface CornerMarkTask {
@@ -1221,11 +1222,13 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
     let failedCount = 0
 
     const downloadPromises = downloadable.map((item: any) =>
-      fetch(toProxyUrl(item.outputVideoUrl))
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          return res.blob()
-        })
+      fetchProxyBlob(item.outputVideoUrl, {
+        taskId: item.id,
+        assetType: 'video',
+        fallbackBaseName: `${item.title || `item-${item.id}`}-1`,
+        defaultExtension: '.mp4'
+      })
+        .then((res) => res.blob)
         .then((blob) => {
           const fileName = `${item.title || `item-${item.id}`}-1.mp4`
           zip.file(fileName, blob)
@@ -1262,14 +1265,6 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
   }
 }
 
-// 将 TOS 外部地址转成代理路径，解决 CORS
-const toProxyUrl = (url: string) => {
-  if (url.includes('tos-cn-beijing.volces.com')) {
-    return url.replace(/^https?:\/\/[^/]+/, '/tos-proxy')
-  }
-  return url
-}
-
 const handleBatchDownload = async () => {
   const downloadable = selectedRows.value.filter(r => r.taskStatus === 3 && r.outputVideoUrl)
   if (downloadable.length === 0) {
@@ -1285,11 +1280,13 @@ const handleBatchDownload = async () => {
     let failedCount = 0
 
     const downloadPromises = downloadable.map(row =>
-      fetch(toProxyUrl(row.outputVideoUrl!))
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          return res.blob()
-        })
+      fetchProxyBlob(row.outputVideoUrl!, {
+        taskId: row.id,
+        assetType: 'video',
+        fallbackBaseName: `${row.title || 'corner-mark'}-${row.id}-1`,
+        defaultExtension: '.mp4'
+      })
+        .then(res => res.blob)
         .then(blob => {
           const fileName = `${row.title || 'corner-mark'}-${row.id}-1.mp4`
           zip.file(fileName, blob)
@@ -1332,21 +1329,12 @@ const handleBatchDownload = async () => {
 
 const downloadResult = (row: CornerMarkTask | null) => {
   if (!row?.outputVideoUrl) return
-  fetch(toProxyUrl(row.outputVideoUrl))
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.blob()
-    })
-    .then((blob) => {
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `corner-mark-${row.id}.mp4`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-    })
+  downloadProxyFile(row.outputVideoUrl, {
+    taskId: row.id,
+    assetType: 'video',
+    fallbackBaseName: `corner-mark-${row.id}`,
+    defaultExtension: '.mp4'
+  })
     .catch((error) => {
       console.error('下载失败:', error)
       ElMessage.error('下载失败，请稍后重试')
