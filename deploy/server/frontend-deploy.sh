@@ -60,6 +60,6 @@ PY
 echo "[deploy] 开始刷新前端容器"
 print_repo_revision "$REPO_DIR"
 cd "$ROOT_DIR"
-docker compose up -d --no-build frontend
+docker compose up -d --no-build --force-recreate frontend
 inspect_container_state "director-video-frontend"
 echo "[backup] $BACKUP_DIR"
