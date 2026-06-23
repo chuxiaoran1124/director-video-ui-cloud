@@ -24,6 +24,16 @@ export const allowRouter: Array<IMenubarList> = [
         }
     },
     {
+        name: 'TemporaryAccessEntry',
+        path: '/link-entry',
+        component: 'TemporaryAccessEntry',
+        meta: {
+            title: '临时访问入口',
+            icon: '',
+            hidden: true
+        }
+    },
+    {
         name: 'RedirectPage',
         path: '/redirect',
         component: 'Layout',

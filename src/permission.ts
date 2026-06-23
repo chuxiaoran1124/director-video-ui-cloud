@@ -7,7 +7,7 @@ configure({ showSpinner: false })
 
 const loginRoutePath = '/login'
 const defaultRoutePath = '/'
-const whiteList = new Set([loginRoutePath, '/error/401', '/error/404'])
+const whiteList = new Set([loginRoutePath, '/link-entry', '/error/401', '/error/404'])
 
 router.beforeEach(async(to, from) => {
     start()
@@ -27,6 +27,10 @@ router.beforeEach(async(to, from) => {
     }
 
     if (!getStatus.ACCESS_TOKEN && !sessionStorage.getItem('accessToken')) {
+        if (whiteList.has(to.path)) {
+            done()
+            return true
+        }
         done()
         return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
     }

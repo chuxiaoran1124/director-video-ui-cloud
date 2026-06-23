@@ -4,6 +4,7 @@ import { IMenubarList, ITenantSummary, IUserInfo } from '/@/type/store/layout'
 
 const api = {
     login: '/api/user/login/',
+    temporaryAccessExchange: '/api/user/temporary-access/exchange/',
     refreshToken: '/api/user/refresh-token/',
     logout: '/api/user/logout/',
     currentUser: '/api/user/current-user/',
@@ -43,6 +44,17 @@ export function login(param: ILoginParam): Promise<AxiosResponse<IResponse<ILogi
         url: api.login,
         method: 'post',
         data: param
+    })
+}
+
+export function exchangeTemporaryAccess(ticket: string): Promise<AxiosResponse<IResponse<ILoginResponse>>> {
+    return request({
+        url: api.temporaryAccessExchange,
+        method: 'post',
+        data: {
+            ticket
+        },
+        hideLoading: true
     })
 }
 

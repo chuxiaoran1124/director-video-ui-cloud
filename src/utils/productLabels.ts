@@ -6,6 +6,7 @@ const routeTitleMap: Record<string, string> = {
     'user-management': '成员管理',
     'tenant-management': '团队管理',
     'tenant-route-management': '团队功能范围',
+    'temporary-access-management': '临时访问分发',
     'prior-disposal': '素材管理',
     'material-management': '素材管理',
     'document-management': '文案管理',

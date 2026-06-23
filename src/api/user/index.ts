@@ -27,6 +27,38 @@ export interface IUserListResponse {
     data: IUserListItem[]
 }
 
+export interface ITemporaryAccessLinkItem {
+    linkId: number
+    tenantId: number
+    userId: number
+    status: string
+    allowedIps: string[]
+    maxUseCount?: number | null
+    usedCount: number
+    expiresAt: string
+    lastUsedAt?: string | null
+    lastUsedIp?: string | null
+    remark?: string | null
+    ticketHint?: string | null
+    createTime: string
+    updateTime: string
+    tenant?: {
+        id: number
+        tenantCode: string
+        tenantName: string
+    } | null
+    user?: IUserListItem | null
+    accessUrl?: string
+}
+
+export interface ITemporaryAccessListResponse {
+    page: number
+    pageSize: number
+    total: number
+    tenantId: number
+    data: ITemporaryAccessLinkItem[]
+}
+
 export interface IUserRoleItem {
     id: number
     tenantId: number
@@ -131,6 +163,46 @@ export function resetUserPassword(payload: { userId: number; tenantId?: number; 
         url: '/api/user/reset-password/',
         method: 'post',
         data: payload
+    })
+}
+
+export function createTemporaryAccessLink(payload: {
+    tenantId: number
+    userId: number
+    expiresInDays: number
+    allowedIps: string[]
+    remark?: string
+    entryBaseUrl?: string
+}): Promise<AxiosResponse<IResponse<ITemporaryAccessLinkItem>>> {
+    return request({
+        url: '/api/user/temporary-access/create/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function getTemporaryAccessLinkList(payload: {
+    page: number
+    pageSize: number
+    tenantId: number
+    userId?: number
+    status?: string
+    keyword?: string
+}): Promise<AxiosResponse<IResponse<ITemporaryAccessListResponse>>> {
+    return request({
+        url: '/api/user/temporary-access/list/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function revokeTemporaryAccessLink(linkId: number): Promise<AxiosResponse<IResponse<ITemporaryAccessLinkItem>>> {
+    return request({
+        url: '/api/user/temporary-access/revoke/',
+        method: 'post',
+        data: {
+            linkId
+        }
     })
 }
 
