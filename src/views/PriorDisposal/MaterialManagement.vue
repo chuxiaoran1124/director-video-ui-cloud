@@ -634,7 +634,7 @@
           </div>
         </div>
         <div class="w-[400px] flex-shrink-0">
-          <TagManager ref="relTagManagerRef" :initial-tags="editRelForm.tags" />
+          <TagManager ref="relTagManagerRef" :initial-tags="editRelForm.tags" @change="handleEditRelTagsChange" />
         </div>
       </div>
       <template #footer>
@@ -2262,11 +2262,15 @@ export default defineComponent({
       editRelVisible.value = true
     }
 
+    const handleEditRelTagsChange = (tags: string[]) => {
+      editRelForm.tags = Array.isArray(tags) ? [...tags] : []
+    }
+
     const saveEditRel = async () => {
       const row = editRelForm.originalRow
       
       try {
-        const selectedTags = (relTagManagerRef.value as any)?.getSelectedTags() ?? editRelForm.tags
+        const selectedTags = Array.isArray(editRelForm.tags) ? editRelForm.tags : []
         const tagsStr = selectedTags.length ? `|${selectedTags.join('|')}|` : ''
         const updateData = {
           title: tagsStr
@@ -2632,6 +2636,7 @@ export default defineComponent({
       dialogVisible,
       editRelVisible,
       editRelForm,
+      handleEditRelTagsChange,
       isAddRelTag,
       bulkRelTags,
       bulkTagInput,

@@ -612,6 +612,7 @@ const submitCreateTenant = async() => {
             ElMessage.success(response.data.message || '团队创建成功')
         }
         await loadTenants()
+        await layoutStore.syncTenantList()
         if (response.data.data?.id) {
             await loadTenantDetail(response.data.data.id)
         }

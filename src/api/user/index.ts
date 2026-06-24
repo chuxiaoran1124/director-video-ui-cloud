@@ -38,6 +38,8 @@ export interface ITemporaryAccessLinkItem {
     expiresAt: string
     lastUsedAt?: string | null
     lastUsedIp?: string | null
+    boundEntryIp?: string | null
+    autoDisableUser?: boolean
     remark?: string | null
     ticketHint?: string | null
     createTime: string
@@ -49,6 +51,13 @@ export interface ITemporaryAccessLinkItem {
     } | null
     user?: IUserListItem | null
     accessUrl?: string
+}
+
+export interface ITemporaryAccessClientIpResponse {
+    clientIp?: string | null
+    xForwardedFor?: string | null
+    xRealIp?: string | null
+    remoteAddr?: string | null
 }
 
 export interface ITemporaryAccessListResponse {
@@ -203,6 +212,26 @@ export function revokeTemporaryAccessLink(linkId: number): Promise<AxiosResponse
         data: {
             linkId
         }
+    })
+}
+
+export function renewTemporaryAccessLink(payload: {
+    linkId: number
+    renewDays: number
+}): Promise<AxiosResponse<IResponse<ITemporaryAccessLinkItem>>> {
+    return request({
+        url: '/api/user/temporary-access/renew/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function getTemporaryAccessCurrentIp(): Promise<AxiosResponse<IResponse<ITemporaryAccessClientIpResponse>>> {
+    return request({
+        url: '/api/user/temporary-access/current-ip/',
+        method: 'get',
+        hideLoading: true,
+        silentError: true
     })
 }
 

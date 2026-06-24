@@ -2,6 +2,17 @@ import { useLayoutStore } from '/@/store/modules/layout'
 import axios, { AxiosResponse } from 'axios'
 import { ElLoading, ElNotification } from 'element-plus'
 
+const GENERIC_MASKED_ERROR_MESSAGE = '请求失败，请联系管理员'
+const ORIGINAL_MESSAGE_URL_PATTERNS = [
+    /\/user\/login\/?$/i,
+    /\/user\/refresh-token\/?$/i,
+    /\/user\/temporary-access\/exchange\/?$/i
+]
+const ORIGINAL_MESSAGE_WHITELIST = new Set([
+    '账号已停用，请联系管理员',
+    '链接授权已过期，请联系管理员'
+])
+
 const request = axios.create({
     baseURL: import.meta.env.VITE_API_URL as string | undefined,
     timeout: 60000,
@@ -10,10 +21,44 @@ const request = axios.create({
     }
 })
 
+const shouldMaskErrorMessage = () => {
+    try {
+        const layoutStore = useLayoutStore()
+        return Boolean(layoutStore.getStatus.ACCESS_TOKEN) && !layoutStore.getUserInfo.isPlatformSuperAdmin
+    } catch (_error) {
+        return false
+    }
+}
+
+const shouldKeepOriginalMessage = (config: any, rawMessage: string) => {
+    if (ORIGINAL_MESSAGE_WHITELIST.has(rawMessage)) {
+        return true
+    }
+
+    const requestUrl = String(config?.url || '')
+    return ORIGINAL_MESSAGE_URL_PATTERNS.some((pattern) => pattern.test(requestUrl))
+}
+
+const normalizeErrorMessage = (rawMessage: string, config?: any) => {
+    const fallbackMessage = rawMessage || GENERIC_MASKED_ERROR_MESSAGE
+    if (shouldKeepOriginalMessage(config, fallbackMessage)) {
+        return fallbackMessage
+    }
+    return shouldMaskErrorMessage() ? GENERIC_MASKED_ERROR_MESSAGE : fallbackMessage
+}
+
+const buildRejectedError = (message: string, rawMessage: string, status?: number) => {
+    return Object.assign(new Error(message), {
+        rawMessage,
+        status
+    })
+}
+
 const errorHandler = async(error: any) => {
     error?.config?._loadingInstance?.close?.()
     const status = error?.response?.status
-    const message = error?.response?.data?.message || error?.message || '请求失败'
+    const rawMessage = error?.response?.data?.message || error?.message || '请求失败'
+    const message = normalizeErrorMessage(rawMessage, error?.config)
 
     if (status === 401) {
         const layoutStore = useLayoutStore()
@@ -28,7 +73,7 @@ const errorHandler = async(error: any) => {
         })
     }
 
-    return Promise.reject(new Error(message))
+    return Promise.reject(buildRejectedError(message, rawMessage, status))
 }
 
 request.interceptors.request.use((config: any) => {
@@ -59,7 +104,8 @@ request.interceptors.response.use(async(response: AxiosResponse<IResponse>) => {
     const code = Number(payload?.code)
     const isBusinessSuccess = code >= 200 && code < 300
     if (!isBusinessSuccess) {
-        const message = payload?.message || '系统出错，请联系管理员'
+        const rawMessage = payload?.message || '系统出错，请联系管理员'
+        const message = normalizeErrorMessage(rawMessage, response.config)
         if (code === 401) {
             const layoutStore = useLayoutStore()
             await layoutStore.forceLogout()
@@ -72,7 +118,7 @@ request.interceptors.response.use(async(response: AxiosResponse<IResponse>) => {
                 type: 'error'
             })
         }
-        return Promise.reject(new Error(message))
+        return Promise.reject(buildRejectedError(message, rawMessage, code))
     }
 
     return response

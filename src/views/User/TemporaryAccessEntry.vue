@@ -19,6 +19,9 @@
             </div>
 
             <div class='entry-card__actions'>
+                <div v-if='status === "failed" && currentDetectedIp' class='entry-card__ip'>
+                    后端当前识别到的访问 IP：{{ currentDetectedIp }}
+                </div>
                 <el-button v-if='status === "failed"' type='primary' class='entry-card__button' @click='goLogin'>
                     返回登录页
                 </el-button>
@@ -33,6 +36,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { CircleCheckFilled, Loading, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { exchangeTemporaryAccess } from '/@/api/layout'
+import { getTemporaryAccessCurrentIp } from '/@/api/user'
 import { useLayoutStore } from '/@/store/modules/layout'
 
 const route = useRoute()
@@ -42,6 +46,7 @@ const layoutStore = useLayoutStore()
 const loading = ref(true)
 const status = ref<'loading' | 'success' | 'failed'>('loading')
 const errorMessage = ref('')
+const currentDetectedIp = ref('')
 
 const titleText = computed(() => {
     if (status.value === 'success') {
@@ -65,6 +70,15 @@ const descriptionText = computed(() => {
 
 const goLogin = async() => {
     await router.replace('/login')
+}
+
+const loadCurrentDetectedIp = async() => {
+    try {
+        const response = await getTemporaryAccessCurrentIp()
+        currentDetectedIp.value = response.data.data.clientIp || ''
+    } catch {
+        currentDetectedIp.value = ''
+    }
 }
 
 const getTemporaryAccessTicket = () => {
@@ -111,6 +125,7 @@ const bootstrapTemporaryAccess = async() => {
     } catch (error: any) {
         loading.value = false
         status.value = 'failed'
+        await loadCurrentDetectedIp()
         errorMessage.value = error?.response?.data?.msg
             || error?.response?.data?.message
             || error?.message
@@ -205,6 +220,21 @@ onMounted(() => {
 
 .entry-card__actions {
     margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.entry-card__ip {
+    max-width: 100%;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(15, 118, 110, 0.08);
+    color: #0f172a;
+    font-size: 13px;
+    line-height: 1.6;
+    word-break: break-all;
 }
 
 .entry-card__button {

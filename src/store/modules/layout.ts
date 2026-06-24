@@ -9,6 +9,7 @@ import {
     refreshToken,
     switchTenant
 } from '/@/api/layout/index'
+import { getTenantList as fetchTenantList } from '/@/api/tenant'
 import {
     ILayout,
     IMenubar,
@@ -62,6 +63,17 @@ function buildDefaultUserInfo(): IUserInfo {
         dataScope: 'self',
         isPlatformSuperAdmin: false
     }
+}
+
+function normalizeTenantSummaryList(tenantList: Array<any> = []): ITenantSummary[] {
+    return tenantList.map((item) => ({
+        id: Number(item.id),
+        tenantCode: item.tenantCode,
+        tenantName: item.tenantName,
+        tenantShortName: item.tenantShortName ?? '',
+        status: item.status,
+        deployMode: item.deployMode
+    }))
 }
 
 function buildJoinedRoutePath(parentPath: string, routePath: string): string {
@@ -349,7 +361,24 @@ export const useLayoutStore = defineStore({
             this.setToken(data.accessToken)
             this.setRefreshToken(data.refreshToken)
             this.currentTenant = data.currentTenant
-            this.tenantList = data.tenantList || []
+            this.tenantList = normalizeTenantSummaryList(data.tenantList || [])
+        },
+        async syncTenantList(): Promise<void> {
+            if (!this.status.ACCESS_TOKEN) {
+                this.tenantList = []
+                return
+            }
+
+            try {
+                const response = await fetchTenantList({
+                    page: 1,
+                    pageSize: 500,
+                    search: {}
+                })
+                this.tenantList = normalizeTenantSummaryList(response.data.data?.data || [])
+            } catch {
+                console.warn('刷新团队列表失败，已保留当前缓存')
+            }
         },
         async login(param: ILoginParam): Promise<void> {
             const response = await login(param)
@@ -379,6 +408,7 @@ export const useLayoutStore = defineStore({
             this.currentTenant = tenantResponse.data.data
             this.userInfo.tenantId = tenantResponse.data.data.id
             this.userInfo.tenantCode = tenantResponse.data.data.tenantCode
+            await this.syncTenantList()
             this.status.isUserLoaded = true
         },
         async loadDynamicRoutes(): Promise<void> {

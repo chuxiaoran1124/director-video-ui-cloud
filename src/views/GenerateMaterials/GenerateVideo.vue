@@ -1003,6 +1003,7 @@ import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl } from '/@/utils/d
 // --- 数据定义 ---
 const layoutStore = useLayoutStore()
 const taskStore = useTaskStore()
+const GENERIC_REQUEST_ERROR_MESSAGE = '请求失败，请联系管理员'
 
 // 页面状态
 const showCreate = ref(false)
@@ -2719,8 +2720,11 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     isGenerating.value = false
     submitDispatchMode.value = 'immediate'
     console.error('视频生成失败:', error)
-    const errorMessage = extractRequestErrorMessage(error)
-    if (videoForm.mode === 1 && /上传|TOS|MinIO|音频/i.test(errorMessage)) {
+    const rawErrorMessage = extractRequestErrorMessage(error)
+    const errorMessage = layoutStore.getUserInfo.isPlatformSuperAdmin ? rawErrorMessage : GENERIC_REQUEST_ERROR_MESSAGE
+    if (errorMessage === GENERIC_REQUEST_ERROR_MESSAGE) {
+      ElMessage.error(errorMessage)
+    } else if (videoForm.mode === 1 && /上传|TOS|MinIO|音频/i.test(errorMessage)) {
       ElMessage.error(`音频上传失败: ${errorMessage}`)
     } else {
       ElMessage.error(`视频生成失败: ${errorMessage}`)

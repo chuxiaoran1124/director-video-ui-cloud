@@ -75,7 +75,7 @@
                     <div class='workspace-panel__header'>
                         <div>
                             <h3>成员分发列表</h3>
-                            <p>账号创建仍走原有成员管理流程，这里只负责给已有账号分发临时访问链接。</p>
+                            <p>账号创建仍走原有成员管理流程；如果目标账号当前处于停用状态，这里生成链接时会临时启用，到期或撤销后再自动停用。</p>
                         </div>
                     </div>
                 </template>
@@ -131,52 +131,68 @@
                     </div>
                 </template>
 
-                <el-table :data='linkList' stripe class='workspace-table' v-loading='loadingLinks'>
-                    <el-table-column label='分发对象' min-width='220'>
-                        <template #default='{ row }'>
-                            <div class='link-user-cell'>
-                                <strong>{{ row.user?.name || row.user?.username || '未知成员' }}</strong>
-                                <span>{{ row.user?.username || '-' }}</span>
-                            </div>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label='允许 IP' min-width='220'>
-                        <template #default='{ row }'>
-                            <div class='ip-list'>
-                                <el-tag
-                                    v-for='ip in row.allowedIps'
-                                    :key='`${row.linkId}-${ip}`'
-                                    size='small'
-                                    effect='plain'
-                                >
-                                    {{ ip }}
+                <div class='link-table-scroll'>
+                    <div class='link-table-scroll__inner'>
+                    <el-table :data='linkList' stripe class='workspace-table workspace-table--links' v-loading='loadingLinks'>
+                        <el-table-column label='分发对象' min-width='220'>
+                            <template #default='{ row }'>
+                                <div class='link-user-cell'>
+                                    <strong>{{ row.user?.name || row.user?.username || '未知成员' }}</strong>
+                                    <span>{{ row.user?.username || '-' }}</span>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label='允许 IP' min-width='220'>
+                            <template #default='{ row }'>
+                                <div v-if='row.allowedIps?.length' class='ip-list'>
+                                    <el-tag
+                                        v-for='ip in row.allowedIps'
+                                        :key='`${row.linkId}-${ip}`'
+                                        size='small'
+                                        effect='plain'
+                                    >
+                                        {{ ip }}
+                                    </el-tag>
+                                </div>
+                                <span v-else class='ip-list__empty'>未预设，首次进入后自动绑定</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop='usedCount' label='使用次数' width='100' />
+                        <el-table-column prop='expiresAt' label='到期时间' min-width='170' />
+                        <el-table-column label='状态' width='110'>
+                            <template #default='{ row }'>
+                                <el-tag :type='getLinkStatusType(row.status)' effect='light'>
+                                    {{ getLinkStatusLabel(row.status) }}
                                 </el-tag>
-                            </div>
-                        </template>
-                    </el-table-column>
-                    <el-table-column prop='usedCount' label='使用次数' width='100' />
-                    <el-table-column prop='expiresAt' label='到期时间' min-width='170' />
-                    <el-table-column label='状态' width='110'>
-                        <template #default='{ row }'>
-                            <el-tag :type='getLinkStatusType(row.status)' effect='light'>
-                                {{ getLinkStatusLabel(row.status) }}
-                            </el-tag>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label='操作' width='120' fixed='right'>
-                        <template #default='{ row }'>
-                            <el-button
-                                v-if='row.status === "active"'
-                                type='danger'
-                                link
-                                @click='handleRevoke(row)'
-                            >
-                                撤销
-                            </el-button>
-                            <span v-else class='link-action__disabled'>-</span>
-                        </template>
-                    </el-table-column>
-                </el-table>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label='操作' width='220' fixed='right'>
+                            <template #default='{ row }'>
+                                <div class='link-action-group'>
+                                    <el-button
+                                        v-if='row.accessUrl'
+                                        type='primary'
+                                        link
+                                        @click='handleCopyLink(row)'
+                                    >
+                                        复制链接
+                                    </el-button>
+                                    <el-button type='primary' link @click='openRenewDialog(row)'>续期</el-button>
+                                    <el-button
+                                        v-if='row.status === "active"'
+                                        type='danger'
+                                        link
+                                        @click='handleRevoke(row)'
+                                    >
+                                        撤销
+                                    </el-button>
+                                    <span v-else-if='!row.accessUrl' class='link-action__disabled'>-</span>
+                                </div>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    </div>
+                </div>
             </el-card>
         </div>
 
@@ -196,8 +212,12 @@
                         v-model='createForm.allowedIpsText'
                         type='textarea'
                         :rows='4'
-                        placeholder='请输入允许访问的公网 IP，一行一个，或用英文逗号分隔'
+                        placeholder='可选：请输入允许访问的公网 IP，一行一个，或用英文逗号分隔；留空时会在首次成功进入后自动绑定该用户当前 IP'
                     />
+                    <div class='temporary-access-tip'>
+                        <span>规则：留空时，系统会自动绑定对方首次成功进入时的 IP；填写后，等于“你填写的 IP + 对方首次成功进入时的 IP”都可用。</span>
+                        <span v-if='currentDetectedIp'>当前系统识别到你本机的 IP：{{ currentDetectedIp }}</span>
+                    </div>
                 </el-form-item>
                 <el-form-item label='备注'>
                     <el-input v-model='createForm.remark' type='textarea' :rows='3' placeholder='可选：记录这条链接给谁、用于什么场景' />
@@ -212,13 +232,34 @@
             </template>
         </el-dialog>
 
-        <el-dialog v-model='resultDialogVisible' title='临时访问链接已生成' width='640px' destroy-on-close>
+        <el-dialog v-model='renewDialogVisible' title='续期临时访问链接' width='480px' destroy-on-close>
+            <el-form ref='renewFormRef' :model='renewForm' :rules='renewRules' label-position='top'>
+                <el-form-item label='分发账号'>
+                    <el-input :model-value='renewTargetLabel' disabled />
+                </el-form-item>
+                <el-form-item label='当前到期时间'>
+                    <el-input :model-value='renewCurrentExpireAt' disabled />
+                </el-form-item>
+                <el-form-item label='续期天数' prop='renewDays'>
+                    <el-input-number v-model='renewForm.renewDays' :min='1' :max='30' controls-position='right' />
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <el-button @click='renewDialogVisible = false'>取消</el-button>
+                <el-button type='primary' class='workspace-primary-btn' :loading='renewing' @click='submitRenew'>
+                    确认续期
+                </el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model='resultDialogVisible' :title='resultDialogTitle' width='640px' destroy-on-close>
             <div class='result-card'>
                 <p>请把下面这条地址发给目标成员，对方在允许的 IP 下打开后即可直接进入系统。</p>
                 <el-input :model-value='generatedAccessUrl' type='textarea' :rows='4' readonly />
                 <div class='result-card__meta'>
                     <span>链接有效期：{{ generatedLinkExpireAt || '-' }}</span>
-                    <span>允许 IP：{{ generatedAllowedIpsText || '-' }}</span>
+                    <span>允许 IP：{{ generatedAllowedIpsText || '未预设，首次进入后自动绑定' }}</span>
                 </div>
             </div>
             <template #footer>
@@ -232,7 +273,7 @@
 <script lang='ts' setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
-import { createTemporaryAccessLink, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, revokeTemporaryAccessLink } from '/@/api/user'
+import { createTemporaryAccessLink, getTemporaryAccessCurrentIp, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, renewTemporaryAccessLink, revokeTemporaryAccessLink } from '/@/api/user'
 import { getTenantList, ITenantListItem } from '/@/api/tenant'
 import { getRoleDisplayName, getStatusDisplayName } from '/@/utils/productLabels'
 
@@ -245,10 +286,14 @@ const userTotal = ref(0)
 const loadingUsers = ref(false)
 const loadingLinks = ref(false)
 const createDialogVisible = ref(false)
+const renewDialogVisible = ref(false)
 const resultDialogVisible = ref(false)
 const creating = ref(false)
+const renewing = ref(false)
 const createFormRef = ref<FormInstance>()
+const renewFormRef = ref<FormInstance>()
 const currentTargetUser = ref<IUserListItem | null>(null)
+const currentRenewLink = ref<ITemporaryAccessLinkItem | null>(null)
 
 const userSearch = reactive({
     keyword: ''
@@ -264,25 +309,25 @@ const createForm = reactive({
     remark: ''
 })
 
+const renewForm = reactive({
+    renewDays: 7
+})
+
 const generatedAccessUrl = ref('')
 const generatedLinkExpireAt = ref('')
 const generatedAllowedIpsText = ref('')
+const currentDetectedIp = ref('')
+const resultDialogTitle = ref('临时访问链接已生成')
 
 const createRules = reactive<FormRules>({
     expiresInDays: [
         { required: true, message: '请设置有效期', trigger: 'change' }
-    ],
-    allowedIpsText: [
-        {
-            validator: (_rule, value, callback) => {
-                if (!String(value || '').trim()) {
-                    callback(new Error('至少需要填写一个允许访问的 IP'))
-                    return
-                }
-                callback()
-            },
-            trigger: 'blur'
-        }
+    ]
+})
+
+const renewRules = reactive<FormRules>({
+    renewDays: [
+        { required: true, message: '请设置续期天数', trigger: 'change' }
     ]
 })
 
@@ -296,6 +341,16 @@ const createTargetLabel = computed(() => {
     }
     return `${currentTargetUser.value.name || currentTargetUser.value.username}（${currentTargetUser.value.username}）`
 })
+
+const renewTargetLabel = computed(() => {
+    if (!currentRenewLink.value) {
+        return ''
+    }
+    const currentUser = currentRenewLink.value.user
+    return `${currentUser?.name || currentUser?.username || '未知成员'}（${currentUser?.username || '-'}）`
+})
+
+const renewCurrentExpireAt = computed(() => currentRenewLink.value?.expiresAt || '')
 
 const activeLinkCount = computed(() => linkList.value.filter((item) => item.status === 'active').length)
 const revokedLinkCount = computed(() => linkList.value.filter((item) => item.status === 'revoked').length)
@@ -343,6 +398,15 @@ const loadTenants = async() => {
     tenantList.value = response.data.data.data || []
     if (!selectedTenantId.value && tenantList.value.length) {
         selectedTenantId.value = tenantList.value[0].id
+    }
+}
+
+const loadCurrentDetectedIp = async() => {
+    try {
+        const response = await getTemporaryAccessCurrentIp()
+        currentDetectedIp.value = response.data.data.clientIp || ''
+    } catch {
+        currentDetectedIp.value = ''
     }
 }
 
@@ -406,10 +470,28 @@ const resetCreateForm = () => {
     createForm.remark = ''
 }
 
+const resetRenewForm = () => {
+    renewForm.renewDays = 7
+}
+
+const showResultDialog = (data: ITemporaryAccessLinkItem, title: string) => {
+    resultDialogTitle.value = title
+    generatedAccessUrl.value = data.accessUrl || ''
+    generatedLinkExpireAt.value = data.expiresAt || ''
+    generatedAllowedIpsText.value = (data.allowedIps || []).join('、')
+    resultDialogVisible.value = true
+}
+
 const openCreateDialog = (row: IUserListItem) => {
     currentTargetUser.value = row
     resetCreateForm()
     createDialogVisible.value = true
+}
+
+const openRenewDialog = (row: ITemporaryAccessLinkItem) => {
+    currentRenewLink.value = row
+    resetRenewForm()
+    renewDialogVisible.value = true
 }
 
 const submitCreate = async() => {
@@ -434,28 +516,37 @@ const submitCreate = async() => {
             remark: createForm.remark,
             entryBaseUrl
         })
-        generatedAccessUrl.value = response.data.data.accessUrl || ''
-        generatedLinkExpireAt.value = response.data.data.expiresAt || ''
-        generatedAllowedIpsText.value = (response.data.data.allowedIps || []).join('、')
         createDialogVisible.value = false
-        resultDialogVisible.value = true
+        showResultDialog(response.data.data, '临时访问链接已生成')
         ElMessage.success('临时访问链接已生成')
-        await loadLinks()
+        await refreshAll()
     } finally {
         creating.value = false
     }
 }
 
-const copyGeneratedUrl = async() => {
-    if (!generatedAccessUrl.value) {
+const copyText = async(text: string, successMessage: string) => {
+    if (!text) {
         return
     }
     try {
-        await navigator.clipboard.writeText(generatedAccessUrl.value)
-        ElMessage.success('链接已复制到剪贴板')
+        await navigator.clipboard.writeText(text)
+        ElMessage.success(successMessage)
     } catch {
         ElMessage.warning('当前浏览器不支持自动复制，请手动复制弹窗中的链接')
     }
+}
+
+const copyGeneratedUrl = async() => {
+    await copyText(generatedAccessUrl.value, '链接已复制到剪贴板')
+}
+
+const handleCopyLink = async(row: ITemporaryAccessLinkItem) => {
+    if (!row.accessUrl) {
+        ElMessage.warning('该链接地址已归档清理，请重新生成或续期后再复制')
+        return
+    }
+    await copyText(row.accessUrl, '链接已复制到剪贴板')
 }
 
 const handleRevoke = async(row: ITemporaryAccessLinkItem) => {
@@ -470,10 +561,36 @@ const handleRevoke = async(row: ITemporaryAccessLinkItem) => {
     )
     await revokeTemporaryAccessLink(row.linkId)
     ElMessage.success('临时访问链接已撤销')
-    await loadLinks()
+    await refreshAll()
+}
+
+const submitRenew = async() => {
+    if (!renewFormRef.value || !currentRenewLink.value) {
+        return
+    }
+
+    const valid = await renewFormRef.value.validate().catch(() => false)
+    if (!valid) {
+        return
+    }
+
+    renewing.value = true
+    try {
+        const response = await renewTemporaryAccessLink({
+            linkId: currentRenewLink.value.linkId,
+            renewDays: renewForm.renewDays
+        })
+        renewDialogVisible.value = false
+        showResultDialog(response.data.data, '临时访问链接已续期')
+        ElMessage.success('临时访问链接已续期')
+        await refreshAll()
+    } finally {
+        renewing.value = false
+    }
 }
 
 onMounted(async() => {
+    await loadCurrentDetectedIp()
     await loadTenants()
     await refreshAll()
 })
@@ -484,6 +601,20 @@ onMounted(async() => {
     display: grid;
     grid-template-columns: minmax(420px, 1.15fr) minmax(380px, 1fr);
     gap: 20px;
+}
+
+.workspace-panel {
+    min-width: 0;
+}
+
+.temporary-access-tip {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #64748b;
 }
 
 .member-cell,
@@ -530,8 +661,30 @@ onMounted(async() => {
     flex-wrap: wrap;
 }
 
+.ip-list__empty {
+    color: #94a3b8;
+    font-size: 13px;
+}
+
 .role-chip {
     border-radius: 999px;
+}
+
+.link-table-scroll {
+    max-height: 620px;
+    overflow: auto;
+    padding-bottom: 4px;
+}
+
+.link-table-scroll__inner {
+    min-width: 1040px;
+}
+
+.link-action-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .result-card {
