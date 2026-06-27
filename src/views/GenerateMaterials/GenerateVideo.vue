@@ -5,8 +5,8 @@
       <!-- 顶部标题 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
         <div>
-          <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
-          <p class="text-xs text-gray-400 mt-1">快速配置并制作单个高质量视频素材</p>
+          <h2 class="text-xl font-bold text-gray-800">数字人生成</h2>
+          <p class="text-xs text-gray-400 mt-1">快速配置并制作单个高质量数字人视频</p>
         </div>
         <el-button type="primary" size="large" @click="handleCreateNew">
           <el-icon class="mr-2"><el-icon-plus /></el-icon>
@@ -93,8 +93,10 @@
           <el-table-column label="视频信息" min-width="250">
             <template #default="scope">
               <div class="flex items-center gap-3 py-1">
-                <div>
-                  <div class="font-bold text-gray-800 line-clamp-1">{{ scope.row.title || scope.row.script?.substring(0, 30) }}...</div>
+                <div class="min-w-0">
+                  <div class="font-bold text-gray-800">
+                    <OverflowTooltipText :text="getVideoInfoTitle(scope.row)" :max-chars="60" />
+                  </div>
                   <div class="text-xs text-gray-400">ID: {{ scope.row.id }}</div>
                 </div>
               </div>
@@ -139,7 +141,7 @@
           </el-table-column>
           <el-table-column label="完成时间" width="180" align="center">
             <template #default="scope">
-              <span v-if="scope.row.taskStatus === '5'" class="text-sm">{{ scope.row.updateTime }}</span>
+              <span v-if="scope.row.taskStatus === '5'" class="text-sm">{{ scope.row.endTime || scope.row.updateTime }}</span>
               <span v-else class="text-gray-400 text-sm">-</span>
             </template>
           </el-table-column>
@@ -168,14 +170,14 @@
       </div>
     </div>
 
-    <!-- 视频单次生成页面 -->
+    <!-- 数字人生成页面 -->
     <div v-else class="max-w-[1400px] mx-auto">
       <!-- 顶部标题 -->
       <div class="bg-white px-5 py-3 rounded-xl shadow-sm relative border border-gray-100 mb-4">
         <div class="w-full">
           <el-button @click="handleBackToList" icon="el-icon-arrow-left" class="mb-2">返回列表</el-button>
           <div class="text-center">
-            <h2 class="text-xl font-bold text-gray-800">视频单次生成</h2>
+            <h2 class="text-xl font-bold text-gray-800">数字人生成</h2>
             <p class="text-xs text-gray-400 mt-0.5">快速配置并制作单个高质量视频素材</p>
           </div>
         </div>
@@ -467,6 +469,33 @@
                               <span>{{ audioFileName }}</span>
                               <el-button size="mini" type="danger" text @click="clearAudioFile">移除</el-button>
                             </div>
+                            <div
+                              v-if="videoForm.mode === 1 && audioUploadState.visible"
+                              class="mt-3 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3"
+                            >
+                              <div class="flex items-start justify-between gap-3">
+                                <div>
+                                  <div class="text-sm font-semibold text-slate-700">{{ audioUploadStatusText }}</div>
+                                  <div class="mt-1 text-xs text-slate-500">{{ audioUploadDetailText }}</div>
+                                </div>
+                                <el-button
+                                  v-if="audioUploadState.canRetry"
+                                  size="small"
+                                  type="primary"
+                                  plain
+                                  :disabled="isGenerating || !audioFile"
+                                  @click="retryAudioUpload"
+                                >
+                                  重新上传
+                                </el-button>
+                              </div>
+                              <el-progress
+                                class="mt-3"
+                                :percentage="audioUploadState.progress"
+                                :status="audioUploadProgressStatus"
+                                :stroke-width="10"
+                              />
+                            </div>
                           </el-form-item>
                         </div>
 
@@ -536,9 +565,29 @@
              <el-icon class="text-green-500"><el-icon-clock /></el-icon>执行状态          </h3>
           
           <div v-if="isGenerating" class="py-10 text-center animate-fade-in">
-             <el-progress type="circle" :percentage="genProgress" status="success" :stroke-width="10"></el-progress>
-             <p class="mt-4 text-sm font-bold text-gray-600">{{ genStage }}</p>
-             <p class="text-xs text-gray-400 mt-2">{{ generationProgressHint }}</p>
+             <template v-if="videoForm.mode === 1">
+               <div class="mx-auto max-w-md rounded-2xl border border-blue-100 bg-blue-50/70 p-5 text-left">
+                 <div class="flex items-start justify-between gap-4">
+                   <div>
+                     <p class="text-sm font-bold text-slate-700">{{ audioUploadStatusText }}</p>
+                     <p class="mt-1 text-xs text-slate-500">{{ audioUploadDetailText }}</p>
+                   </div>
+                   <div class="text-2xl font-bold text-blue-600">{{ audioUploadState.progress }}%</div>
+                 </div>
+                 <el-progress
+                   class="mt-4"
+                   :percentage="audioUploadState.progress"
+                   :status="audioUploadProgressStatus"
+                   :stroke-width="12"
+                 />
+                 <p class="text-xs text-gray-400 mt-3">{{ generationProgressHint }}</p>
+               </div>
+             </template>
+             <template v-else>
+               <el-progress type="circle" :percentage="genProgress" status="success" :stroke-width="10"></el-progress>
+               <p class="mt-4 text-sm font-bold text-gray-600">{{ genStage }}</p>
+               <p class="text-xs text-gray-400 mt-2">{{ generationProgressHint }}</p>
+             </template>
           </div>
 
           <div v-else-if="resultVideo" class="animate-fade-in">
@@ -998,6 +1047,7 @@ import { useTaskStore } from '/@/store/modules/task'
 import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
+import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
 import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl } from '/@/utils/download'
 
 // --- 数据定义 ---
@@ -1085,21 +1135,123 @@ const videoForm = reactive({
 const audioUploadRef = ref<any>(null)
 const audioFile = ref<File | null>(null)
 const audioFileName = ref('')
+const AUDIO_UPLOAD_REQUEST_TIMEOUT = 180000
+type AudioUploadStage = 'idle' | 'uploading' | 'timeout' | 'failed' | 'success'
+const audioUploadState = reactive({
+  visible: false,
+  progress: 0,
+  stage: 'idle' as AudioUploadStage,
+  canRetry: false,
+  lastDispatchMode: 'immediate' as 'immediate' | 'overnight',
+  errorMessage: ''
+})
+
+const resetAudioUploadState = () => {
+  audioUploadState.visible = false
+  audioUploadState.progress = 0
+  audioUploadState.stage = 'idle'
+  audioUploadState.canRetry = false
+  audioUploadState.lastDispatchMode = 'immediate'
+  audioUploadState.errorMessage = ''
+}
+
+const startAudioUploadTracking = (dispatchMode: 'immediate' | 'overnight') => {
+  audioUploadState.visible = true
+  audioUploadState.progress = 0
+  audioUploadState.stage = 'uploading'
+  audioUploadState.canRetry = false
+  audioUploadState.lastDispatchMode = dispatchMode
+  audioUploadState.errorMessage = ''
+}
+
+const updateAudioUploadProgress = (loaded: number, total?: number) => {
+  if (!audioUploadState.visible) {
+    audioUploadState.visible = true
+  }
+  audioUploadState.stage = 'uploading'
+  audioUploadState.canRetry = false
+  const nextProgress = total && total > 0
+    ? Math.min(95, Math.max(1, Math.round((loaded / total) * 95)))
+    : Math.min(95, Math.max(audioUploadState.progress, 15))
+  audioUploadState.progress = nextProgress
+  genProgress.value = nextProgress
+  genStage.value = '音频正在上传，请稍等...'
+}
+
+const markAudioUploadSuccess = (dispatchMode: 'immediate' | 'overnight') => {
+  audioUploadState.visible = true
+  audioUploadState.stage = 'success'
+  audioUploadState.canRetry = false
+  audioUploadState.progress = 100
+  audioUploadState.errorMessage = ''
+  genProgress.value = 100
+  genStage.value = dispatchMode === 'overnight'
+    ? '音频上传完成，预排任务已创建'
+    : '音频上传完成，任务已进入队列'
+}
+
+const markAudioUploadFailure = (message: string, isTimeout: boolean) => {
+  audioUploadState.visible = true
+  audioUploadState.stage = isTimeout ? 'timeout' : 'failed'
+  audioUploadState.canRetry = true
+  audioUploadState.errorMessage = message
+}
+
+const audioUploadStatusText = computed(() => {
+  switch (audioUploadState.stage) {
+    case 'uploading':
+      return '音频正在上传，请稍等'
+    case 'timeout':
+      return '音频上传超时，请重新上传'
+    case 'failed':
+      return '音频上传失败，请重新上传'
+    case 'success':
+      return '音频上传完成'
+    default:
+      return '等待上传音频'
+  }
+})
+
+const audioUploadDetailText = computed(() => {
+  if (audioUploadState.stage === 'timeout') {
+    return '当前进度已保留在超时时刻，请直接点击“重新上传”再次提交。'
+  }
+  if (audioUploadState.stage === 'failed') {
+    return audioUploadState.errorMessage || '音频提交未完成，请重新上传后再试。'
+  }
+  if (audioUploadState.stage === 'success') {
+    return '音频源已经写入 A2E，可继续进入后续视频生成队列。'
+  }
+  return '文件上传完成并收到平台成功响应前，请不要关闭页面。'
+})
+
+const audioUploadProgressStatus = computed(() => {
+  if (audioUploadState.stage === 'timeout' || audioUploadState.stage === 'failed') {
+    return 'exception'
+  }
+  if (audioUploadState.stage === 'success') {
+    return 'success'
+  }
+  return undefined
+})
 
 const handleAudioChange = (uploadFile: any) => {
   audioFile.value = uploadFile.raw
   audioFileName.value = uploadFile.name
+  resetAudioUploadState()
   return false  // 闃绘鑷姩上传
 }
 
 const handleAudioRemove = () => {
   audioFile.value = null
   audioFileName.value = ''
+  resetAudioUploadState()
 }
 
 const clearAudioFile = () => {
   audioFile.value = null
   audioFileName.value = ''
+  resetAudioUploadState()
   if (audioUploadRef.value) {
     audioUploadRef.value.clearFiles()
   }
@@ -1667,6 +1819,7 @@ const loadVideoTasks = async () => {
       digitalHumanId: task.digitalHumanId,
       createTime: task.createTime ? new Date(task.createTime).toLocaleString('zh-CN') : new Date().toLocaleString(),
       updateTime: task.updateTime ? new Date(task.updateTime).toLocaleString('zh-CN') : '',
+      endTime: task.endTime ? new Date(task.endTime).toLocaleString('zh-CN') : '',
       videoUrl: resolveAssetUrl(task.videoUrl || task.video_url || ''),
       videoCoverUrl: task.videoCoverUrl || task.video_cover_url || '',
       taskStatus: task.taskStatus || '0',
@@ -2002,6 +2155,7 @@ watch(() => videoForm.mode, () => {
   videoForm.label = ''
   previewRefreshSeq += 1
   subtitlePreviewFrameBase64.value = ''
+  resetAudioUploadState()
 })
 
 watch(showCreate, (val) => {
@@ -2074,8 +2228,8 @@ const getStatusLabel = (status: string | number) => {
     '3': '视频预备中',
     '4': '视频生成中',
     '5': '已完成',
-    '8': '通宵预排',
-    '9': '夜间入队中',
+    '8': '等待中',
+    '9': '等待中',
     '-1': '失败'
   }
   return statusMap[String(status)] || '未知'
@@ -2086,11 +2240,15 @@ const getStatusType = (status: string | number): 'success' | 'danger' | 'warning
   const statusStr = String(status)
   if (statusStr === '5') return 'success'           // 已完成 - 绿色
   if (statusStr === '-1') return 'danger'           // 失败 - 红色
-  if (statusStr === '9') return 'warning'           // 夜间入队中 - 橙色
   if (statusStr === '0') return 'info'              // 等待中 - 灰色
-  if (statusStr === '8') return 'info'              // 通宵预排 - 灰色
+  if (statusStr === '8') return 'info'              // 夜间等待 - 灰色
+  if (statusStr === '9') return 'info'              // 夜间等待 - 灰色
   if (statusStr === '4') return 'warning'           // 视频生成中 - 橙色
   return 'info'                                     // 其他 - 灰色
+}
+
+const getVideoInfoTitle = (row: any) => {
+  return String(row?.title || row?.script || '').trim()
 }
 
 const markVideoDownloadedLocally = (taskId?: number | null) => {
@@ -2186,6 +2344,7 @@ const resetForm = () => {
   genProgress.value = 0
   genStage.value = '准备就绪'
   submitDispatchMode.value = 'immediate'
+  resetAudioUploadState()
 }
 
 const getHumanImg = (name: string) => {
@@ -2570,7 +2729,9 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     }
     
     // 确定语言（自动时默认 zh）
-    const language = videoForm.language
+    const submitLanguage = videoForm.mode === 1
+      ? (videoForm.language === 'zh' ? 'zh-CN' : 'th-TH')
+      : videoForm.language
     
         // 创建FormData对象
     const formData = new FormData()
@@ -2594,7 +2755,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
       formData.append('voice_id', voiceId)
     }
     formData.append('digital_human_id', digitalHumanId)
-    formData.append('language', language)
+    formData.append('language', submitLanguage)
     formData.append('speechRate', '1')
     formData.append('dispatch_mode', effectiveDispatchMode)
     const bannerOverlayUrl = currentBannerOverlaySubmitUrl.value
@@ -2650,7 +2811,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
       msg: videoForm.script,
       voice_id: voiceId,
       digital_human_id: digitalHumanId,
-      language: language,
+      language: submitLanguage,
       speechRate: '1',
       subtitleSelector: effectiveSubtitle,
       process_types: processTypes,
@@ -2681,9 +2842,8 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
       response = await createVideoTask(formData)
       console.log('文案模式提交完成:', response)
     } else {
+      startAudioUploadTracking(effectiveDispatchMode)
       // 音频文件已在上面 formData 中传入 audioFile，无需重复上传
-      const lang = videoForm.language === 'zh' ? 'zh-CN' : 'th-TH'
-      formData.append('language', lang)
       // 竖屏音频模式可传角标
       if (videoForm.videoType !== 1 && videoForm.cornerMark) {
         const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === videoForm.cornerMark)
@@ -2694,12 +2854,24 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
       genProgress.value = effectiveDispatchMode === 'overnight' ? 25 : 35
       genStage.value = effectiveDispatchMode === 'overnight' ? '正在上传音频并创建预排，请稍候...' : '正在上传音频，请稍候...'
       console.log('音频模式提交数据:', Object.fromEntries(formData.entries()))
-      response = await createAudioVideoTask(formData)
+      response = await createAudioVideoTask(formData, {
+        hideLoading: true,
+        silentError: true,
+        timeout: AUDIO_UPLOAD_REQUEST_TIMEOUT,
+        onUploadProgress: (event: any) => {
+          if (event?.loaded) {
+            updateAudioUploadProgress(Number(event.loaded), Number(event.total || 0))
+          }
+        }
+      })
       console.log('音频模式提交完成:', response)
     }
     
     if (response && response.data) {
       await saveCurrentScriptToHistory()
+      if (videoForm.mode === 1) {
+        markAudioUploadSuccess(effectiveDispatchMode)
+      }
       genProgress.value = 100
       genStage.value = effectiveDispatchMode === 'overnight'
         ? '任务已加入通宵预排队列'
@@ -2721,10 +2893,20 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     submitDispatchMode.value = 'immediate'
     console.error('视频生成失败:', error)
     const rawErrorMessage = extractRequestErrorMessage(error)
+    const isAudioUploadTimeout = videoForm.mode === 1 && /timeout|timed out|超时/i.test(rawErrorMessage)
+    if (videoForm.mode === 1) {
+      markAudioUploadFailure(
+        isAudioUploadTimeout
+          ? '音频上传超时，请重新上传后再试。'
+          : '音频上传未完成，请重新上传后再试。',
+        isAudioUploadTimeout,
+      )
+      genStage.value = isAudioUploadTimeout ? '音频上传超时，请重新上传' : '音频上传失败，请重新上传'
+    }
     const errorMessage = layoutStore.getUserInfo.isPlatformSuperAdmin ? rawErrorMessage : GENERIC_REQUEST_ERROR_MESSAGE
     if (errorMessage === GENERIC_REQUEST_ERROR_MESSAGE) {
       ElMessage.error(errorMessage)
-    } else if (videoForm.mode === 1 && /上传|TOS|MinIO|音频/i.test(errorMessage)) {
+    } else if (videoForm.mode === 1 && /上传|A2E|音频|timeout|超时/i.test(errorMessage)) {
       ElMessage.error(`音频上传失败: ${errorMessage}`)
     } else {
       ElMessage.error(`视频生成失败: ${errorMessage}`)
@@ -2734,7 +2916,14 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
 
 const extractRequestErrorMessage = (error: unknown) => {
   const err = error as any
-  return err?.response?.data?.message || err?.response?.data?.msg || err?.message || '未知错误'
+  return err?.rawMessage || err?.response?.data?.message || err?.response?.data?.msg || err?.message || '未知错误'
+}
+
+const retryAudioUpload = () => {
+  if (isGenerating.value || !audioFile.value) {
+    return
+  }
+  startGeneration(audioUploadState.lastDispatchMode)
 }
 
 const previewResult = () => {

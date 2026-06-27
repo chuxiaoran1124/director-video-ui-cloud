@@ -678,14 +678,15 @@ export function getFastTaskDetail(id: number | string) {
 /**
  * 视频制作 - 直接上传音频（实时合成）
  */
-export function createAudioVideoTask(formData: FormData) {
+export function createAudioVideoTask(formData: FormData, options: Record<string, any> = {}) {
     return request({
         url: '/api/material/video/realtime/',
         method: 'post',
         data: formData,
         headers: {
             'Content-Type': 'multipart/form-data'
-        }
+        },
+        ...options
     })
 }
 

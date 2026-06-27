@@ -24,6 +24,16 @@ export const allowRouter: Array<IMenubarList> = [
         }
     },
     {
+        name: 'PlatformLoginEntry',
+        path: '/platform-login-entry',
+        component: 'PlatformLoginEntry',
+        meta: {
+            title: '平台入口',
+            icon: '',
+            hidden: true
+        }
+    },
+    {
         name: 'TemporaryAccessEntry',
         path: '/link-entry',
         component: 'TemporaryAccessEntry',

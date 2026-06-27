@@ -19,12 +19,21 @@
         <section class='login-panel'>
             <div class='login-panel__card'>
                 <div class='panel-header'>
-                    <span class='panel-header__eyebrow'>欢迎回来</span>
-                    <h2>进入工作台</h2>
-                    <p>输入账号密码后，系统会自动打开你当前可用的工作页面。</p>
+                    <span class='panel-header__eyebrow'>{{ panelEyebrow }}</span>
+                    <h2>{{ panelTitle }}</h2>
+                    <p>{{ panelDescription }}</p>
                 </div>
 
-                <el-form ref='ruleFormRef' :model='form' :rules='rules' label-position='top' autocomplete='off' @keyup.enter='onSubmit'>
+                <div v-if='gateChecking' class='login-state-card'>
+                    正在确认当前浏览器是否具备平台登录权限，请稍等。
+                </div>
+
+                <div v-else-if='!canUsePasswordLogin' class='login-state-card login-state-card--blocked'>
+                    <strong>当前阶段仅开放受邀访问</strong>
+                    <p>请使用授权链接访问系统，并在授权成功后输入账号密码完成登录。</p>
+                </div>
+
+                <el-form v-else ref='ruleFormRef' :model='form' :rules='rules' label-position='top' autocomplete='off' @keyup.enter='onSubmit'>
                     <input type='text' name='fake_username' autocomplete='username' class='login-page__hidden-input'>
                     <input type='password' name='fake_password' autocomplete='current-password' class='login-page__hidden-input'>
                     <el-form-item label='用户名' prop='username'>
@@ -60,7 +69,7 @@
                 </el-form>
 
                 <div class='panel-footer'>
-                    <span>如无法进入，请联系管理员确认账号是否已开通。</span>
+                    <span>{{ footerText }}</span>
                 </div>
             </div>
         </section>
@@ -68,14 +77,23 @@
 </template>
 
 <script lang='ts' setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, FormInstance, FormRules } from 'element-plus'
+import { getPlatformLoginEntryStatus } from '/@/api/layout'
 import { useLayoutStore } from '/@/store/modules/layout'
 
 const layoutStore = useLayoutStore()
+const route = useRoute()
+const router = useRouter()
 const ruleFormRef = ref<FormInstance>()
 const submitting = ref(false)
 const autofillGuard = ref(true)
+const gateChecking = ref(true)
+const canUsePasswordLogin = ref(false)
+const currentPlatformGrantToken = ref('')
+const LOGIN_GRANT_SESSION_KEY = 'loginGrantToken'
+const LOGIN_ENTRY_SESSION_KEY = 'loginGrantEntry'
 
 const form = reactive({
     username: '',
@@ -95,14 +113,164 @@ const releaseAutofillGuard = () => {
     autofillGuard.value = false
 }
 
+const panelEyebrow = computed(() => {
+    if (gateChecking.value) {
+        return '正在检查'
+    }
+    return canUsePasswordLogin.value ? '欢迎回来' : '受邀访问'
+})
+
+const panelTitle = computed(() => {
+    if (gateChecking.value) {
+        return '校验登录入口'
+    }
+    return canUsePasswordLogin.value ? '进入工作台' : '登录入口暂未开放'
+})
+
+const panelDescription = computed(() => {
+    if (gateChecking.value) {
+        return '系统正在确认当前浏览器是否已经通过平台入口授权。'
+    }
+    if (canUsePasswordLogin.value) {
+        return '当前浏览器已经完成访问校验，请输入账号密码进入你可用的工作页面。'
+    }
+    return '当前阶段，所有账号都必须先通过管理员分发的访问链接进入系统。'
+})
+
+const footerText = computed(() => {
+    if (canUsePasswordLogin.value) {
+        return '如无法进入，请联系管理员确认访问链接、账号状态和当前网络是否符合要求。'
+    }
+    return '如果你需要进入系统，请联系平台管理员获取对应入口。'
+})
+
+const getPlatformGrantTokenFromRoute = () => {
+    const routeGrant = String(route.query.grant || '').trim()
+    if (routeGrant) {
+        return routeGrant
+    }
+
+    const searchGrant = new URLSearchParams(window.location.search).get('grant') || ''
+    if (searchGrant.trim()) {
+        return searchGrant.trim()
+    }
+
+    const hashValue = window.location.hash || ''
+    if (hashValue.includes('?')) {
+        const hashQuery = hashValue.slice(hashValue.indexOf('?') + 1)
+        const hashGrant = new URLSearchParams(hashQuery).get('grant') || ''
+        if (hashGrant.trim()) {
+            return hashGrant.trim()
+        }
+    }
+
+    return ''
+}
+
+const getPlatformEntryFlagFromRoute = () => {
+    const routeEntry = String(route.query.entry || '').trim()
+    if (routeEntry) {
+        return routeEntry
+    }
+
+    const searchEntry = new URLSearchParams(window.location.search).get('entry') || ''
+    if (searchEntry.trim()) {
+        return searchEntry.trim()
+    }
+
+    const hashValue = window.location.hash || ''
+    if (hashValue.includes('?')) {
+        const hashQuery = hashValue.slice(hashValue.indexOf('?') + 1)
+        const hashEntry = new URLSearchParams(hashQuery).get('entry') || ''
+        if (hashEntry.trim()) {
+            return hashEntry.trim()
+        }
+    }
+
+    return ''
+}
+
+const storeLoginGrantSession = (entryType: string, grantToken: string) => {
+    if (!entryType || !grantToken) {
+        return
+    }
+    sessionStorage.setItem(LOGIN_GRANT_SESSION_KEY, grantToken)
+    sessionStorage.setItem(LOGIN_ENTRY_SESSION_KEY, entryType)
+}
+
+const clearLoginGrantSession = () => {
+    sessionStorage.removeItem(LOGIN_GRANT_SESSION_KEY)
+    sessionStorage.removeItem(LOGIN_ENTRY_SESSION_KEY)
+}
+
+const getStoredLoginGrantToken = (entryType: string) => {
+    if (!entryType) {
+        return ''
+    }
+    const storedEntryType = sessionStorage.getItem(LOGIN_ENTRY_SESSION_KEY) || ''
+    if (storedEntryType !== entryType) {
+        return ''
+    }
+    return sessionStorage.getItem(LOGIN_GRANT_SESSION_KEY) || ''
+}
+
+const validatePasswordLoginGate = async() => {
+    gateChecking.value = true
+    const grantToken = getPlatformGrantTokenFromRoute()
+    const entryFlag = getPlatformEntryFlagFromRoute()
+    if (!entryFlag) {
+        clearLoginGrantSession()
+    }
+    const storedGrantToken = getStoredLoginGrantToken(entryFlag)
+    const effectiveGrantToken = grantToken || storedGrantToken
+    try {
+        currentPlatformGrantToken.value = effectiveGrantToken
+        const response = await getPlatformLoginEntryStatus(effectiveGrantToken)
+        const payload = response.data.data || {}
+        canUsePasswordLogin.value = Boolean(payload.granted)
+        if (!payload.granted) {
+            currentPlatformGrantToken.value = ''
+            clearLoginGrantSession()
+            return
+        }
+        if (entryFlag && effectiveGrantToken) {
+            storeLoginGrantSession(entryFlag, effectiveGrantToken)
+        }
+        if (grantToken) {
+            const normalizedEntry = entryFlag || 'platform'
+            await router.replace(`/login?entry=${normalizedEntry}`)
+        }
+    } catch {
+        canUsePasswordLogin.value = false
+        currentPlatformGrantToken.value = ''
+        clearLoginGrantSession()
+    } finally {
+        gateChecking.value = false
+    }
+}
+
 onMounted(() => {
     nextTick(() => {
         form.username = ''
         form.password = ''
     })
+    validatePasswordLoginGate()
 })
 
+watch(
+    () => route.fullPath,
+    () => {
+        if (route.path === '/login') {
+            validatePasswordLoginGate()
+        }
+    }
+)
+
 const onSubmit = async() => {
+    if (!canUsePasswordLogin.value) {
+        return
+    }
+
     if (!ruleFormRef.value) {
         return
     }
@@ -116,8 +284,10 @@ const onSubmit = async() => {
     try {
         await layoutStore.login({
             username: form.username,
-            password: form.password
+            password: form.password,
+            loginGrantToken: currentPlatformGrantToken.value
         })
+        clearLoginGrantSession()
         ElNotification({
             title: '登录成功',
             message: '欢迎回来，常用功能已经为你准备好了。',
@@ -279,6 +449,30 @@ const onSubmit = async() => {
     margin-top: 12px;
     color: #64748b;
     font-size: 13px;
+}
+
+.login-state-card {
+    margin-bottom: 18px;
+    padding: 18px 18px;
+    border-radius: 18px;
+    background: rgba(15, 118, 110, 0.08);
+    color: #0f172a;
+    line-height: 1.8;
+}
+
+.login-state-card--blocked {
+    background: rgba(15, 23, 42, 0.05);
+}
+
+.login-state-card--blocked strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.login-state-card--blocked p {
+    margin: 0;
+    color: #475569;
 }
 
 .login-page__hidden-input {

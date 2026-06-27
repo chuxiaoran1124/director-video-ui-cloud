@@ -219,6 +219,37 @@
                                 </div>
                             </section>
 
+                            <section
+                                v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
+                                class='capability-card capability-card--editable'
+                            >
+                                <header>
+                                    <h4>夜间执行开关</h4>
+                                    <span>开启后，这个团队白天提交的任务会继续显示等待中，并在 22:00 至次日 08:00 的窗口内按原等待顺序开始执行。</span>
+                                </header>
+                                <div class='priority-panel'>
+                                    <div class='toggle-panel'>
+                                        <el-switch
+                                            v-model='schedulerNightDispatchOnly'
+                                            :disabled='savingSchedulerNightDispatchConfig'
+                                            active-text='仅夜间执行'
+                                            inactive-text='即时执行'
+                                        />
+                                        <el-button
+                                            type='primary'
+                                            class='workspace-primary-btn'
+                                            :loading='savingSchedulerNightDispatchConfig'
+                                            @click='saveSchedulerNightDispatchConfig'
+                                        >
+                                            保存设置
+                                        </el-button>
+                                    </div>
+                                    <p class='priority-panel__description'>
+                                        关闭后，当前还在等待中的任务会立刻恢复正常调度，不需要重新提交。
+                                    </p>
+                                </div>
+                            </section>
+
                             <section class='capability-card capability-card--editable'>
                                 <header>
                                     <h4>处理额度</h4>
@@ -359,6 +390,7 @@ import {
     ICreateTenantPayload,
     ITenantDetailResponse,
     ITenantListItem,
+    updateTenantSchedulerNightDispatchConfig,
     updateTenantRuntimeConfig,
     updateTenantSchedulerPriorityConfig,
     updateTenantSchedulerQuotaConfig
@@ -384,11 +416,13 @@ const tenantList = ref<ITenantListItem[]>([])
 const tenantDetail = ref<ITenantDetailResponse | null>(null)
 const postProcessPipelineEnabled = ref(false)
 const schedulerPriorityMode = ref('balanced')
+const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
 const schedulerVideoSlots = ref(1)
 const schedulerAudioWorkers = ref(1)
 const savingRuntimeConfig = ref(false)
 const savingSchedulerPriorityConfig = ref(false)
+const savingSchedulerNightDispatchConfig = ref(false)
 const savingSchedulerQuotaConfig = ref(false)
 const createDialogVisible = ref(false)
 const creatingTenant = ref(false)
@@ -461,6 +495,7 @@ const formatStorageProviderLabel = (provider: string) => getStorageProviderDispl
 
 const buildTenantInitial = (tenantName: string) => tenantName.trim().slice(0, 1).toUpperCase()
 const syncSchedulerQuotaState = (detail?: ITenantDetailResponse | null) => {
+    schedulerNightDispatchOnly.value = Boolean(detail?.schedulerConfig?.nightDispatchOnly)
     schedulerComplexWorkers.value = Number(detail?.schedulerConfig?.maxConcurrency || 1)
     schedulerVideoSlots.value = Number(detail?.schedulerConfig?.maxVideoTaskConcurrency || 1)
     schedulerAudioWorkers.value = Number(detail?.schedulerConfig?.maxFastTaskConcurrency || 1)
@@ -566,6 +601,30 @@ const saveSchedulerPriorityConfig = async() => {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
         savingSchedulerPriorityConfig.value = false
+    }
+}
+
+const saveSchedulerNightDispatchConfig = async() => {
+    if (!tenantDetail.value?.id) {
+        return
+    }
+    savingSchedulerNightDispatchConfig.value = true
+    try {
+        const response = await updateTenantSchedulerNightDispatchConfig({
+            tenantId: tenantDetail.value.id,
+            nightDispatchOnly: schedulerNightDispatchOnly.value
+        })
+        tenantDetail.value = response.data.data
+        syncSchedulerQuotaState(response.data.data)
+        ElMessage.success(
+            schedulerNightDispatchOnly.value
+                ? '该团队已切换为夜间执行模式'
+                : '该团队已恢复即时执行模式'
+        )
+    } catch (error: any) {
+        ElMessage.error(error?.message || '保存失败，请稍后重试')
+    } finally {
+        savingSchedulerNightDispatchConfig.value = false
     }
 }
 

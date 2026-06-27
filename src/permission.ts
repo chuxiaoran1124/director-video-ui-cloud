@@ -7,7 +7,7 @@ configure({ showSpinner: false })
 
 const loginRoutePath = '/login'
 const defaultRoutePath = '/'
-const whiteList = new Set([loginRoutePath, '/link-entry', '/error/401', '/error/404'])
+const whiteList = new Set([loginRoutePath, '/platform-login-entry', '/link-entry', '/error/401', '/error/404'])
 
 router.beforeEach(async(to, from) => {
     start()

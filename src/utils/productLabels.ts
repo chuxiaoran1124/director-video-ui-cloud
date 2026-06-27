@@ -7,12 +7,13 @@ const routeTitleMap: Record<string, string> = {
     'tenant-management': '团队管理',
     'tenant-route-management': '团队功能范围',
     'temporary-access-management': '临时访问分发',
+    'legacy-material-export': '旧版素材导出',
     'prior-disposal': '素材管理',
     'material-management': '素材管理',
     'document-management': '文案管理',
     'generate-materials': '内容生成',
-    'fast-task': '快速生成',
-    'video-task': '单条视频生成'
+    'fast-task': '训练',
+    'video-task': '数字人生成'
 }
 
 const permissionLabelMap: Record<string, string> = {

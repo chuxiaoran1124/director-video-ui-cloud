@@ -215,6 +215,16 @@ export function revokeTemporaryAccessLink(linkId: number): Promise<AxiosResponse
     })
 }
 
+export function deleteTemporaryAccessLink(linkId: number): Promise<AxiosResponse<IResponse<{ linkId: number; tenantId: number }>>> {
+    return request({
+        url: '/api/user/temporary-access/delete/',
+        method: 'post',
+        data: {
+            linkId
+        }
+    })
+}
+
 export function renewTemporaryAccessLink(payload: {
     linkId: number
     renewDays: number
@@ -232,6 +242,19 @@ export function getTemporaryAccessCurrentIp(): Promise<AxiosResponse<IResponse<I
         method: 'get',
         hideLoading: true,
         silentError: true
+    })
+}
+
+export function exportLegacyMaterialSql(payload: {
+    tenantId: number
+    sourceUserId: number
+    legacyUserId: number
+}): Promise<AxiosResponse<Blob>> {
+    return request({
+        url: '/api/user/legacy-material-export/download/',
+        method: 'post',
+        data: payload,
+        responseType: 'blob'
     })
 }
 

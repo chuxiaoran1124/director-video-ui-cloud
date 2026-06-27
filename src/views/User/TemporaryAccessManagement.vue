@@ -3,7 +3,7 @@
         <WorkspaceHero
             eyebrow='外部协作'
             title='临时访问分发'
-            description='平台管理员可以在这里给指定团队成员分发短期访问链接，让对方在约定时间和约定网络地址下直接进入系统。'
+            description='平台管理员可以在这里给指定团队成员分发短期访问链接，让对方在约定时间和约定网络地址下先完成访问校验，再输入账号密码进入系统。'
         >
             <template #actions>
                 <el-button class='workspace-ghost-btn' @click='refreshAll'>刷新数据</el-button>
@@ -166,7 +166,7 @@
                                 </el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column label='操作' width='220' fixed='right'>
+                        <el-table-column label='操作' width='280' fixed='right'>
                             <template #default='{ row }'>
                                 <div class='link-action-group'>
                                     <el-button
@@ -186,7 +186,13 @@
                                     >
                                         撤销
                                     </el-button>
-                                    <span v-else-if='!row.accessUrl' class='link-action__disabled'>-</span>
+                                    <el-button
+                                        type='danger'
+                                        link
+                                        @click='handleDelete(row)'
+                                    >
+                                        删除记录
+                                    </el-button>
                                 </div>
                             </template>
                         </el-table-column>
@@ -273,7 +279,7 @@
 <script lang='ts' setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
-import { createTemporaryAccessLink, getTemporaryAccessCurrentIp, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, renewTemporaryAccessLink, revokeTemporaryAccessLink } from '/@/api/user'
+import { createTemporaryAccessLink, deleteTemporaryAccessLink, getTemporaryAccessCurrentIp, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, renewTemporaryAccessLink, revokeTemporaryAccessLink } from '/@/api/user'
 import { getTenantList, ITenantListItem } from '/@/api/tenant'
 import { getRoleDisplayName, getStatusDisplayName } from '/@/utils/productLabels'
 
@@ -561,6 +567,24 @@ const handleRevoke = async(row: ITemporaryAccessLinkItem) => {
     )
     await revokeTemporaryAccessLink(row.linkId)
     ElMessage.success('临时访问链接已撤销')
+    await refreshAll()
+}
+
+const handleDelete = async(row: ITemporaryAccessLinkItem) => {
+    const isActiveLink = row.status === 'active'
+    await ElMessageBox.confirm(
+        isActiveLink
+            ? '删除后，这条访问链接会立即失效，同时会从分发记录里彻底移除，确定继续吗？'
+            : '删除后，这条分发记录会从列表里彻底移除，确定继续吗？',
+        '删除临时访问记录',
+        {
+            type: 'warning',
+            confirmButtonText: '确认删除',
+            cancelButtonText: '取消'
+        }
+    )
+    await deleteTemporaryAccessLink(row.linkId)
+    ElMessage.success('临时访问记录已删除')
     await refreshAll()
 }
 

@@ -9,6 +9,7 @@ const orphanRouteParentMap: Record<string, { name: string; path: string; title: 
     'user-management': { name: 'permission', path: '/permission', title: '账号与功能', icon: 'lock' },
     'tenant-management': { name: 'permission', path: '/permission', title: '账号与功能', icon: 'lock' },
     'tenant-route-management': { name: 'permission', path: '/permission', title: '账号与功能', icon: 'lock' },
+    'legacy-material-export': { name: 'permission', path: '/permission', title: '账号与功能', icon: 'lock' },
     'material-management': { name: 'prior-disposal', path: '/prior-disposal', title: '素材管理', icon: 'operation' },
     'document-management': { name: 'prior-disposal', path: '/prior-disposal', title: '素材管理', icon: 'operation' },
     'fast-task': { name: 'prior-disposal', path: '/prior-disposal', title: '素材管理', icon: 'database' },

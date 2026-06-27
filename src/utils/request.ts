@@ -6,6 +6,8 @@ const GENERIC_MASKED_ERROR_MESSAGE = '请求失败，请联系管理员'
 const ORIGINAL_MESSAGE_URL_PATTERNS = [
     /\/user\/login\/?$/i,
     /\/user\/refresh-token\/?$/i,
+    /\/user\/platform-login-entry\/activate\/?$/i,
+    /\/user\/temporary-access\/activate\/?$/i,
     /\/user\/temporary-access\/exchange\/?$/i
 ]
 const ORIGINAL_MESSAGE_WHITELIST = new Set([

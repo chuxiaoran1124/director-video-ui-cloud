@@ -84,6 +84,17 @@ export function updateTenantSchedulerPriorityConfig(payload: { tenantId: number;
     })
 }
 
+export function updateTenantSchedulerNightDispatchConfig(payload: {
+    tenantId: number
+    nightDispatchOnly: boolean
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+    return request({
+        url: '/api/tenant/scheduler-config/night-dispatch/update/',
+        method: 'post',
+        data: payload
+    })
+}
+
 export function updateTenantSchedulerQuotaConfig(payload: {
     tenantId: number
     maxConcurrency: number

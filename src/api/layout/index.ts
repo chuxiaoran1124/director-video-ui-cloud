@@ -4,6 +4,9 @@ import { IMenubarList, ITenantSummary, IUserInfo } from '/@/type/store/layout'
 
 const api = {
     login: '/api/user/login/',
+    platformLoginEntryActivate: '/api/user/platform-login-entry/activate/',
+    platformLoginEntryStatus: '/api/user/platform-login-entry/status/',
+    temporaryAccessActivate: '/api/user/temporary-access/activate/',
     temporaryAccessExchange: '/api/user/temporary-access/exchange/',
     refreshToken: '/api/user/refresh-token/',
     logout: '/api/user/logout/',
@@ -17,6 +20,7 @@ export interface ILoginParam {
     username: string
     password: string
     tenantId?: number
+    loginGrantToken?: string
 }
 
 export interface ILoginResponse {
@@ -39,11 +43,57 @@ export interface ILoginResponse {
     expiresIn: number
 }
 
+export interface IPlatformLoginEntryStatusResponse {
+    gateEnabled: boolean
+    granted: boolean
+    expiresAt?: string | null
+    entryUrl?: string
+    message?: string
+    grantToken?: string
+    loginPath?: string
+}
+
 export function login(param: ILoginParam): Promise<AxiosResponse<IResponse<ILoginResponse>>> {
     return request({
         url: api.login,
         method: 'post',
         data: param
+    })
+}
+
+export function activatePlatformLoginEntry(entryToken: string): Promise<AxiosResponse<IResponse<IPlatformLoginEntryStatusResponse>>> {
+    return request({
+        url: api.platformLoginEntryActivate,
+        method: 'post',
+        data: {
+            entryToken
+        },
+        hideLoading: true,
+        silentError: true
+    })
+}
+
+export function getPlatformLoginEntryStatus(grantToken: string): Promise<AxiosResponse<IResponse<IPlatformLoginEntryStatusResponse>>> {
+    return request({
+        url: api.platformLoginEntryStatus,
+        method: 'get',
+        params: {
+            grantToken
+        },
+        hideLoading: true,
+        silentError: true
+    })
+}
+
+export function activateTemporaryAccess(ticket: string): Promise<AxiosResponse<IResponse<IPlatformLoginEntryStatusResponse>>> {
+    return request({
+        url: api.temporaryAccessActivate,
+        method: 'post',
+        data: {
+            ticket
+        },
+        hideLoading: true,
+        silentError: true
     })
 }
 

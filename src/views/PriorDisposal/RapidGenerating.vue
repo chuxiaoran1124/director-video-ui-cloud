@@ -3,13 +3,13 @@
     <!-- 顶部状态切换与标题 -->
     <div class="mb-6 flex justify-between items-end">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">快速克隆生成</h1>
-        <p class="text-slate-500 text-sm mt-1">一键克隆数字人和声音资产，当前阶段先开放单条克隆链路。</p>
+        <h1 class="text-2xl font-bold text-slate-800">训练</h1>
+        <p class="text-slate-500 text-sm mt-1">一键训练数字人和声音资产，当前阶段先开放单条训练链路。</p>
       </div>
       <div v-if="!isCreating">
         <el-button type="primary" size="large" @click="handleCreateNew">
           <el-icon class="mr-1"><el-icon-plus /></el-icon>
-          新建克隆任务
+          新建训练任务
         </el-button>
       </div>
       <div v-else>
@@ -66,7 +66,7 @@
           </el-table-column>
           <el-table-column label="任务类型" width="120" align="center">
             <template #default>
-              <el-tag type="info" size="small" effect="light" class="rounded-full px-4">快速克隆</el-tag>
+              <el-tag type="info" size="small" effect="light" class="rounded-full px-4">训练</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="120" align="center">
@@ -99,7 +99,7 @@
           <el-table-column label="创建时间" prop="time" width="180" align="center" sortable />
           <el-table-column label="完成时间" width="180" align="center">
             <template #default="scope">
-              <span v-if="scope.row.status === 'success'" class="text-sm">{{ scope.row.updateTime }}</span>
+              <span v-if="scope.row.status === 'success'" class="text-sm">{{ scope.row.endTime || scope.row.updateTime }}</span>
               <span v-else class="text-gray-400 text-sm">-</span>
             </template>
           </el-table-column>
@@ -661,6 +661,7 @@ const loadTaskList = async () => {
           progress,
           time: item.createTime,
           updateTime: item.updateTime,
+          endTime: item.endTime,
           videoUrl: item.videoUrl,
           voiceUrl: item.voiceUrl,
           gender: item.gender === 'male' ? '男' : '女',
@@ -1342,7 +1343,7 @@ const pollTaskProgress = async () => {
             name: taskData.digitalHumanName || taskData.name,
             videoUrl: taskData.videoUrl,
             voiceUrl: taskData.voiceUrl,
-            time: taskData.updateTime || taskData.createTime,
+            time: taskData.endTime || taskData.updateTime || taskData.createTime,
             gender: taskData.gender === 'male' ? '男' : '女',
             status: 'success'
           }

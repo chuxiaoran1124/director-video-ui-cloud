@@ -2,7 +2,7 @@
     <div class='entry-page'>
         <div class='entry-page__backdrop' />
         <section class='entry-card'>
-            <span class='entry-card__eyebrow'>临时访问入口</span>
+            <span class='entry-card__eyebrow'>平台入口</span>
             <h1>{{ titleText }}</h1>
             <p>{{ descriptionText }}</p>
 
@@ -19,11 +19,8 @@
             </div>
 
             <div class='entry-card__actions'>
-                <div v-if='status === "failed" && currentDetectedIp' class='entry-card__ip'>
-                    后端当前识别到的访问 IP：{{ currentDetectedIp }}
-                </div>
                 <el-button v-if='status === "failed"' type='primary' class='entry-card__button' @click='goLogin'>
-                    返回登录页
+                    返回关闭页
                 </el-button>
             </div>
         </section>
@@ -35,8 +32,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CircleCheckFilled, Loading, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { activateTemporaryAccess } from '/@/api/layout'
-import { getTemporaryAccessCurrentIp } from '/@/api/user'
+import { activatePlatformLoginEntry } from '/@/api/layout'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,27 +40,49 @@ const router = useRouter()
 const loading = ref(true)
 const status = ref<'loading' | 'success' | 'failed'>('loading')
 const errorMessage = ref('')
-const currentDetectedIp = ref('')
 
 const titleText = computed(() => {
     if (status.value === 'success') {
-        return '正在进入工作台'
+        return '正在打开平台登录页'
     }
     if (status.value === 'failed') {
-        return '当前访问链接不可用'
+        return '平台入口不可用'
     }
-    return '正在校验访问权限'
+    return '正在校验平台入口'
 })
 
 const descriptionText = computed(() => {
     if (status.value === 'success') {
-        return '访问校验已完成，正在打开登录页，请继续输入账号密码进入系统。'
+        return '浏览器登录凭证已经激活，正在跳转到平台管理员登录页。'
     }
     if (status.value === 'failed') {
-        return errorMessage.value || '该访问链接已失效，或当前网络地址不在允许范围内。'
+        return errorMessage.value || '该平台入口链接无效或已失效，请联系维护人员。'
     }
-    return '请稍等，系统正在确认该访问链接的有效期、网络地址和账号状态，并为当前浏览器准备登录凭证。'
+    return '请稍等，系统正在核对当前入口链接是否可用于平台管理员登录。'
 })
+
+const getEntryToken = () => {
+    const routeToken = String(route.query.token || '').trim()
+    if (routeToken) {
+        return routeToken
+    }
+
+    const searchToken = new URLSearchParams(window.location.search).get('token') || ''
+    if (searchToken.trim()) {
+        return searchToken.trim()
+    }
+
+    const hashValue = window.location.hash || ''
+    if (hashValue.includes('?')) {
+        const hashQuery = hashValue.slice(hashValue.indexOf('?') + 1)
+        const hashToken = new URLSearchParams(hashQuery).get('token') || ''
+        if (hashToken.trim()) {
+            return hashToken.trim()
+        }
+    }
+
+    return ''
+}
 
 const goLogin = async() => {
     await router.replace('/login')
@@ -75,66 +93,33 @@ const replaceToHashPath = (targetPath: string) => {
     window.location.replace(`${window.location.origin}${window.location.pathname}#${normalizedPath}`)
 }
 
-const loadCurrentDetectedIp = async() => {
-    try {
-        const response = await getTemporaryAccessCurrentIp()
-        currentDetectedIp.value = response.data.data.clientIp || ''
-    } catch {
-        currentDetectedIp.value = ''
-    }
-}
-
-const getTemporaryAccessTicket = () => {
-    const routeTicket = String(route.query.ticket || '').trim()
-    if (routeTicket) {
-        return routeTicket
-    }
-
-    const searchTicket = new URLSearchParams(window.location.search).get('ticket') || ''
-    if (searchTicket.trim()) {
-        return searchTicket.trim()
-    }
-
-    const hashValue = window.location.hash || ''
-    if (hashValue.includes('?')) {
-        const hashQuery = hashValue.slice(hashValue.indexOf('?') + 1)
-        const hashTicket = new URLSearchParams(hashQuery).get('ticket') || ''
-        if (hashTicket.trim()) {
-            return hashTicket.trim()
-        }
-    }
-
-    return ''
-}
-
-const bootstrapTemporaryAccess = async() => {
-    const ticket = getTemporaryAccessTicket()
-    if (!ticket) {
+const bootstrapPlatformLoginEntry = async() => {
+    const entryToken = getEntryToken()
+    if (!entryToken) {
         loading.value = false
         status.value = 'failed'
-        errorMessage.value = '访问地址缺少必要凭证，请联系平台管理员重新分发。'
+        errorMessage.value = '平台入口链接缺少必要凭证，请联系维护人员重新提供。'
         return
     }
 
     try {
-        const response = await activateTemporaryAccess(ticket)
+        const response = await activatePlatformLoginEntry(entryToken)
+        const payload = response.data.data
         status.value = 'success'
         loading.value = false
-        replaceToHashPath(`/login?entry=link&grant=${encodeURIComponent(response.data.data?.grantToken || '')}`)
+        replaceToHashPath(`/login?entry=platform&grant=${encodeURIComponent(payload.grantToken || '')}`)
     } catch (error: any) {
         loading.value = false
         status.value = 'failed'
-        await loadCurrentDetectedIp()
-        errorMessage.value = error?.response?.data?.msg
-            || error?.response?.data?.message
+        errorMessage.value = error?.response?.data?.message
             || error?.message
-            || '临时访问登录失败，请联系平台管理员处理。'
+            || '平台入口激活失败，请联系维护人员处理。'
         ElMessage.error(errorMessage.value)
     }
 }
 
 onMounted(() => {
-    bootstrapTemporaryAccess()
+    bootstrapPlatformLoginEntry()
 })
 </script>
 
@@ -223,17 +208,6 @@ onMounted(() => {
     flex-direction: column;
     align-items: center;
     gap: 14px;
-}
-
-.entry-card__ip {
-    max-width: 100%;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: rgba(15, 118, 110, 0.08);
-    color: #0f172a;
-    font-size: 13px;
-    line-height: 1.6;
-    word-break: break-all;
 }
 
 .entry-card__button {
