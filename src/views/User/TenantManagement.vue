@@ -152,7 +152,33 @@
                                 <div class='capability-tags'>
                                     <el-tag :type="tenantDetail.runtimeConfig.enableFastTask ? 'success' : 'info'" effect='plain'>快速任务</el-tag>
                                     <el-tag :type="tenantDetail.runtimeConfig.enableVideoTask ? 'success' : 'info'" effect='plain'>单条视频</el-tag>
+                                    <el-tag :type="tenantDetail.runtimeConfig.enableAudioDrive ? 'success' : 'info'" effect='plain'>音频驱动</el-tag>
                                     <el-tag :type="tenantDetail.runtimeConfig.enablePostProcessPipeline ? 'success' : 'info'" effect='plain'>增强成片</el-tag>
+                                </div>
+                            </section>
+
+                            <section class='capability-card capability-card--editable'>
+                                <header>
+                                    <h4>音频驱动开关</h4>
+                                    <span>关闭后，这个团队在单条视频页将不再显示“音频驱动视频”入口。</span>
+                                </header>
+                                <div class='toggle-panel'>
+                                    <el-switch
+                                        v-model='audioDriveEnabled'
+                                        :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingAudioDriveConfig'
+                                        active-text='已开放'
+                                        inactive-text='未开放'
+                                    />
+                                    <el-button
+                                        v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
+                                        type='primary'
+                                        class='workspace-primary-btn'
+                                        :loading='savingAudioDriveConfig'
+                                        @click='saveAudioDriveConfig'
+                                    >
+                                        保存设置
+                                    </el-button>
+                                    <span v-else class='toggle-panel__hint'>仅平台管理员可调整此团队的音频驱动能力。</span>
                                 </div>
                             </section>
 
@@ -390,6 +416,7 @@ import {
     ICreateTenantPayload,
     ITenantDetailResponse,
     ITenantListItem,
+    updateTenantAudioDriveConfig,
     updateTenantSchedulerNightDispatchConfig,
     updateTenantRuntimeConfig,
     updateTenantSchedulerPriorityConfig,
@@ -415,12 +442,14 @@ const search = reactive({
 const tenantList = ref<ITenantListItem[]>([])
 const tenantDetail = ref<ITenantDetailResponse | null>(null)
 const postProcessPipelineEnabled = ref(false)
+const audioDriveEnabled = ref(false)
 const schedulerPriorityMode = ref('balanced')
 const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
 const schedulerVideoSlots = ref(1)
 const schedulerAudioWorkers = ref(1)
 const savingRuntimeConfig = ref(false)
+const savingAudioDriveConfig = ref(false)
 const savingSchedulerPriorityConfig = ref(false)
 const savingSchedulerNightDispatchConfig = ref(false)
 const savingSchedulerQuotaConfig = ref(false)
@@ -541,6 +570,7 @@ const loadTenantDetail = async(tenantId: number) => {
     const response = await getTenantDetail(tenantId)
     tenantDetail.value = response.data.data
     postProcessPipelineEnabled.value = Boolean(response.data.data?.runtimeConfig?.enablePostProcessPipeline)
+    audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
     schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
     syncSchedulerQuotaState(response.data.data)
 }
@@ -580,6 +610,27 @@ const saveRuntimeConfig = async() => {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
         savingRuntimeConfig.value = false
+    }
+}
+
+const saveAudioDriveConfig = async() => {
+    if (!tenantDetail.value?.id) {
+        return
+    }
+    savingAudioDriveConfig.value = true
+    try {
+        const response = await updateTenantAudioDriveConfig({
+            tenantId: tenantDetail.value.id,
+            enableAudioDrive: audioDriveEnabled.value
+        })
+        tenantDetail.value = response.data.data
+        audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
+        syncSchedulerQuotaState(response.data.data)
+        ElMessage.success(audioDriveEnabled.value ? '该团队已开放音频驱动能力' : '该团队已关闭音频驱动能力')
+    } catch (error: any) {
+        ElMessage.error(error?.message || '保存失败，请稍后重试')
+    } finally {
+        savingAudioDriveConfig.value = false
     }
 }
 

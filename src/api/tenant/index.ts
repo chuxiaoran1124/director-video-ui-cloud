@@ -76,6 +76,17 @@ export function updateTenantRuntimeConfig(payload: { tenantId: number; enablePos
     })
 }
 
+export function updateTenantAudioDriveConfig(payload: {
+    tenantId: number
+    enableAudioDrive: boolean
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+    return request({
+        url: '/api/tenant/runtime-config/audio-drive/update/',
+        method: 'post',
+        data: payload
+    })
+}
+
 export function updateTenantSchedulerPriorityConfig(payload: { tenantId: number; priorityMode: string }): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
     return request({
         url: '/api/tenant/scheduler-config/update/',

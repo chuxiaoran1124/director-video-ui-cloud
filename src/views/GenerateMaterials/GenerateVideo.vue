@@ -218,7 +218,7 @@
                   <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 配置方式</span></template>
                   <el-radio-group v-model="videoForm.mode">
                     <el-radio :label="0" size="large" border>视频文案配置</el-radio>
-                    <el-radio :label="1" size="large" border>音频驱动视频</el-radio>
+                    <el-radio v-if="enableAudioDrive" :label="1" size="large" border>音频驱动视频</el-radio>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
@@ -1654,6 +1654,7 @@ const resetPostProcessSelections = () => {
 const loadTenantRuntimeConfig = async () => {
   if (!currentTenantId.value) {
     tenantRuntimeConfig.enablePostProcessPipeline = false
+    tenantRuntimeConfig.enableAudioDrive = false
     tenantRuntimeConfig.enableSubtitlePostProcess = false
     tenantRuntimeConfig.enableCornerMarkPostProcess = false
     tenantRuntimeConfig.enableBannerOverlayPostProcess = false
@@ -1665,12 +1666,14 @@ const loadTenantRuntimeConfig = async () => {
     const response = await getTenantDetail(currentTenantId.value)
     const runtimeConfig = response.data?.data?.runtimeConfig || {}
     tenantRuntimeConfig.enablePostProcessPipeline = Boolean(runtimeConfig.enablePostProcessPipeline)
+    tenantRuntimeConfig.enableAudioDrive = runtimeConfig.enableAudioDrive !== false
     tenantRuntimeConfig.enableSubtitlePostProcess = Boolean(runtimeConfig.enableSubtitlePostProcess)
     tenantRuntimeConfig.enableCornerMarkPostProcess = Boolean(runtimeConfig.enableCornerMarkPostProcess)
     tenantRuntimeConfig.enableBannerOverlayPostProcess = Boolean(runtimeConfig.enableBannerOverlayPostProcess)
   } catch (error) {
     console.error('加载团队增强成片配置失败:', error)
     tenantRuntimeConfig.enablePostProcessPipeline = false
+    tenantRuntimeConfig.enableAudioDrive = false
     tenantRuntimeConfig.enableSubtitlePostProcess = false
     tenantRuntimeConfig.enableCornerMarkPostProcess = false
     tenantRuntimeConfig.enableBannerOverlayPostProcess = false
@@ -1680,6 +1683,10 @@ const loadTenantRuntimeConfig = async () => {
     resetPostProcessSelections()
   } else if (videoForm.subtitleSelector !== 1) {
     videoForm.subtitleSelector = 1
+  }
+
+  if (!tenantRuntimeConfig.enableAudioDrive && videoForm.mode === 1) {
+    videoForm.mode = 0
   }
 }
 
@@ -1754,6 +1761,7 @@ const saveScriptDialog = reactive({
 
 const tenantRuntimeConfig = reactive({
   enablePostProcessPipeline: false,
+  enableAudioDrive: false,
   enableSubtitlePostProcess: false,
   enableCornerMarkPostProcess: false,
   enableBannerOverlayPostProcess: false,
@@ -1761,6 +1769,7 @@ const tenantRuntimeConfig = reactive({
 
 const currentTenantId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
 const enableAdvancedPostProcess = computed(() => tenantRuntimeConfig.enablePostProcessPipeline)
+const enableAudioDrive = computed(() => tenantRuntimeConfig.enableAudioDrive)
 // 第一阶段只开放即时生成，通宵预排入口暂不对前端开放。
 const enableOvernightDispatch = false
 
@@ -2180,6 +2189,12 @@ watch(currentTenantId, () => {
 watch(enableAdvancedPostProcess, (enabled) => {
   if (!enabled) {
     resetPostProcessSelections()
+  }
+})
+
+watch(enableAudioDrive, (enabled) => {
+  if (!enabled && videoForm.mode === 1) {
+    videoForm.mode = 0
   }
 })
 
