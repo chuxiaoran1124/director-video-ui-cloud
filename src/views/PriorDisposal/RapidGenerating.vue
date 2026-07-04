@@ -103,13 +103,16 @@
               <span v-else class="text-gray-400 text-sm">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" align="center" fixed="right">
+          <el-table-column label="操作" width="220" align="center" fixed="right">
             <template #default="scope">
-              <div class="flex justify-center">
+              <div class="flex justify-center gap-2">
                 <el-button v-if="scope.row.status === 'success'" type="primary" plain @click="handleViewAsset(scope.row)">
                   <el-icon class="mr-1"><el-icon-view /></el-icon>查看资产
                 </el-button>
-                <el-button v-else type="danger" plain @click="handleCancelTask(scope.row)">
+                <el-button v-if="isFailedTask(scope.row)" type="warning" plain @click="handleRetryTask(scope.row)">
+                  重推
+                </el-button>
+                <el-button v-if="scope.row.status !== 'success'" type="danger" plain @click="handleCancelTask(scope.row)">
                   <el-icon class="mr-1"><el-icon-delete /></el-icon>删除任务
                 </el-button>
               </div>
@@ -469,7 +472,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import JSZip from 'jszip'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
-import { createFastTask, getFastTaskList, deleteFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
+import { createFastTask, getFastTaskList, deleteFastTask, retryFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
 import { fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 
 // --- 鐘舵€佹帶鍒?---
@@ -719,6 +722,10 @@ const getStatusLabel = (row: any) => {
   // 如果是字符串状态
   const map: any = { success: '已完成', processing: '处理中', failed: '克隆失败' }
   return map[taskStatus] || taskStatus
+}
+
+const isFailedTask = (row: any) => {
+  return row?.status === 'failed' || Number(row?.taskStatus) === -1 || Number(row?.taskStatus) === 4
 }
 
 const getStatusDotClass = (row: any) => {
@@ -1081,6 +1088,28 @@ const handleCancelTask = (row: any) => {
       }
     } catch (error: any) {
       ElMessage.error('删除失败，请稍后重试')
+    }
+  }).catch(() => {
+    // User cancelled
+  })
+}
+
+const handleRetryTask = (row: any) => {
+  ElMessageBox.confirm('确定要重推该训练任务吗？', '重推确认', {
+    confirmButtonText: '重推',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const res = await retryFastTask(row.id)
+      if (res.data && res.data.code === 200) {
+        await Promise.all([loadTaskList(), loadWaitingBefore()])
+        ElMessage.success('任务已重新加入队列')
+      } else {
+        ElMessage.error(res.data?.message || '重推失败，请稍后重试')
+      }
+    } catch (error: any) {
+      ElMessage.error(error?.message || '重推失败，请稍后重试')
     }
   }).catch(() => {
     // User cancelled

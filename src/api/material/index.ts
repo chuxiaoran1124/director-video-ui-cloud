@@ -657,6 +657,18 @@ export function deleteFastTask(id: number | string) {
 }
 
 /**
+ * 重推失败的快速生成任务
+ * @param id 任务ID
+ * @returns 返回重新入队结果
+ */
+export function retryFastTask(id: number | string) {
+    return request({
+        url: `/api/material/fast-task/retry/${id}/`,
+        method: 'post'
+    })
+}
+
+/**
  * 获取快速生成任务详�?
  * @param id 任务ID
  * @returns 返回任务详情
