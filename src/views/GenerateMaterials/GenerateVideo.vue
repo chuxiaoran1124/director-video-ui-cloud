@@ -145,9 +145,10 @@
               <span v-else class="text-gray-400 text-sm">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="150" align="center" fixed="right">
+          <el-table-column label="操作" width="210" align="center" fixed="right">
             <template #default="scope">
               <el-button type="primary" size="small" plain @click="handleViewVideo(scope.row)">查看</el-button>
+              <el-button v-if="isFailedVideoTask(scope.row)" type="warning" size="small" plain @click="handleRetryVideo(scope.row)">重推</el-button>
               <el-button type="danger" size="small" plain @click="handleDeleteVideo(scope.row.id)">删除</el-button>
             </template>
           </el-table-column>
@@ -1037,14 +1038,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
 import JSZip from 'jszip'
 import { getTenantDetail } from '/@/api/tenant'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
-import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, retryVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
@@ -2231,6 +2232,29 @@ const handleDeleteVideo = async (id: any) => {
   } catch (error) {
     ElMessage.error('删除视频失败')
     console.error('删除视频任务失败:', error)
+  }
+}
+
+const isFailedVideoTask = (row: any) => String(row?.taskStatus) === '-1'
+
+const handleRetryVideo = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要重推该单条视频任务吗？', '重推确认', {
+      confirmButtonText: '重推',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    const res = await retryVideoTask(row.id)
+    if (res.data?.code === 200 || res.data?.success) {
+      ElMessage.success('任务已重新加入队列')
+      await loadVideoTasks()
+      await loadVideoWaitingInfo()
+    } else {
+      ElMessage.error(res.data?.message || '重推失败，请稍后重试')
+    }
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || '重推失败，请稍后重试')
   }
 }
 

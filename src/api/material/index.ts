@@ -777,6 +777,18 @@ export function deleteVideoTask(id: number | string) {
     })
 }
 
+/**
+ * 重推失败的单条视频生成任务
+ * @param id 任务ID
+ * @returns 返回新的调度任务ID
+ */
+export function retryVideoTask(id: number | string) {
+    return request({
+        url: `/api/material/video/task/retry/${id}/`,
+        method: 'post'
+    })
+}
+
 // ===== 数字人相关接�?=====
 
 /**
