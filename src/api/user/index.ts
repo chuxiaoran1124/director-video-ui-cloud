@@ -33,12 +33,14 @@ export interface ITemporaryAccessLinkItem {
     userId: number
     status: string
     allowedIps: string[]
+    runtimeAllowedIps?: string[]
     maxUseCount?: number | null
     usedCount: number
     expiresAt: string
     lastUsedAt?: string | null
     lastUsedIp?: string | null
     boundEntryIp?: string | null
+    firstEntryIp?: string | null
     autoDisableUser?: boolean
     remark?: string | null
     ticketHint?: string | null
@@ -231,6 +233,17 @@ export function renewTemporaryAccessLink(payload: {
 }): Promise<AxiosResponse<IResponse<ITemporaryAccessLinkItem>>> {
     return request({
         url: '/api/user/temporary-access/renew/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function updateTemporaryAccessAllowedIps(payload: {
+    linkId: number
+    allowedIps: string[]
+}): Promise<AxiosResponse<IResponse<ITemporaryAccessLinkItem>>> {
+    return request({
+        url: '/api/user/temporary-access/update-allowed-ips/',
         method: 'post',
         data: payload
     })

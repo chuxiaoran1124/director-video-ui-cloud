@@ -142,17 +142,26 @@
                                 </div>
                             </template>
                         </el-table-column>
-                        <el-table-column label='允许 IP' min-width='220'>
+                        <el-table-column label='可访问 IP' min-width='280'>
                             <template #default='{ row }'>
-                                <div v-if='row.allowedIps?.length' class='ip-list'>
-                                    <el-tag
-                                        v-for='ip in row.allowedIps'
-                                        :key='`${row.linkId}-${ip}`'
-                                        size='small'
-                                        effect='plain'
-                                    >
-                                        {{ ip }}
-                                    </el-tag>
+                                <div v-if='getBoundEntryIp(row) || getManualAllowedIps(row).length' class='ip-display'>
+                                    <div v-if='getBoundEntryIp(row)' class='ip-display__line'>
+                                        <span class='ip-display__label'>首次绑定</span>
+                                        <el-tag size='small' type='success' effect='plain'>{{ getBoundEntryIp(row) }}</el-tag>
+                                    </div>
+                                    <div v-if='getManualAllowedIps(row).length' class='ip-display__line'>
+                                        <span class='ip-display__label'>额外允许</span>
+                                        <div class='ip-list'>
+                                            <el-tag
+                                                v-for='ip in getManualAllowedIps(row)'
+                                                :key='`${row.linkId}-${ip}`'
+                                                size='small'
+                                                effect='plain'
+                                            >
+                                                {{ ip }}
+                                            </el-tag>
+                                        </div>
+                                    </div>
                                 </div>
                                 <span v-else class='ip-list__empty'>未预设，首次进入后自动绑定</span>
                             </template>
@@ -177,6 +186,7 @@
                                     >
                                         复制链接
                                     </el-button>
+                                    <el-button type='primary' link @click='openEditIpDialog(row)'>修改 IP</el-button>
                                     <el-button type='primary' link @click='openRenewDialog(row)'>续期</el-button>
                                     <el-button
                                         v-if='row.status === "active"'
@@ -259,6 +269,36 @@
             </template>
         </el-dialog>
 
+        <el-dialog v-model='editIpDialogVisible' title='修改可访问 IP' width='560px' destroy-on-close>
+            <el-form ref='editIpFormRef' :model='editIpForm' label-position='top'>
+                <el-form-item label='分发账号'>
+                    <el-input :model-value='editIpTargetLabel' disabled />
+                </el-form-item>
+                <el-form-item label='首次绑定 IP'>
+                    <el-input :model-value='editIpBoundEntryIp || "尚未绑定，用户首次进入后自动记录"' disabled />
+                </el-form-item>
+                <el-form-item label='额外允许 IP'>
+                    <el-input
+                        v-model='editIpForm.allowedIpsText'
+                        type='textarea'
+                        :rows='5'
+                        placeholder='可选：一行一个公网 IP，或用英文逗号分隔。留空表示只允许首次绑定 IP。'
+                    />
+                    <div class='temporary-access-tip'>
+                        <span>实际可访问 IP = 首次绑定 IP + 这里填写的额外 IP。</span>
+                        <span>如果用户换了网络，可以把新公网 IP 加到这里；不影响原先首次绑定的 IP。</span>
+                    </div>
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <el-button @click='editIpDialogVisible = false'>取消</el-button>
+                <el-button type='primary' class='workspace-primary-btn' :loading='updatingIps' @click='submitEditIps'>
+                    保存 IP
+                </el-button>
+            </template>
+        </el-dialog>
+
         <el-dialog v-model='resultDialogVisible' :title='resultDialogTitle' width='640px' destroy-on-close>
             <div class='result-card'>
                 <p>请把下面这条地址发给目标成员，对方在允许的 IP 下打开后即可直接进入系统。</p>
@@ -279,7 +319,7 @@
 <script lang='ts' setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
-import { createTemporaryAccessLink, deleteTemporaryAccessLink, getTemporaryAccessCurrentIp, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, renewTemporaryAccessLink, revokeTemporaryAccessLink } from '/@/api/user'
+import { createTemporaryAccessLink, deleteTemporaryAccessLink, getTemporaryAccessCurrentIp, getTemporaryAccessLinkList, getUserList, IUserListItem, ITemporaryAccessLinkItem, renewTemporaryAccessLink, revokeTemporaryAccessLink, updateTemporaryAccessAllowedIps } from '/@/api/user'
 import { getTenantList, ITenantListItem } from '/@/api/tenant'
 import { getRoleDisplayName, getStatusDisplayName } from '/@/utils/productLabels'
 
@@ -294,12 +334,16 @@ const loadingLinks = ref(false)
 const createDialogVisible = ref(false)
 const renewDialogVisible = ref(false)
 const resultDialogVisible = ref(false)
+const editIpDialogVisible = ref(false)
 const creating = ref(false)
 const renewing = ref(false)
+const updatingIps = ref(false)
 const createFormRef = ref<FormInstance>()
 const renewFormRef = ref<FormInstance>()
+const editIpFormRef = ref<FormInstance>()
 const currentTargetUser = ref<IUserListItem | null>(null)
 const currentRenewLink = ref<ITemporaryAccessLinkItem | null>(null)
+const currentEditIpLink = ref<ITemporaryAccessLinkItem | null>(null)
 
 const userSearch = reactive({
     keyword: ''
@@ -317,6 +361,10 @@ const createForm = reactive({
 
 const renewForm = reactive({
     renewDays: 7
+})
+
+const editIpForm = reactive({
+    allowedIpsText: ''
 })
 
 const generatedAccessUrl = ref('')
@@ -358,6 +406,21 @@ const renewTargetLabel = computed(() => {
 
 const renewCurrentExpireAt = computed(() => currentRenewLink.value?.expiresAt || '')
 
+const editIpTargetLabel = computed(() => {
+    if (!currentEditIpLink.value) {
+        return ''
+    }
+    const currentUser = currentEditIpLink.value.user
+    return `${currentUser?.name || currentUser?.username || '未知成员'}（${currentUser?.username || '-'}）`
+})
+
+const editIpBoundEntryIp = computed(() => {
+    if (!currentEditIpLink.value) {
+        return ''
+    }
+    return getBoundEntryIp(currentEditIpLink.value)
+})
+
 const activeLinkCount = computed(() => linkList.value.filter((item) => item.status === 'active').length)
 const revokedLinkCount = computed(() => linkList.value.filter((item) => item.status === 'revoked').length)
 
@@ -388,12 +451,22 @@ const getLinkStatusType = (status: string) => {
     return 'info'
 }
 
-const parseAllowedIps = () => {
-    return createForm.allowedIpsText
+const getBoundEntryIp = (row: ITemporaryAccessLinkItem) => {
+    return String(row.boundEntryIp || row.firstEntryIp || row.lastUsedIp || '').trim()
+}
+
+const getManualAllowedIps = (row: ITemporaryAccessLinkItem) => {
+    return (row.allowedIps || []).filter(Boolean)
+}
+
+const parseIpText = (text: string) => {
+    return text
         .split(/[\n,]/)
         .map((item) => item.trim())
         .filter(Boolean)
 }
+
+const parseAllowedIps = () => parseIpText(createForm.allowedIpsText)
 
 const loadTenants = async() => {
     const response = await getTenantList({
@@ -480,6 +553,10 @@ const resetRenewForm = () => {
     renewForm.renewDays = 7
 }
 
+const resetEditIpForm = (row: ITemporaryAccessLinkItem) => {
+    editIpForm.allowedIpsText = getManualAllowedIps(row).join('\n')
+}
+
 const showResultDialog = (data: ITemporaryAccessLinkItem, title: string) => {
     resultDialogTitle.value = title
     generatedAccessUrl.value = data.accessUrl || ''
@@ -498,6 +575,12 @@ const openRenewDialog = (row: ITemporaryAccessLinkItem) => {
     currentRenewLink.value = row
     resetRenewForm()
     renewDialogVisible.value = true
+}
+
+const openEditIpDialog = (row: ITemporaryAccessLinkItem) => {
+    currentEditIpLink.value = row
+    resetEditIpForm(row)
+    editIpDialogVisible.value = true
 }
 
 const submitCreate = async() => {
@@ -613,6 +696,26 @@ const submitRenew = async() => {
     }
 }
 
+const submitEditIps = async() => {
+    if (!currentEditIpLink.value) {
+        return
+    }
+
+    updatingIps.value = true
+    try {
+        const response = await updateTemporaryAccessAllowedIps({
+            linkId: currentEditIpLink.value.linkId,
+            allowedIps: parseIpText(editIpForm.allowedIpsText)
+        })
+        editIpDialogVisible.value = false
+        currentEditIpLink.value = response.data.data
+        ElMessage.success('可访问 IP 已更新')
+        await refreshAll()
+    } finally {
+        updatingIps.value = false
+    }
+}
+
 onMounted(async() => {
     await loadCurrentDetectedIp()
     await loadTenants()
@@ -683,6 +786,24 @@ onMounted(async() => {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.ip-display {
+    display: grid;
+    gap: 8px;
+}
+
+.ip-display__line {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.ip-display__label {
+    flex: 0 0 64px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 24px;
 }
 
 .ip-list__empty {
