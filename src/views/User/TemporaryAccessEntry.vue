@@ -61,9 +61,9 @@ const descriptionText = computed(() => {
         return '访问校验已完成，正在打开登录页，请继续输入账号密码进入系统。'
     }
     if (status.value === 'failed') {
-        return errorMessage.value || '该访问链接已失效，或当前网络地址不在允许范围内。'
+        return errorMessage.value || '该访问链接已失效，请联系管理员重新分发。'
     }
-    return '请稍等，系统正在确认该访问链接的有效期、网络地址和账号状态，并为当前浏览器准备登录凭证。'
+    return '请稍等，系统正在确认该访问链接的有效期和账号状态，并为当前浏览器准备登录凭证。'
 })
 
 const goLogin = async() => {

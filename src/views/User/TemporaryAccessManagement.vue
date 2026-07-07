@@ -3,7 +3,7 @@
         <WorkspaceHero
             eyebrow='外部协作'
             title='临时访问分发'
-            description='平台管理员可以在这里给指定团队成员分发短期访问链接，让对方在约定时间和约定网络地址下先完成访问校验，再输入账号密码进入系统。'
+            description='平台管理员可以在这里给指定团队成员分发短期访问链接，让对方在约定时间内先完成访问校验，再输入账号密码进入系统。'
         >
             <template #actions>
                 <el-button class='workspace-ghost-btn' @click='refreshAll'>刷新数据</el-button>
@@ -126,7 +126,7 @@
                     <div class='workspace-panel__header'>
                         <div>
                             <h3>已分发链接</h3>
-                            <p>链接只能在允许的 IP 下进入系统，撤销后当前临时会话也会立即失效。</p>
+                            <p>当前暂未启用 IP 限制；已填写的 IP 会保留，后续开启限制时继续生效。</p>
                         </div>
                     </div>
                 </template>
@@ -142,7 +142,7 @@
                                 </div>
                             </template>
                         </el-table-column>
-                        <el-table-column label='可访问 IP' min-width='280'>
+                        <el-table-column label='保留 IP 配置' min-width='280'>
                             <template #default='{ row }'>
                                 <div v-if='getBoundEntryIp(row) || getManualAllowedIps(row).length' class='ip-display'>
                                     <div v-if='getBoundEntryIp(row)' class='ip-display__line'>
@@ -163,7 +163,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <span v-else class='ip-list__empty'>未预设，首次进入后自动绑定</span>
+                                <span v-else class='ip-list__empty'>当前未限制 IP</span>
                             </template>
                         </el-table-column>
                         <el-table-column prop='usedCount' label='使用次数' width='100' />
@@ -223,15 +223,15 @@
                 <el-form-item label='有效期（天）' prop='expiresInDays'>
                     <el-input-number v-model='createForm.expiresInDays' :min='1' :max='30' controls-position='right' />
                 </el-form-item>
-                <el-form-item label='允许访问 IP' prop='allowedIpsText'>
+                <el-form-item label='保留 IP 配置' prop='allowedIpsText'>
                     <el-input
                         v-model='createForm.allowedIpsText'
                         type='textarea'
                         :rows='4'
-                        placeholder='可选：请输入允许访问的公网 IP，一行一个，或用英文逗号分隔；留空时会在首次成功进入后自动绑定该用户当前 IP'
+                        placeholder='可选：一行一个公网 IP，或用英文逗号分隔；当前暂不限制 IP，填写内容会保留备用'
                     />
                     <div class='temporary-access-tip'>
-                        <span>规则：留空时，系统会自动绑定对方首次成功进入时的 IP；填写后，等于“你填写的 IP + 对方首次成功进入时的 IP”都可用。</span>
+                        <span>当前已临时关闭 IP 绑定和校验；这里填写的 IP 仅作为后续恢复限制时的备用配置。</span>
                         <span v-if='currentDetectedIp'>当前系统识别到你本机的 IP：{{ currentDetectedIp }}</span>
                     </div>
                 </el-form-item>
@@ -269,24 +269,24 @@
             </template>
         </el-dialog>
 
-        <el-dialog v-model='editIpDialogVisible' title='修改可访问 IP' width='560px' destroy-on-close>
+        <el-dialog v-model='editIpDialogVisible' title='修改保留 IP 配置' width='560px' destroy-on-close>
             <el-form ref='editIpFormRef' :model='editIpForm' label-position='top'>
                 <el-form-item label='分发账号'>
                     <el-input :model-value='editIpTargetLabel' disabled />
                 </el-form-item>
-                <el-form-item label='首次绑定 IP'>
-                    <el-input :model-value='editIpBoundEntryIp || "尚未绑定，用户首次进入后自动记录"' disabled />
+                <el-form-item label='历史首次绑定 IP'>
+                    <el-input :model-value='editIpBoundEntryIp || "当前未启用 IP 绑定"' disabled />
                 </el-form-item>
-                <el-form-item label='额外允许 IP'>
+                <el-form-item label='额外 IP 配置'>
                     <el-input
                         v-model='editIpForm.allowedIpsText'
                         type='textarea'
                         :rows='5'
-                        placeholder='可选：一行一个公网 IP，或用英文逗号分隔。留空表示只允许首次绑定 IP。'
+                        placeholder='可选：一行一个公网 IP，或用英文逗号分隔。当前不会按 IP 拦截，仅保留配置。'
                     />
                     <div class='temporary-access-tip'>
-                        <span>实际可访问 IP = 首次绑定 IP + 这里填写的额外 IP。</span>
-                        <span>如果用户换了网络，可以把新公网 IP 加到这里；不影响原先首次绑定的 IP。</span>
+                        <span>当前暂未启用 IP 限制，保存后不会影响用户访问。</span>
+                        <span>后续如果重新打开限制，这里保留的 IP 会继续作为额外放行配置。</span>
                     </div>
                 </el-form-item>
             </el-form>
@@ -294,18 +294,18 @@
             <template #footer>
                 <el-button @click='editIpDialogVisible = false'>取消</el-button>
                 <el-button type='primary' class='workspace-primary-btn' :loading='updatingIps' @click='submitEditIps'>
-                    保存 IP
+                    保存配置
                 </el-button>
             </template>
         </el-dialog>
 
         <el-dialog v-model='resultDialogVisible' :title='resultDialogTitle' width='640px' destroy-on-close>
             <div class='result-card'>
-                <p>请把下面这条地址发给目标成员，对方在允许的 IP 下打开后即可直接进入系统。</p>
+                <p>请把下面这条地址发给目标成员。当前暂未启用 IP 限制，对方打开链接后即可进入登录流程。</p>
                 <el-input :model-value='generatedAccessUrl' type='textarea' :rows='4' readonly />
                 <div class='result-card__meta'>
                     <span>链接有效期：{{ generatedLinkExpireAt || '-' }}</span>
-                    <span>允许 IP：{{ generatedAllowedIpsText || '未预设，首次进入后自动绑定' }}</span>
+                    <span>保留 IP 配置：{{ generatedAllowedIpsText || '当前未限制 IP' }}</span>
                 </div>
             </div>
             <template #footer>
