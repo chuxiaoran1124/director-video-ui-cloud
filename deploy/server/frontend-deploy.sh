@@ -58,7 +58,7 @@ path.write_text(text.replace(marker, replacement, 1), encoding='utf-8')
 PY
 
 echo "[deploy] 确保生产 Nginx 允许 300MB 训练视频上传"
-python3 - "$ROOT_DIR/nginx/default.conf" "$ROOT_DIR/nginx/host-nginx.conf" <<'PY'
+python3 - "$ROOT_DIR/nginx/default.conf" "$ROOT_DIR/nginx/host-nginx.conf" "/etc/nginx/nginx.conf" <<'PY'
 from pathlib import Path
 import re
 import sys
