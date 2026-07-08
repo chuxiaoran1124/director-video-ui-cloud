@@ -57,6 +57,28 @@ if marker not in text:
 path.write_text(text.replace(marker, replacement, 1), encoding='utf-8')
 PY
 
+echo "[deploy] 确保生产 Nginx 允许 300MB 训练视频上传"
+python3 - "$ROOT_DIR/nginx/default.conf" "$ROOT_DIR/nginx/host-nginx.conf" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+for file_name in sys.argv[1:]:
+    path = Path(file_name)
+    if not path.exists():
+        continue
+    text = path.read_text(encoding="utf-8")
+    if "client_max_body_size" in text:
+        new_text = re.sub(r"client_max_body_size\s+\S+;", "client_max_body_size 300m;", text)
+    else:
+        new_text = text.replace("server_name _;\n", "server_name _;\n\n    client_max_body_size 300m;\n", 1)
+    if new_text != text:
+        path.write_text(new_text, encoding="utf-8")
+PY
+if command -v nginx >/dev/null 2>&1; then
+  nginx -t && systemctl reload nginx || echo "[deploy] 宿主机 Nginx 未能自动 reload，请手动检查"
+fi
+
 echo "[deploy] 开始刷新前端容器"
 print_repo_revision "$REPO_DIR"
 cd "$ROOT_DIR"

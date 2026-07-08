@@ -166,7 +166,7 @@
                   <div class="el-upload__text">拖拽视频到此处，或<em>点击上传</em></div>
                   <template #tip>
                     <div class="text-slate-400 text-xs mt-2">
-                      仅支持 MP4、MOV 格式，文件大小不超过 150MB。
+                      仅支持 MP4、MOV 格式，文件大小不超过 300MB。
                       <span v-if="form.videoType === 0" class="text-red-500">竖版模式下视频宽高比需接近 9:16</span>
                     </div>
                   </template>
@@ -188,7 +188,7 @@
                  <div class="el-upload__text">拖拽多个竖版视频到此处，或<em>点击批量选择</em></div>
                  <template #tip>
                    <div class="text-slate-400 text-xs mt-2">
-                     批量上传仅支持竖版 9:16，中文，MP4/MOV，单个文件不超过 150MB。
+                     批量上传仅支持竖版 9:16，中文，MP4/MOV，单个文件不超过 300MB。
                    </div>
                  </template>
                </el-upload>
@@ -500,7 +500,8 @@ const uploadMode = ref<'single' | 'batch'>('single')
 const batchUploadRef = ref()
 const batchSubmitting = ref(false)
 
-const MAX_VIDEO_SIZE = 150 * 1024 * 1024
+const MAX_VIDEO_SIZE_MB = 300
+const MAX_VIDEO_SIZE = MAX_VIDEO_SIZE_MB * 1024 * 1024
 
 type BatchUploadStatus = 'validating' | 'ready' | 'uploading' | 'uploaded' | 'submitted' | 'failed'
 type BatchUploadItem = {
@@ -892,7 +893,7 @@ const validateBasicVideoFile = (rawFile: File) => {
   }
 
   if (rawFile.size > MAX_VIDEO_SIZE) {
-    throw new Error('视频文件大小不能超过 150MB')
+    throw new Error(`视频文件大小不能超过 ${MAX_VIDEO_SIZE_MB}MB`)
   }
 }
 
