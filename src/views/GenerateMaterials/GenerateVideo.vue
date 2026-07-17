@@ -524,7 +524,7 @@
                    {{ overnightGenerationButtonText }}
                  </el-button>
                </div>
-               <p v-if="enableOvernightDispatch" class="text-xs text-gray-400">通宵预排会在每日 22:00 至次日 09:00 窗口内进入生成，用于分流。</p>
+               <p v-if="enableOvernightDispatch" class="text-xs text-gray-400">通宵预排会先排在普通任务之后，等普通任务全部完成后自动开始，不固定执行时间。</p>
             </div>
           </el-form>
         </div>
@@ -1405,8 +1405,8 @@ const overnightGenerationButtonText = computed(() => {
 const generationProgressHint = computed(() => {
   if (submitDispatchMode.value === 'overnight') {
     return videoForm.mode === 1
-      ? '音频上传中 -> 创建预排任务 -> 夜间窗口入队'
-      : '任务创建中 -> 进入通宵预排 -> 夜间窗口入队'
+      ? '音频上传中 -> 创建预排任务 -> 普通任务完成后执行'
+      : '任务创建中 -> 进入通宵预排 -> 普通任务完成后执行'
   }
   return videoForm.mode === 1
     ? '音频上传中 -> 创建任务 -> 队列处理'
@@ -1771,8 +1771,8 @@ const tenantRuntimeConfig = reactive({
 const currentTenantId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
 const enableAdvancedPostProcess = computed(() => tenantRuntimeConfig.enablePostProcessPipeline)
 const enableAudioDrive = computed(() => tenantRuntimeConfig.enableAudioDrive)
-// 第一阶段只开放即时生成，通宵预排入口暂不对前端开放。
-const enableOvernightDispatch = false
+// 通宵预排是任务级别的低优先级队列：普通任务清空后才执行，不绑定固定时间窗。
+const enableOvernightDispatch = true
 
 const videoPreview = reactive({
   visible: false,
@@ -2917,7 +2917,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
         : (videoForm.mode === 1 ? '音频上传完成，任务已进入队列' : '任务已提交，正在进入队列')
       // 提交成功，立即返回列表并清空表单
       if (effectiveDispatchMode === 'overnight') {
-        ElMessage.success('任务已加入通宵预排队列，将在 22:00-09:00 窗口内开始生成')
+        ElMessage.success('任务已加入通宵预排队列，将在普通任务全部完成后开始生成')
       } else {
         ElMessage.success(videoForm.mode === 1 ? '音频上传成功，任务已创建并进入队列' : '任务已提交，请在列表中查看生成进度')
       }
