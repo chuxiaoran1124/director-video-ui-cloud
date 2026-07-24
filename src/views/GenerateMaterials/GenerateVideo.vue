@@ -955,14 +955,6 @@
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 @error="handleRelCoverError(item)"
               >
-              <video
-                v-else-if="item.digitalHumanUrl"
-                :src="item.digitalHumanUrl"
-                class="w-full h-full object-cover"
-                muted
-                preload="metadata"
-                playsinline
-              />
               <span v-else class="text-xs text-gray-400">暂无封面</span>
             </div>
             <!-- 预设名称和试听 -->
@@ -1494,7 +1486,8 @@ const bannerOverlayPaginateRequest = (page: number = 1, pageSize: number = 10, s
 }
 
 /**
- * 优先使用封面图 URL 转 base64；若无封面或失败，则提取视频首帧
+ * 优先使用封面图 URL 转 base64。
+ * 云上版不再在浏览器侧兜底加载视频抽帧，否则打开预设弹窗会批量消耗 TOS 流量。
  */
 const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<string> => {
   console.log('[getFrameBase64] coverUrl:', coverUrl, 'videoUrl:', videoUrl)
@@ -1503,12 +1496,11 @@ const getFrameBase64 = async (coverUrl: string, videoUrl: string): Promise<strin
       const b64 = await fetchImageAsBase64(coverUrl)
       if (b64) return b64
     } catch (e) {
-      console.warn('[getFrameBase64] 封面转换失败，尝试提取视频首帧', e)
+      console.warn('[getFrameBase64] 封面转换失败，跳过视频抽帧', e)
     }
   }
   if (videoUrl) {
-  console.log('[getFrameBase64] 走视频首帧路径')
-    return await extractVideoFirstFrame(videoUrl)
+    console.warn('[getFrameBase64] 无可用封面，已跳过视频首帧抽取以节省流量')
   }
   console.warn('[getFrameBase64] cover 和 video 都为空，返回空字符串')
   return ''
@@ -2422,16 +2414,9 @@ const handleRelChange = async (val: any, selectedRel?: any) => {
       try {
         if (shouldShowSubtitlePreview.value) {
           const coverUrl = rel.digitalHumanCoverUrl !== rel.digitalHumanUrl ? rel.digitalHumanCoverUrl : ''
-          const previewBase64 = await getFrameBase64(coverUrl, rel.digitalHumanUrl || '')
+          const previewBase64 = await getFrameBase64(coverUrl, '')
           if (String(videoForm.relId) === currentRelId) {
             subtitlePreviewFrameBase64.value = previewBase64
-          }
-        }
-
-        if (!videoForm.previewImg && rel.digitalHumanUrl) {
-          const previewImg = await extractVideoFirstFrame(rel.digitalHumanUrl)
-          if (String(videoForm.relId) === currentRelId && previewImg) {
-            videoForm.previewImg = previewImg
           }
         }
       } catch (error) {
@@ -2506,48 +2491,6 @@ const playVoice = (audioUrl: string, voiceName: string = '') => {
     isPlaying.value = false
     currentAudio = null
     currentAudioUrl = ''
-  })
-}
-
-// 从视频首帧提取预览图
-const extractVideoFirstFrame = (videoUrl: string): Promise<string> => {
-  return new Promise((resolve) => {
-    // 处理URL中可能包含的数组标记
-    let url = videoUrl
-    if (url.startsWith("['")){      url = url.slice(2, -2)
-    }
-    
-    const video = document.createElement('video')
-    const canvas = document.createElement('canvas')
-    video.crossOrigin = 'anonymous'
-    video.style.display = 'none'
-    document.body.appendChild(video)
-    
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      resolve('')
-      document.body.removeChild(video)
-      return
-    }
-    
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      video.currentTime = Math.min(1, video.duration * 0.1)  // 取 1 秒或视频的 10% 位置
-    }, { once: true })
-    
-    video.addEventListener('seeked', () => {
-      ctx.drawImage(video, 0, 0)
-      resolve(canvas.toDataURL('image/jpeg', 0.8))
-      document.body.removeChild(video)
-    }, { once: true })
-    
-    video.addEventListener('error', () => {
-      resolve('')
-      document.body.removeChild(video)
-    }, { once: true })
-    
-    video.src = url
   })
 }
 
@@ -3289,7 +3232,7 @@ const refreshPreview = async (item?: any) => {
     subtitlePreviewFrameBase64.value = ''
     const nextFrameBase64 = await getFrameBase64(
       digitalHuman.coverUrl || digitalHuman.img || '',
-      digitalHuman.videoUrl || ''
+      ''
     )
     if (currentSeq !== previewRefreshSeq) return
     subtitlePreviewFrameBase64.value = nextFrameBase64
