@@ -1,12 +1,17 @@
 <template>
-    <el-scrollbar>
-        <router-view v-slot='{ Component }'>
-            <transition name='fade-transform' mode='out-in'>  
-                <keep-alive :include='setting.showTags ? data.cachedViews : []'>
-                    <component :is='Component' :key='key' class='page m-3 relative' />
-                </keep-alive>
-            </transition>
-        </router-view>
+    <el-scrollbar class='layout-content-scrollbar'>
+        <div class='layout-content-shell'>
+            <div class='layout-content-body'>
+                <router-view v-slot='{ Component }'>
+                    <transition name='fade-transform' mode='out-in'>
+                        <keep-alive :include='setting.showTags ? data.cachedViews : []'>
+                            <component :is='Component' :key='key' class='page m-3 relative' />
+                        </keep-alive>
+                    </transition>
+                </router-view>
+            </div>
+            <compliance-footer />
+        </div>
         <el-backtop target='.layout-main-content>.el-scrollbar>.el-scrollbar__wrap' :bottom='15' :right='15'>
             <div><el-icon><el-icon-caret-top /></el-icon></div>
         </el-backtop>
@@ -17,9 +22,13 @@
 import { computed, defineComponent, reactive, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLayoutStore } from '/@/store/modules/layout'
+import ComplianceFooter from '/@/components/ComplianceFooter/index.vue'
 
 export default defineComponent ({
     name: 'LayoutContent',
+    components: {
+        ComplianceFooter
+    },
     setup() {
         const route = useRoute()
         const { getSetting, getTags } = useLayoutStore()
@@ -44,6 +53,21 @@ export default defineComponent ({
 </script>
 
 <style lang='postcss' scoped>
+
+.layout-content-shell {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.layout-content-body {
+    flex: 1 0 auto;
+    min-width: 0;
+}
+
+::v-deep(.layout-content-scrollbar .el-scrollbar__view) {
+    min-height: 100%;
+}
 
 ::v-deep(.el-card) {
     overflow: visible;

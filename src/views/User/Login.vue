@@ -73,6 +73,8 @@
                 </div>
             </div>
         </section>
+
+        <compliance-footer variant='dark' class='login-page__compliance' />
     </div>
 </template>
 
@@ -82,6 +84,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, FormInstance, FormRules } from 'element-plus'
 import { getPlatformLoginEntryStatus } from '/@/api/layout'
 import { useLayoutStore } from '/@/store/modules/layout'
+import ComplianceFooter from '/@/components/ComplianceFooter/index.vue'
 
 const layoutStore = useLayoutStore()
 const route = useRoute()
@@ -305,7 +308,9 @@ const onSubmit = async() => {
     min-height: 100vh;
     display: grid;
     grid-template-columns: minmax(320px, 1.2fr) minmax(360px, 460px);
-    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     background:
         radial-gradient(circle at 12% 18%, rgba(15, 118, 110, 0.28), transparent 28%),
         radial-gradient(circle at 86% 22%, rgba(14, 116, 144, 0.18), transparent 26%),
@@ -340,6 +345,8 @@ const onSubmit = async() => {
 }
 
 .login-page__hero {
+    grid-column: 1;
+    grid-row: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -401,10 +408,19 @@ const onSubmit = async() => {
 }
 
 .login-panel {
+    grid-column: 2;
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 48px 32px;
+}
+
+.login-page__compliance {
+    position: relative;
+    z-index: 1;
+    grid-column: 1 / -1;
+    grid-row: 2;
 }
 
 .login-panel__card {
@@ -503,12 +519,21 @@ const onSubmit = async() => {
     }
 
     .login-page__hero {
+        grid-column: 1;
+        grid-row: 1;
         padding: 56px 32px 18px;
     }
 
     .login-panel {
+        grid-column: 1;
+        grid-row: 2;
         padding-top: 8px;
         padding-bottom: 40px;
+    }
+
+    .login-page__compliance {
+        grid-column: 1;
+        grid-row: 3;
     }
 }
 </style>
