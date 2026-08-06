@@ -327,6 +327,71 @@
                                 </div>
                             </section>
 
+                            <section
+                                v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
+                                class='capability-card capability-card--editable'
+                            >
+                                <header>
+                                    <h4>算力接入</h4>
+                                    <span>试用团队优先使用主通道，仅在主通道繁忙且备用通道完全空闲时完成一次粘性分配。</span>
+                                </header>
+                                <div class='compute-policy-panel'>
+                                    <el-radio-group v-model='computePolicyMode' :disabled='savingComputePolicy'>
+                                        <el-radio-button label='dedicated'>独立算力</el-radio-button>
+                                        <el-radio-button label='trial'>试用算力</el-radio-button>
+                                    </el-radio-group>
+                                    <template v-if="computePolicyMode === 'trial'">
+                                        <div class='compute-policy-grid'>
+                                            <label>
+                                                <span>主通道</span>
+                                                <el-select v-model='computePrimaryTenantId' placeholder='选择测试算力账号'>
+                                                    <el-option
+                                                        v-for='item in tenantList'
+                                                        :key='item.id'
+                                                        :label='item.tenantName'
+                                                        :value='item.id'
+                                                    />
+                                                </el-select>
+                                            </label>
+                                            <label>
+                                                <span>备用通道</span>
+                                                <el-select v-model='computeFallbackTenantId' clearable placeholder='不启用备用通道'>
+                                                    <el-option
+                                                        v-for='item in tenantList.filter((option) => option.id !== computePrimaryTenantId)'
+                                                        :key='item.id'
+                                                        :label='item.tenantName'
+                                                        :value='item.id'
+                                                    />
+                                                </el-select>
+                                            </label>
+                                            <label>
+                                                <span>最多借用视频通道</span>
+                                                <el-input-number v-model='computeMaxBorrowedVideoSlots' :min='1' :max='20' />
+                                            </label>
+                                        </div>
+                                        <el-switch
+                                            v-model='computeAllowIdleBorrow'
+                                            :disabled='!computeFallbackTenantId'
+                                            active-text='备用通道完全空闲时允许借用'
+                                            inactive-text='不借用备用通道'
+                                        />
+                                        <p class='priority-panel__description'>
+                                            当前状态：{{ computeAssignmentLabel }}。完成首次分配后不会在任务之间切换账号，避免数字人和声音失效。
+                                        </p>
+                                    </template>
+                                    <div class='priority-panel__footer'>
+                                        <el-button
+                                            type='primary'
+                                            class='workspace-primary-btn'
+                                            :loading='savingComputePolicy'
+                                            @click='saveComputePolicy'
+                                        >
+                                            保存算力策略
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </section>
+
                             <section class='capability-card'>
                                 <header>
                                     <h4>文件存放</h4>
@@ -417,6 +482,7 @@ import {
     ITenantDetailResponse,
     ITenantListItem,
     updateTenantAudioDriveConfig,
+    updateTenantComputePolicy,
     updateTenantSchedulerNightDispatchConfig,
     updateTenantRuntimeConfig,
     updateTenantSchedulerPriorityConfig,
@@ -448,11 +514,17 @@ const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
 const schedulerVideoSlots = ref(1)
 const schedulerAudioWorkers = ref(1)
+const computePolicyMode = ref<'dedicated' | 'trial'>('dedicated')
+const computePrimaryTenantId = ref<number | null>(null)
+const computeFallbackTenantId = ref<number | null>(null)
+const computeAllowIdleBorrow = ref(false)
+const computeMaxBorrowedVideoSlots = ref(1)
 const savingRuntimeConfig = ref(false)
 const savingAudioDriveConfig = ref(false)
 const savingSchedulerPriorityConfig = ref(false)
 const savingSchedulerNightDispatchConfig = ref(false)
 const savingSchedulerQuotaConfig = ref(false)
+const savingComputePolicy = ref(false)
 const createDialogVisible = ref(false)
 const creatingTenant = ref(false)
 const schedulerPriorityOptions = [
@@ -517,6 +589,12 @@ const currentPriorityOrderText = computed(() => {
     }
     return labels.join(' > ')
 })
+const computeAssignmentLabel = computed(() => {
+    const policy = tenantDetail.value?.computePolicy || {}
+    if (computePolicyMode.value === 'dedicated') return '使用本团队独立通道'
+    if (policy.assignmentStatus !== 'assigned') return '尚未分配，将在首次任务时自动选择'
+    return policy.usingFallback ? '已粘性分配到备用通道' : '已粘性分配到主通道'
+})
 
 const formatStatusLabel = (status: string) => getStatusDisplayName(status)
 const formatDeployModeLabel = (mode: string) => getDeployModeDisplayName(mode)
@@ -528,6 +606,14 @@ const syncSchedulerQuotaState = (detail?: ITenantDetailResponse | null) => {
     schedulerComplexWorkers.value = Number(detail?.schedulerConfig?.maxConcurrency || 1)
     schedulerVideoSlots.value = Number(detail?.schedulerConfig?.maxVideoTaskConcurrency || 1)
     schedulerAudioWorkers.value = Number(detail?.schedulerConfig?.maxFastTaskConcurrency || 1)
+}
+const syncComputePolicyState = (detail?: ITenantDetailResponse | null) => {
+    const policy = detail?.computePolicy || {}
+    computePolicyMode.value = policy.mode === 'trial' ? 'trial' : 'dedicated'
+    computePrimaryTenantId.value = policy.primaryTenantId || detail?.id || null
+    computeFallbackTenantId.value = policy.fallbackTenantId || null
+    computeAllowIdleBorrow.value = Boolean(policy.allowIdleBorrow)
+    computeMaxBorrowedVideoSlots.value = Number(policy.maxBorrowedVideoSlots || 1)
 }
 
 const resetCreateForm = () => {
@@ -573,6 +659,7 @@ const loadTenantDetail = async(tenantId: number) => {
     audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
     schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
     syncSchedulerQuotaState(response.data.data)
+    syncComputePolicyState(response.data.data)
 }
 
 const openCreateDialog = () => {
@@ -698,6 +785,32 @@ const saveSchedulerQuotaConfig = async() => {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
         savingSchedulerQuotaConfig.value = false
+    }
+}
+
+const saveComputePolicy = async() => {
+    if (!tenantDetail.value?.id) return
+    if (computePolicyMode.value === 'trial' && !computePrimaryTenantId.value) {
+        ElMessage.warning('请选择试用算力的主通道')
+        return
+    }
+    savingComputePolicy.value = true
+    try {
+        const response = await updateTenantComputePolicy({
+            tenantId: tenantDetail.value.id,
+            mode: computePolicyMode.value,
+            primaryTenantId: computePolicyMode.value === 'trial' ? computePrimaryTenantId.value : tenantDetail.value.id,
+            fallbackTenantId: computePolicyMode.value === 'trial' ? computeFallbackTenantId.value : null,
+            allowIdleBorrow: computePolicyMode.value === 'trial' && computeAllowIdleBorrow.value,
+            maxBorrowedVideoSlots: computeMaxBorrowedVideoSlots.value
+        })
+        tenantDetail.value = response.data.data
+        syncComputePolicyState(response.data.data)
+        ElMessage.success('该团队的算力接入策略已更新')
+    } catch (error: any) {
+        ElMessage.error(error?.message || '保存失败，请稍后重试')
+    } finally {
+        savingComputePolicy.value = false
     }
 }
 
@@ -870,6 +983,28 @@ onMounted(loadTenants)
 .quota-field small {
     color: #7f8ea7;
     line-height: 1.6;
+}
+
+.compute-policy-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.compute-policy-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.compute-policy-grid label {
+    display: grid;
+    gap: 8px;
+}
+
+.compute-policy-grid label > span {
+    color: #223250;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .workspace-ghost-btn {
@@ -1077,6 +1212,10 @@ onMounted(loadTenants)
     .toolbar__status {
         width: 100%;
         min-width: 0;
+    }
+
+    .compute-policy-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>

@@ -21,6 +21,15 @@ export interface ITenantDetailResponse extends ITenantSummary {
     runtimeConfig: Record<string, any>
     schedulerConfig: Record<string, any>
     storageConfig: Record<string, any>
+    computePolicy?: {
+        mode: 'dedicated' | 'trial'
+        primaryTenantId: number | null
+        fallbackTenantId: number | null
+        allowIdleBorrow: boolean
+        maxBorrowedVideoSlots: number
+        assignmentStatus: 'dedicated' | 'assigned' | 'unassigned'
+        usingFallback: boolean
+    }
     initialAdmin?: {
         username: string
         enabled: boolean
@@ -114,6 +123,21 @@ export function updateTenantSchedulerQuotaConfig(payload: {
 }): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
     return request({
         url: '/api/tenant/scheduler-config/quota/update/',
+        method: 'post',
+        data: payload
+    })
+}
+
+export function updateTenantComputePolicy(payload: {
+    tenantId: number
+    mode: 'dedicated' | 'trial'
+    primaryTenantId?: number | null
+    fallbackTenantId?: number | null
+    allowIdleBorrow: boolean
+    maxBorrowedVideoSlots: number
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+    return request({
+        url: '/api/tenant/compute-policy/update/',
         method: 'post',
         data: payload
     })
