@@ -3,19 +3,6 @@
         <div class='login-page__backdrop' />
         <div class='login-page__noise' />
 
-        <section class='login-page__hero'>
-            <div class='hero-badge'>内容协作台</div>
-            <h1>内容支持工具</h1>
-            <p>
-                把素材整理、成片生产和团队协作放进一个顺手的工作台，帮助剪辑团队更快开工、更少来回切换。
-            </p>
-            <ul class='hero-points'>
-                <li>常用入口更集中，打开就能继续当天工作</li>
-                <li>不同岗位自动看到适合自己的功能范围</li>
-                <li>素材、生成任务和账号协作统一在一个界面里</li>
-            </ul>
-        </section>
-
         <section class='login-panel'>
             <div class='login-panel__card'>
                 <div class='panel-header'>
@@ -127,7 +114,7 @@ const panelTitle = computed(() => {
     if (gateChecking.value) {
         return '校验登录入口'
     }
-    return canUsePasswordLogin.value ? '进入工作台' : '登录入口暂未开放'
+    return canUsePasswordLogin.value ? '内容支持工具' : '登录入口暂未开放'
 })
 
 const panelDescription = computed(() => {
@@ -307,7 +294,6 @@ const onSubmit = async() => {
     position: relative;
     min-height: 100vh;
     display: grid;
-    grid-template-columns: minmax(320px, 1.2fr) minmax(360px, 460px);
     grid-template-rows: minmax(0, 1fr) auto;
     overflow-x: hidden;
     overflow-y: auto;
@@ -338,82 +324,18 @@ const onSubmit = async() => {
     opacity: 0.35;
 }
 
-.login-page__hero,
 .login-panel {
     position: relative;
     z-index: 1;
 }
 
-.login-page__hero {
-    grid-column: 1;
-    grid-row: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 80px 7vw;
-}
-
-.hero-badge {
-    width: fit-content;
-    padding: 8px 16px;
-    border-radius: 999px;
-    background: rgba(148, 210, 189, 0.12);
-    border: 1px solid rgba(148, 210, 189, 0.28);
-    color: #9fe6d1;
-    font-size: 13px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.login-page__hero h1 {
-    margin: 24px 0 18px;
-    font-size: clamp(38px, 5vw, 68px);
-    line-height: 1.04;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-}
-
-.login-page__hero p {
-    max-width: 640px;
-    margin: 0;
-    color: rgba(235, 248, 255, 0.82);
-    font-size: 17px;
-    line-height: 1.8;
-}
-
-.hero-points {
-    margin: 36px 0 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 14px;
-}
-
-.hero-points li {
-    position: relative;
-    padding-left: 22px;
-    color: rgba(244, 251, 255, 0.9);
-}
-
-.hero-points li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 10px;
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #67e8f9, #34d399);
-    box-shadow: 0 0 18px rgba(103, 232, 249, 0.5);
-}
-
 .login-panel {
-    grid-column: 2;
+    grid-column: 1;
     grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 48px 32px;
+    padding: 56px 32px;
 }
 
 .login-page__compliance {
@@ -513,27 +435,4 @@ const onSubmit = async() => {
     font-weight: 600;
 }
 
-@media (max-width: 980px) {
-    .login-page {
-        grid-template-columns: 1fr;
-    }
-
-    .login-page__hero {
-        grid-column: 1;
-        grid-row: 1;
-        padding: 56px 32px 18px;
-    }
-
-    .login-panel {
-        grid-column: 1;
-        grid-row: 2;
-        padding-top: 8px;
-        padding-bottom: 40px;
-    }
-
-    .login-page__compliance {
-        grid-column: 1;
-        grid-row: 3;
-    }
-}
 </style>
