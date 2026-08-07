@@ -551,7 +551,7 @@
                 <span class="text-green-600">{{ selectedDHs.length }} 个</span>
               </div>
               <div class="p-2">
-                <el-input v-model="searchAddDH" placeholder="鎼滅储鏁板瓧浜?.." size="mini" prefix-icon="ElIconSearch" />
+                <el-input v-model="searchAddDH" placeholder="搜索数字人..." size="mini" prefix-icon="ElIconSearch" />
               </div>
               <el-table
                 ref="dhTableRef"
@@ -600,7 +600,7 @@
             <div class="mt-auto pt-6 border-t border-gray-200">
               <div class="text-xs text-gray-400 mb-2">生成预览：</div>
               <div class="p-3 bg-blue-100 text-blue-800 rounded text-xs leading-5">
-                灏嗙敓鎴?<span class="font-bold text-blue-900">{{ selectedVoices.length * selectedDHs.length }}</span> 鏉＄粦瀹氶」銆?
+                将生成 <span class="font-bold text-blue-900">{{ selectedVoices.length * selectedDHs.length }}</span> 条绑定关系
               </div>
             </div>
           </div>
