@@ -751,6 +751,7 @@
             <div class="mt-2">
               <p class="text-xs text-gray-700 font-medium truncate">{{ item.name }}</p>
               <p class="text-[10px] text-gray-500">{{ item.gender === 'male' ? '男' : '女' }}</p>
+              <el-tag v-if="item.canManage === false" type="info" effect="plain" size="small">团队共享</el-tag>
             </div>
             <div v-if="videoForm.digitalHuman === item.name" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md">
               <i class="el-icon-check text-white text-sm"></i>
@@ -1891,7 +1892,8 @@ const loadDigitalHumanList = async (searchName?: string) => {
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
         coverUrl: digital.coverUrl || '',   // 原始封面 URL，用于字幕预览 frame
         videoUrl: digital.videoUrl,
-        gender: digital.gender
+        gender: digital.gender,
+        canManage: digital.canManage
       }))
       console.log('加载的数字人列表:', humanOptions.value)
     }
@@ -3173,7 +3175,8 @@ const loadMoreHumans = async () => {
         img: digital.coverUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
         coverUrl: digital.coverUrl || '',   // 原始封面 URL，用于字幕预览 frame
         videoUrl: digital.videoUrl,
-        gender: digital.gender
+        gender: digital.gender,
+        canManage: digital.canManage
       }))
       
       humanSelectorDialog.allList.push(...newItems)

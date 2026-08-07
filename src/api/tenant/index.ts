@@ -87,6 +87,17 @@ export function updateTenantAudioDriveConfig(payload: {
     })
 }
 
+export function updateTenantDigitalHumanScope(payload: {
+    tenantId: number
+    digitalHumanScope: 'self' | 'tenant'
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+    return request({
+        url: '/api/tenant/runtime-config/digital-human-scope/update/',
+        method: 'post',
+        data: payload
+    })
+}
+
 export function updateTenantSchedulerPriorityConfig(payload: { tenantId: number; priorityMode: string }): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
     return request({
         url: '/api/tenant/scheduler-config/update/',

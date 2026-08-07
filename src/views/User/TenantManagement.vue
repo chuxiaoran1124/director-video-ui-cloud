@@ -184,6 +184,40 @@
 
                             <section class='capability-card capability-card--editable'>
                                 <header>
+                                    <h4>数字人使用范围</h4>
+                                    <span>团队共享只开放选择和使用权限，成员仍只能维护自己创建的数字人。</span>
+                                </header>
+                                <div class='priority-panel'>
+                                    <el-radio-group
+                                        v-model='digitalHumanScope'
+                                        class='priority-panel__group'
+                                        :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingDigitalHumanScope'
+                                    >
+                                        <el-radio-button label='self'>仅本人使用</el-radio-button>
+                                        <el-radio-button label='tenant'>团队成员共享</el-radio-button>
+                                    </el-radio-group>
+                                    <div class='priority-panel__footer'>
+                                        <p class='priority-panel__description'>
+                                            {{ digitalHumanScope === 'tenant'
+                                                ? '成员可以选择本团队其他人创建的数字人，但不能编辑或删除。'
+                                                : '普通成员只能查看和使用自己创建的数字人。' }}
+                                        </p>
+                                        <el-button
+                                            v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
+                                            type='primary'
+                                            class='workspace-primary-btn'
+                                            :loading='savingDigitalHumanScope'
+                                            @click='saveDigitalHumanScope'
+                                        >
+                                            保存设置
+                                        </el-button>
+                                        <span v-else class='toggle-panel__hint'>仅平台管理员可调整数字人使用范围。</span>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class='capability-card capability-card--editable'>
+                                <header>
                                     <h4>增强成片开关</h4>
                                     <span>关闭后该团队无法使用字幕、角标、横幅能力。</span>
                                 </header>
@@ -417,6 +451,7 @@ import {
     ITenantDetailResponse,
     ITenantListItem,
     updateTenantAudioDriveConfig,
+    updateTenantDigitalHumanScope,
     updateTenantSchedulerNightDispatchConfig,
     updateTenantRuntimeConfig,
     updateTenantSchedulerPriorityConfig,
@@ -443,6 +478,7 @@ const tenantList = ref<ITenantListItem[]>([])
 const tenantDetail = ref<ITenantDetailResponse | null>(null)
 const postProcessPipelineEnabled = ref(false)
 const audioDriveEnabled = ref(false)
+const digitalHumanScope = ref<'self' | 'tenant'>('self')
 const schedulerPriorityMode = ref('balanced')
 const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
@@ -450,6 +486,7 @@ const schedulerVideoSlots = ref(1)
 const schedulerAudioWorkers = ref(1)
 const savingRuntimeConfig = ref(false)
 const savingAudioDriveConfig = ref(false)
+const savingDigitalHumanScope = ref(false)
 const savingSchedulerPriorityConfig = ref(false)
 const savingSchedulerNightDispatchConfig = ref(false)
 const savingSchedulerQuotaConfig = ref(false)
@@ -571,6 +608,7 @@ const loadTenantDetail = async(tenantId: number) => {
     tenantDetail.value = response.data.data
     postProcessPipelineEnabled.value = Boolean(response.data.data?.runtimeConfig?.enablePostProcessPipeline)
     audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
+    digitalHumanScope.value = response.data.data?.runtimeConfig?.digitalHumanScope === 'tenant' ? 'tenant' : 'self'
     schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
     syncSchedulerQuotaState(response.data.data)
 }
@@ -631,6 +669,27 @@ const saveAudioDriveConfig = async() => {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
         savingAudioDriveConfig.value = false
+    }
+}
+
+const saveDigitalHumanScope = async() => {
+    if (!tenantDetail.value?.id) {
+        return
+    }
+    savingDigitalHumanScope.value = true
+    try {
+        const response = await updateTenantDigitalHumanScope({
+            tenantId: tenantDetail.value.id,
+            digitalHumanScope: digitalHumanScope.value
+        })
+        tenantDetail.value = response.data.data
+        digitalHumanScope.value = response.data.data?.runtimeConfig?.digitalHumanScope === 'tenant' ? 'tenant' : 'self'
+        syncSchedulerQuotaState(response.data.data)
+        ElMessage.success(digitalHumanScope.value === 'tenant' ? '该团队已开放数字人共享使用' : '该团队已恢复仅本人使用')
+    } catch (error: any) {
+        ElMessage.error(error?.message || '保存失败，请稍后重试')
+    } finally {
+        savingDigitalHumanScope.value = false
     }
 }
 
