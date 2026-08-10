@@ -151,7 +151,7 @@ export function deleteUser(payload: { tenantId?: number; userId?: number; userId
     })
 }
 
-export function checkUserUnique(payload: { username?: string; email?: string }): Promise<AxiosResponse<IResponse<null>>> {
+export function checkUserUnique(payload: { tenantId?: number; username?: string; email?: string }): Promise<AxiosResponse<IResponse<null>>> {
     return request({
         url: '/api/user/check-unique/',
         method: 'post',
