@@ -184,8 +184,8 @@
 
                             <section class='capability-card capability-card--editable'>
                                 <header>
-                                    <h4>数字人使用范围</h4>
-                                    <span>团队共享只开放选择和使用权限，成员仍只能维护自己创建的数字人。</span>
+                                    <h4>素材使用范围</h4>
+                                    <span>团队共享覆盖数字人、声音和绑定关系，成员仍只能维护自己创建的素材。</span>
                                 </header>
                                 <div class='priority-panel'>
                                     <el-radio-group
@@ -199,8 +199,8 @@
                                     <div class='priority-panel__footer'>
                                         <p class='priority-panel__description'>
                                             {{ digitalHumanScope === 'tenant'
-                                                ? '成员可以选择本团队其他人创建的数字人，但不能编辑或删除。'
-                                                : '普通成员只能查看和使用自己创建的数字人。' }}
+                                                ? '成员可以选择本团队其他人创建的数字人、声音和绑定关系，但不能编辑或删除。'
+                                                : '普通成员只能查看和使用自己创建的数字人、声音和绑定关系。' }}
                                         </p>
                                         <el-button
                                             v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
@@ -211,7 +211,7 @@
                                         >
                                             保存设置
                                         </el-button>
-                                        <span v-else class='toggle-panel__hint'>仅平台管理员可调整数字人使用范围。</span>
+                                        <span v-else class='toggle-panel__hint'>仅平台管理员可调整素材使用范围。</span>
                                     </div>
                                 </div>
                             </section>
@@ -685,7 +685,7 @@ const saveDigitalHumanScope = async() => {
         tenantDetail.value = response.data.data
         digitalHumanScope.value = response.data.data?.runtimeConfig?.digitalHumanScope === 'tenant' ? 'tenant' : 'self'
         syncSchedulerQuotaState(response.data.data)
-        ElMessage.success(digitalHumanScope.value === 'tenant' ? '该团队已开放数字人共享使用' : '该团队已恢复仅本人使用')
+        ElMessage.success(digitalHumanScope.value === 'tenant' ? '该团队已开放素材共享使用' : '该团队素材已恢复仅本人使用')
     } catch (error: any) {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {

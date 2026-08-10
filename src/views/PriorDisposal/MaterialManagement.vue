@@ -51,12 +51,13 @@
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
                 <div class="flex items-center justify-center gap-2">
-                  <el-button type="primary" plain size="mini" @click="handleEdit(scope.row)">
+                  <el-button v-if="scope.row.canManage !== false" type="primary" plain size="mini" @click="handleEdit(scope.row)">
                     <el-icon class="mr-1"><ElIconEdit /></el-icon>编辑
                   </el-button>
-                  <el-button type="danger" plain size="mini" @click="handleDelete(scope.row)">
+                  <el-button v-if="scope.row.canManage !== false" type="danger" plain size="mini" @click="handleDelete(scope.row)">
                     <el-icon class="mr-1"><ElIconDelete /></el-icon>删除
                   </el-button>
+                  <el-tag v-if="scope.row.canManage === false" type="info" effect="plain" size="small">团队共享</el-tag>
                 </div>
               </template>
             </el-table-column>
@@ -211,8 +212,9 @@
             <el-table-column label="操作" width="220" align="center" fixed="right">
               <template #default="scope">
                 <div class="flex items-center justify-center gap-2">
-                  <el-button type="primary" plain size="mini" @click="handleEditRel(scope.row)">编辑</el-button>
-                  <el-button type="danger" plain size="mini" @click="handleDelete(scope.row)">解除关联</el-button>
+                  <el-button v-if="scope.row.canManage !== false" type="primary" plain size="mini" @click="handleEditRel(scope.row)">编辑</el-button>
+                  <el-button v-if="scope.row.canManage !== false" type="danger" plain size="mini" @click="handleDelete(scope.row)">解除关联</el-button>
+                  <el-tag v-if="scope.row.canManage === false" type="info" effect="plain" size="small">团队共享</el-tag>
                 </div>
               </template>
             </el-table-column>
