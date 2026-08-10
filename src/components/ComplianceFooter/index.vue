@@ -1,26 +1,42 @@
 <template>
     <footer class='compliance-footer' :class='`compliance-footer--${variant}`'>
         <div class='compliance-footer__inner'>
-            <span class='compliance-footer__brand'>
-                <span class='compliance-footer__mark' aria-hidden='true' />
-                内容支持工具
-            </span>
-            <span class='compliance-footer__divider' aria-hidden='true' />
-            <span>© {{ currentYear }} 广州超起信息科技有限公司</span>
-            <a
-                class='compliance-footer__record'
-                href='https://beian.miit.gov.cn/'
-                target='_blank'
-                rel='noopener noreferrer'
-            >
-                粤ICP备2025496411号
-            </a>
+            <div class='compliance-footer__identity'>
+                <span class='compliance-footer__brand'>
+                    <span class='compliance-footer__mark' aria-hidden='true' />
+                    内容支持工具
+                </span>
+                <span class='compliance-footer__separator' aria-hidden='true'>·</span>
+                <span>© {{ currentYear }} 广州超起信息科技有限公司</span>
+            </div>
+
+            <div class='compliance-footer__records' aria-label='网站备案信息'>
+                <a
+                    class='compliance-footer__record'
+                    href='https://beian.miit.gov.cn/'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                >
+                    粤ICP备2025496411号
+                </a>
+                <span class='compliance-footer__separator' aria-hidden='true'>·</span>
+                <a
+                    class='compliance-footer__record compliance-footer__record--public-security'
+                    href='https://beian.mps.gov.cn/'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                >
+                    <img :src='publicSecurityIcon' alt='' aria-hidden='true'>
+                    粤公网安备44010602016728号
+                </a>
+            </div>
         </div>
     </footer>
 </template>
 
 <script lang='ts' setup>
 import { computed } from 'vue'
+import publicSecurityIcon from '/@/assets/img/gongan-beian.png'
 
 const props = withDefaults(defineProps<{
     variant?: 'light' | 'dark'
@@ -41,11 +57,20 @@ const currentYear = new Date().getFullYear()
 }
 
 .compliance-footer__inner {
+    display: grid;
+    align-items: center;
+    justify-content: center;
+    justify-items: center;
+    gap: 5px;
+}
+
+.compliance-footer__identity,
+.compliance-footer__records {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 8px 14px;
+    gap: 7px;
 }
 
 .compliance-footer__brand {
@@ -63,19 +88,31 @@ const currentYear = new Date().getFullYear()
     box-shadow: 0 0 0 4px rgba(15, 138, 128, 0.1);
 }
 
-.compliance-footer__divider {
-    width: 1px;
-    height: 12px;
+.compliance-footer__separator {
+    color: currentColor;
+    opacity: 0.5;
 }
 
 .compliance-footer__record {
     color: inherit;
     text-decoration: none;
-    transition: color 160ms ease;
+    transition: color 160ms ease, opacity 160ms ease;
 }
 
 .compliance-footer__record:hover {
     color: #0f766e;
+}
+
+.compliance-footer__record--public-security {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.compliance-footer__record--public-security img {
+    width: 15px;
+    height: 15px;
+    object-fit: contain;
 }
 
 .compliance-footer--light {
@@ -86,10 +123,6 @@ const currentYear = new Date().getFullYear()
 
 .compliance-footer--light .compliance-footer__brand {
     color: #526174;
-}
-
-.compliance-footer--light .compliance-footer__divider {
-    background: #d8e0e9;
 }
 
 .compliance-footer--dark {
@@ -108,30 +141,7 @@ const currentYear = new Date().getFullYear()
     box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.12);
 }
 
-.compliance-footer--dark .compliance-footer__divider {
-    background: rgba(226, 239, 247, 0.2);
-}
-
 .compliance-footer--dark .compliance-footer__record:hover {
     color: #99f6e4;
-}
-
-@media (max-width: 640px) {
-    .compliance-footer {
-        padding: 15px 18px 17px;
-    }
-
-    .compliance-footer__inner {
-        gap: 5px 10px;
-    }
-
-    .compliance-footer__divider {
-        display: none;
-    }
-
-    .compliance-footer__brand {
-        width: 100%;
-        justify-content: center;
-    }
 }
 </style>
