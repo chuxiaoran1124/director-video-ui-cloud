@@ -54,6 +54,10 @@ export default defineComponent ({
 
 <style lang='postcss' scoped>
 
+.layout-content-scrollbar {
+    height: 100%;
+}
+
 .layout-content-shell {
     min-height: 100%;
     display: flex;
@@ -63,6 +67,10 @@ export default defineComponent ({
 .layout-content-body {
     flex: 1 0 auto;
     min-width: 0;
+}
+
+.layout-content-shell > .compliance-footer {
+    flex: 0 0 auto;
 }
 
 ::v-deep(.layout-content-scrollbar .el-scrollbar__view) {
