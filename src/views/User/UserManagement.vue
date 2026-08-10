@@ -11,9 +11,9 @@
             </template>
             <template #metrics>
                 <div class='metric-card'>
-                    <span>当前团队</span>
-                    <strong>{{ currentTenantName }}</strong>
-                    <small>切换团队后，成员和身份会同步刷新</small>
+                    <span>{{ isPlatformSuperAdmin ? '当前团队' : '协作空间' }}</span>
+                    <strong>{{ isPlatformSuperAdmin ? currentTenantName : '当前空间' }}</strong>
+                    <small>{{ isPlatformSuperAdmin ? '切换团队后，成员和身份会同步刷新' : '成员和身份仅在当前空间内生效' }}</small>
                 </div>
                 <div class='metric-card'>
                     <span>成员总数</span>
@@ -351,6 +351,7 @@ const resetPasswordRules = reactive<FormRules>({
 
 const currentTenantId = computed(() => selectedTenantId.value || layoutStore.getCurrentTenant?.id)
 const currentUserId = computed(() => Number(layoutStore.getUserInfo.userId || 0))
+const isPlatformSuperAdmin = computed(() => layoutStore.getUserInfo.isPlatformSuperAdmin)
 const currentTenantName = computed(() => {
     return tenantList.value.find((item) => item.id === currentTenantId.value)?.tenantName || layoutStore.getCurrentTenant?.tenantName || '当前团队'
 })

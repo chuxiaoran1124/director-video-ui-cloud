@@ -28,7 +28,7 @@
         <el-dropdown>
             <span class='el-dropdown-link flex flex-center px-2'>
                 <el-avatar :size='30' src='https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png' />
-                <span class='ml-2'>{{ userInfo.name }}</span>
+                <span class='ml-2'>{{ accountDisplayName }}</span>
                 <el-icon><el-icon-arrow-down /></el-icon>
             </span>
             <template #dropdown>
@@ -105,7 +105,7 @@
 </template>
 
 <script lang='ts'>
-import { defineComponent, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useRoute, RouteLocationNormalizedLoaded } from 'vue-router'
@@ -116,6 +116,7 @@ import LayoutMenubar from '/@/layout/components/menubar.vue'
 import icon from '/@/assets/img/icon.png'
 import { changePassword } from '/@/api/user'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import { getRoleDisplayName } from '/@/utils/productLabels'
 
 
 interface IBreadcrumbList {
@@ -159,6 +160,13 @@ export default defineComponent ({
         const route = useRoute()
         const passwordDialogVisible = ref(false)
         const passwordSubmitting = ref(false)
+        const accountDisplayName = computed(() => {
+            if (getUserInfo.value.isPlatformSuperAdmin) {
+                return '平台管理员'
+            }
+            const roleName = getUserInfo.value.tenantRoleNames?.[0]
+            return roleName ? getRoleDisplayName(roleName) : '成员'
+        })
         const passwordFormRef = ref<FormInstance>()
         const passwordForm = reactive({
             oldPassword: '',
@@ -241,6 +249,7 @@ export default defineComponent ({
         return {
             getMenubar,
             userInfo: getUserInfo,
+            accountDisplayName,
             changeCollapsed,
             logout,
             ...breadcrumb(route),
