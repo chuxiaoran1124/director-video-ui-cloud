@@ -387,7 +387,7 @@ export const useLayoutStore = defineStore({
             await this.loadDynamicRoutes()
 
             try {
-                setCookie('username', this.userInfo.name, 365)
+                setCookie('username', this.userInfo.username, 365)
             } catch {
                 console.warn('写入用户名 cookie 失败')
             }

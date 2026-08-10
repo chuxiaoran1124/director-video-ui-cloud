@@ -45,7 +45,7 @@
             </template>
         </el-dropdown>
 
-        <el-dropdown v-if='tenantList.length > 1' class='mr-4' @command='handleTenantSwitch'>
+        <el-dropdown v-if='userInfo.isPlatformSuperAdmin && tenantList.length > 1' class='mr-4' @command='handleTenantSwitch'>
             <span class='el-dropdown-link flex flex-center px-2'>
                 <el-tag effect='plain' type='success'>{{ currentTenant?.tenantName || '当前团队未设置' }}</el-tag>
                 <el-icon class='ml-2'><el-icon-arrow-down /></el-icon>

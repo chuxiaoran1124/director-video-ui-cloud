@@ -129,8 +129,8 @@
 
         <el-dialog v-model='createDialogVisible' title='新增成员' width='580px' destroy-on-close>
             <el-form ref='createFormRef' :model='createForm' :rules='rules' label-position='top'>
-                <el-form-item label='所属团队' prop='tenantId'>
-                    <el-select v-if='layoutStore.getUserInfo.isPlatformSuperAdmin' v-model='createForm.tenantId' placeholder='请选择团队' filterable @change='loadCreateRoleOptions'>
+                <el-form-item v-if='isPlatformSuperAdmin' label='所属团队' prop='tenantId'>
+                    <el-select v-model='createForm.tenantId' placeholder='请选择团队' filterable @change='loadCreateRoleOptions'>
                         <el-option
                             v-for='tenant in tenantList'
                             :key='tenant.id'
@@ -138,7 +138,6 @@
                             :value='tenant.id'
                         />
                     </el-select>
-                    <el-input v-else :model-value='currentTenantName' disabled />
                 </el-form-item>
                 <el-form-item label='登录账号' prop='username'>
                     <el-input v-model='createForm.username' placeholder='请输入用户名' />
@@ -180,7 +179,7 @@
 
         <el-dialog v-model='editDialogVisible' title='编辑成员' width='580px' destroy-on-close>
             <el-form ref='editFormRef' :model='editForm' :rules='editRules' label-position='top'>
-                <el-form-item label='所属团队'>
+                <el-form-item v-if='isPlatformSuperAdmin' label='所属团队'>
                     <el-input :model-value='currentTenantName' disabled />
                 </el-form-item>
                 <el-form-item label='登录账号' prop='username'>

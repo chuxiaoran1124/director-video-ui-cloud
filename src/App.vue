@@ -38,7 +38,8 @@ export default defineComponent ({
 
         const { getUserInfo } = useLayoutStore()
         const username = computed(() => {
-            return getUserInfo.name || getCookie('username') || localStorage.getItem('username') || ''
+            // 水印使用登录账号，避免把平台内部维护的成员显示名暴露给客户。
+            return getUserInfo.username || getCookie('username') || localStorage.getItem('username') || ''
         })
         const watermarkEnabled = computed(() => {
             return (import.meta as any).env?.VITE_WATERMARK === 'true' && !!username.value
