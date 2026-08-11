@@ -494,7 +494,7 @@ function normalizeStatus(value: any, fallback: StatusKey = 'waiting'): StatusKey
   if (['running', 'processing', 'in_progress', '执行中', '生成中'].includes(raw)) return 'running'
   if (['completed', 'success', 'succeeded', 'done', '已完成', '5', '2'].includes(raw)) return 'completed'
   if (['partial_failed', 'partial-failed', '部分失败'].includes(raw)) return 'partial_failed'
-  if (['failed', 'fail', 'error', '失败', '执行失败', '-1'].includes(raw)) return 'failed'
+  if (['failed', 'fail', '失败', '执行失败', '-1'].includes(raw)) return 'failed'
   if (['cancelled', 'canceled', '已取消'].includes(raw)) return 'cancelled'
   if (['waiting', 'pending', 'queued', 'submitted', '等待中', '待执行', '0', '1'].includes(raw)) return 'waiting'
   return fallback
@@ -522,7 +522,7 @@ function normalizeChild(item: any, index: number): BatchChild {
     bindingName: item.bindingName || item.binding_name || snapshot.name || `${item.digitalHumanName || snapshot.digitalHumanName || '数字人'} + ${item.voiceName || snapshot.voiceName || '配音'}`,
     digitalHumanName: item.digitalHumanName || item.digital_human_name || snapshot.digitalHumanName || snapshot.digital_human_name || '',
     voiceName: item.voiceName || item.voice_name || snapshot.voiceName || snapshot.voice_name || '',
-    statusKey: normalizeStatus(rawStatus, item.errorMessage || item.error_message ? 'failed' : 'waiting'),
+    statusKey: normalizeStatus(rawStatus, 'waiting'),
     createTime: item.createTime || item.create_time,
     startTime: item.startTime || item.start_time,
     endTime: item.endTime || item.end_time,
