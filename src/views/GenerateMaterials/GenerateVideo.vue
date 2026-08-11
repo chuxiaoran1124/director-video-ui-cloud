@@ -65,32 +65,30 @@
           </div>
         </div>
 
-        <div class="overflow-x-auto">
         <el-table 
           ref="videoTableRef"
           :data="filteredVideoList" 
           row-key="id"
           border 
           style="width: 100%"
-          class="min-w-[1350px]"
           header-cell-class-name="bg-gray-50 font-bold text-gray-700"
           @selection-change="handleVideoSelectionChange"
         >
-          <el-table-column type="selection" width="55" align="center" :reserve-selection="true" />
-          <el-table-column label="视频预览" width="140" align="center">
+          <el-table-column type="selection" width="38" align="center" :reserve-selection="true" />
+          <el-table-column label="视频预览" min-width="65" align="center">
             <template #default="scope">
               <div v-if="scope.row.videoCoverUrl" class="relative group cursor-pointer" @click="handleViewVideo(scope.row)">
-                <img :src="scope.row.videoCoverUrl" class="w-28 h-16 object-cover rounded-lg border border-gray-200 group-hover:shadow-lg transition-shadow">
+                <img :src="scope.row.videoCoverUrl" class="w-14 h-10 object-cover rounded-lg border border-gray-200 group-hover:shadow-lg transition-shadow">
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                   <i class="el-icon-video-play text-white text-xl"></i>
                 </div>
               </div>
-              <div v-else class="w-28 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+              <div v-else class="w-14 h-10 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
                 <i class="el-icon-picture text-xl"></i>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="视频信息" min-width="250">
+          <el-table-column label="视频信息" min-width="130">
             <template #default="scope">
               <div class="flex items-center gap-3 py-1">
                 <div class="min-w-0">
@@ -102,7 +100,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="任务状态" width="140" align="center">
+          <el-table-column label="任务状态" min-width="80" align="center">
             <template #default="scope">
               <div class="flex flex-col items-center gap-1">
                 <el-tag :type="getStatusType(scope.row.taskStatus)" :effect="scope.row.taskStatus === '5' ? 'light' : 'plain'">
@@ -118,7 +116,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="标签" min-width="180" align="center">
+          <el-table-column label="标签" min-width="60" align="center">
             <template #default="scope">
               <div class="flex flex-wrap gap-1 justify-center">
                 <el-tag
@@ -134,26 +132,34 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="180" align="center">
+          <el-table-column label="创建时间" min-width="140" align="center">
             <template #default="scope">
-              <span class="text-sm">{{ scope.row.createTime }}</span>
+              <span class="text-[11px] whitespace-nowrap">{{ scope.row.createTime || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="完成时间" width="180" align="center">
+          <el-table-column label="任务开始时间" min-width="140" align="center">
             <template #default="scope">
-              <span v-if="scope.row.taskStatus === '5'" class="text-sm">{{ scope.row.endTime || scope.row.updateTime }}</span>
-              <span v-else class="text-gray-400 text-sm">-</span>
+              <span class="text-[11px] whitespace-nowrap" :class="scope.row.startTime ? 'text-gray-700' : 'text-gray-400'">{{ scope.row.startTime || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="210" align="center" fixed="right">
+          <el-table-column label="完成时间" min-width="140" align="center">
             <template #default="scope">
-              <el-button type="primary" size="small" plain @click="handleViewVideo(scope.row)">查看</el-button>
-              <el-button v-if="isFailedVideoTask(scope.row)" type="warning" size="small" plain @click="handleRetryVideo(scope.row)">重推</el-button>
-              <el-button type="danger" size="small" plain @click="handleDeleteVideo(scope.row.id)">删除</el-button>
+              <span v-if="scope.row.taskStatus === '5'" class="text-[11px] whitespace-nowrap" :class="scope.row.endTime || scope.row.updateTime ? 'text-gray-700' : 'text-gray-400'">
+                {{ scope.row.endTime || scope.row.updateTime || '-' }}
+              </span>
+              <span v-else class="text-gray-400 text-[11px] whitespace-nowrap">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" min-width="105" align="center">
+            <template #default="scope">
+              <div class="flex flex-wrap justify-center gap-1">
+                <el-button class="!mx-0 !px-1" type="primary" size="small" plain @click="handleViewVideo(scope.row)">查看</el-button>
+                <el-button v-if="isFailedVideoTask(scope.row)" class="!mx-0 !px-1" type="warning" size="small" plain @click="handleRetryVideo(scope.row)">重推</el-button>
+                <el-button class="!mx-0 !px-1" type="danger" size="small" plain @click="handleDeleteVideo(scope.row.id)">删除</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
-        </div>
 
         <!-- 分页 -->
         <div class="mt-4 flex justify-end">
@@ -1821,6 +1827,7 @@ const loadVideoTasks = async () => {
       voiceId: task.voiceId,
       digitalHumanId: task.digitalHumanId,
       createTime: task.createTime ? new Date(task.createTime).toLocaleString('zh-CN') : new Date().toLocaleString(),
+      startTime: (task.startTime || task.start_time) ? new Date(task.startTime || task.start_time).toLocaleString('zh-CN') : '',
       updateTime: task.updateTime ? new Date(task.updateTime).toLocaleString('zh-CN') : '',
       endTime: task.endTime ? new Date(task.endTime).toLocaleString('zh-CN') : '',
       videoUrl: resolveAssetUrl(task.videoUrl || task.video_url || ''),

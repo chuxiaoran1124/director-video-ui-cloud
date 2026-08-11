@@ -54,7 +54,7 @@
 
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <el-table :data="paginatedTaskList" border style="width: 100%" header-cell-class-name="bg-slate-50 font-bold text-slate-700">
-          <el-table-column label="资产信息" min-width="220">
+          <el-table-column label="资产信息" min-width="140">
             <template #default="scope">
               <div class="flex items-center gap-3 py-1">
                 <div>
@@ -64,20 +64,20 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="任务类型" width="120" align="center">
+          <el-table-column label="任务类型" min-width="65" align="center">
             <template #default>
-              <el-tag type="info" size="small" effect="light" class="rounded-full px-4">训练</el-tag>
+              <el-tag type="info" size="small" effect="light" class="rounded-full px-2">训练</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="120" align="center">
+          <el-table-column label="状态" min-width="70" align="center">
             <template #default="scope">
-              <div class="flex items-center justify-center">
-                 <span class="w-2 h-2 rounded-full mr-2" :class="getStatusDotClass(scope.row)"></span>
-                 <span class="text-sm" :class="getStatusTextClass(scope.row)">{{ getStatusLabel(scope.row) }}</span>
+              <div class="flex items-center justify-center gap-1">
+                 <span class="w-2 h-2 shrink-0 rounded-full" :class="getStatusDotClass(scope.row)"></span>
+                 <span class="text-sm leading-5 text-center" :class="getStatusTextClass(scope.row)">{{ getStatusLabel(scope.row) }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="任务进度" min-width="250">
+          <el-table-column label="任务进度" min-width="125">
             <template #default="scope">
               <div v-if="scope.row.taskStatus === 0 || scope.row.taskStatus === 1 || scope.row.taskStatus === 2" class="px-2">
                 <div class="flex justify-between text-[10px] text-slate-400 mb-1 leading-none">
@@ -96,23 +96,31 @@
               <span v-else class="text-slate-400 text-sm italic">等待中</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" prop="time" width="180" align="center" sortable />
-          <el-table-column label="完成时间" width="180" align="center">
+          <el-table-column label="创建时间" prop="time" min-width="140" align="center" sortable>
             <template #default="scope">
-              <span v-if="scope.row.status === 'success'" class="text-sm">{{ scope.row.endTime || scope.row.updateTime }}</span>
-              <span v-else class="text-gray-400 text-sm">-</span>
+              <span class="text-[11px] whitespace-nowrap">{{ scope.row.time || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" fixed="right">
+          <el-table-column label="任务开始时间" min-width="140" align="center">
             <template #default="scope">
-              <div class="flex justify-center gap-2">
-                <el-button v-if="scope.row.status === 'success'" type="primary" plain @click="handleViewAsset(scope.row)">
+              <span class="text-[11px] whitespace-nowrap">{{ scope.row.startTime || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="完成时间" min-width="140" align="center">
+            <template #default="scope">
+              <span class="text-[11px] whitespace-nowrap">{{ scope.row.status === 'success' ? (scope.row.endTime || scope.row.updateTime || '-') : '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" min-width="120" align="center">
+            <template #default="scope">
+              <div class="task-actions">
+                <el-button v-if="scope.row.status === 'success'" class="!mx-0 !px-1" size="small" type="primary" plain @click="handleViewAsset(scope.row)">
                   <el-icon class="mr-1"><el-icon-view /></el-icon>查看资产
                 </el-button>
-                <el-button v-if="isFailedTask(scope.row)" type="warning" plain @click="handleRetryTask(scope.row)">
+                <el-button v-if="isFailedTask(scope.row)" class="!mx-0 !px-1" size="small" type="warning" plain @click="handleRetryTask(scope.row)">
                   重推
                 </el-button>
-                <el-button v-if="scope.row.status !== 'success'" type="danger" plain @click="handleCancelTask(scope.row)">
+                <el-button v-if="scope.row.status !== 'success'" class="!mx-0 !px-1" size="small" type="danger" plain @click="handleCancelTask(scope.row)">
                   <el-icon class="mr-1"><el-icon-delete /></el-icon>删除任务
                 </el-button>
               </div>
@@ -664,6 +672,7 @@ const loadTaskList = async () => {
           taskStatus,  // 淇濆瓨鍘熷鐘舵€佸€?
           progress,
           time: item.createTime,
+          startTime: item.startTime || item.start_time,
           updateTime: item.updateTime,
           endTime: item.endTime,
           videoUrl: item.videoUrl,
@@ -1501,6 +1510,17 @@ onUnmounted(() => {
   border-radius: 8px;
   background: #f8fafc;
   line-height: 1.4;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+}
+
+.task-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 :deep(.el-upload) {
