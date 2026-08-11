@@ -1,2367 +1,1201 @@
 <template>
-  <div class="project-management p-6 bg-gray-50 min-h-full">
-    <!-- 列表视图 -->
-    <div v-if="viewMode === 'list'" class="space-y-4">
-      <div class="bg-white p-5 rounded-xl shadow-sm flex items-center justify-center relative border border-gray-100">
-        <div class="text-center">
-          <h2 class="text-xl font-bold text-gray-800">生成计划管理</h2>
-          <p class="text-xs text-gray-400 mt-1">管理并监控视频素材生成任务</p>
-        </div>
-        <el-button type="primary" size="small" icon="el-icon-plus" @click="handleAddProject" class="absolute right-6 rounded shadow-sm">
-          新建计划
+  <div class="batch-plan-page">
+    <section class="page-hero">
+      <div>
+        <div class="eyebrow">内容生成 / 批量视频</div>
+        <h1>生成计划管理</h1>
+        <p>一份脚本搭配多个预设绑定关系，统一排队生成视频。</p>
+      </div>
+      <div class="hero-actions">
+        <el-tag type="info" effect="plain">1 个脚本 × 1～15 个绑定关系</el-tag>
+        <el-button type="primary" @click="openCreateDialog">
+          <el-icon><Plus /></el-icon>
+          新建批量计划
         </el-button>
       </div>
+    </section>
 
-      <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-        <!-- 搜索框 -->
-        <div class="p-5 border-b border-gray-100">
-          <div class="flex items-center justify-between gap-4">
-            <div class="flex-1 max-w-md">
-              <el-input
-                v-model="searchKeyword"
-                placeholder="搜索计划名称或ID..."
-                clearable
-                size="large"
-                @input="handleSearch"
-              >
-                <template #prefix>
-                  <i class="el-icon-search text-gray-400"></i>
-                </template>
-              </el-input>
-            </div>
-          </div>
-        </div>
-        <el-table :data="projectList" style="width: 100%" :header-cell-style="{ background: '#f8fafc', color: '#606266', fontWeight: 'bold' }">
-          <el-table-column label="计划名称" min-width="140" show-overflow-tooltip>
-            <template #default="scope">
-              <span class="font-bold text-gray-700">{{ scope.row.name }}</span>
-            </template>
-          </el-table-column>
-          
-          <el-table-column label="创建日期" width="100" align="center">
-             <template #default="scope">
-               <span class="text-gray-500 text-xs">{{ scope.row.createTime }}</span>
-             </template>
-          </el-table-column>
-
-          <el-table-column label="计划开始" width="150" align="center">
-            <template #default="scope">
-               <span class="text-gray-600 text-xs">{{ scope.row.startTime || '-' }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="计划结束" width="150" align="center">
-            <template #default="scope">
-               <span class="text-gray-600 text-xs">{{ scope.row.endTime || '-' }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="状态" width="90" align="center">
-            <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)" size="small" effect="light" class="rounded">
-                {{ scope.row.status }}
-              </el-tag>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="任务数" width="70" align="center">
-            <template #default="scope">
-              <span class="text-gray-600 font-medium text-xs">{{ scope.row.taskCount ?? scope.row.subTasks.length }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="操作" width="340" fixed="right" align="center">
-            <template #default="scope">
-              <div class="flex items-center justify-center gap-1">
-                <el-button type="primary" size="small" class="!px-1.5 !text-[11px]" @click="enterSubTaskView(scope.row)">任务详情</el-button>
-                <el-button size="small" class="!px-1.5 !text-[11px]" @click="handleEditProject(scope.row)">编辑</el-button>
-                <el-button type="danger" size="small" plain class="!px-1.5 !text-[11px]" @click="handleDeleteProject(scope.row)">删除</el-button>
-                <el-button 
-                  type="success" 
-                  size="small" 
-                  icon="el-icon-video-play" 
-                  class="!px-1.5 !text-[11px]"
-                  :disabled="Number(scope.row.taskStatus) !== 0"
-                  @click="handleRunProject(scope.row)"
-                >立即执行</el-button>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
+    <section class="filter-card">
+      <el-input
+        v-model="searchKeyword"
+        class="search-input"
+        clearable
+        placeholder="搜索计划名称"
+        @keyup.enter="loadPlanList"
+        @clear="loadPlanList"
+      >
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <div class="filter-actions">
+        <span class="filter-note">批量父计划不占用效率统计，实际视频子任务按队列执行。</span>
+        <el-button :loading="listLoading" @click="loadPlanList">
+          <el-icon><Refresh /></el-icon>
+          刷新
+        </el-button>
       </div>
+    </section>
 
-      <!-- 分页 -->
-      <div class="flex justify-end">
+    <section class="dispatch-card">
+      <div class="dispatch-card__header">
+        <div>
+          <div class="eyebrow">统一视频通道</div>
+          <h2>任务排序</h2>
+          <p v-if="dispatchOrderMode === 'free'">自由搭配模式：拖动会重排 P，P 数字越小越先执行；需要并行时可把多个组设为同一 P，同一 P 仍按创建时间 FIFO 和任务组轮转。</p>
+          <p v-else>时间顺序模式：批量、单条和数字人顶层任务先按创建时间进入，同层按任务组轮转。</p>
+        </div>
+        <div class="dispatch-card__actions">
+          <el-tag :type="dispatchOrderMode === 'free' ? 'warning' : 'info'" effect="plain">{{ orderModeLabel(dispatchOrderMode) }}</el-tag>
+          <el-button :loading="dispatchLoading" @click="loadDispatchGroups"><el-icon><Refresh /></el-icon>刷新</el-button>
+          <el-button v-if="dispatchOrderMode === 'free'" type="primary" :loading="dispatchSaving" @click="saveDispatchOrder">保存优先级</el-button>
+        </div>
+      </div>
+      <div v-if="dispatchGroups.length" class="dispatch-list">
+        <div
+          v-for="(group, index) in dispatchGroups"
+          :key="group.id"
+          class="dispatch-item"
+          :class="{ locked: !group.canReorder, dragging: draggedDispatchIndex === index }"
+          :draggable="dispatchOrderMode === 'free' && group.canReorder"
+          @dragstart="startDispatchDrag(index)"
+          @dragover.prevent
+          @drop="dropDispatchGroup(index)"
+          @dragend="draggedDispatchIndex = null"
+        >
+          <div class="dispatch-handle"><el-icon><Rank /></el-icon></div>
+          <div class="dispatch-main">
+            <strong>{{ group.title }}</strong>
+            <span>{{ group.groupTypeLabel }} · {{ formatTime(group.createdAt) }} · 待排 {{ group.waitingItemCount }}/{{ group.activeItemCount }}</span>
+          </div>
+          <el-tag size="small" effect="plain" :type="group.dispatchMode === 'overnight' ? 'warning' : 'info'">
+            {{ group.dispatchMode === 'overnight' ? '夜间预排' : '普通任务' }}
+          </el-tag>
+          <label v-if="dispatchOrderMode === 'free'" class="priority-editor">
+            <span>优先级</span>
+            <el-input-number v-model="group.priorityLevel" :min="1" :max="99" :disabled="!group.canReorder" controls-position="right" />
+          </label>
+          <el-tag v-if="!group.canReorder" size="small" type="info">已开始，已锁定</el-tag>
+        </div>
+      </div>
+      <el-empty v-else :image-size="68" description="当前没有等待中的视频任务组" />
+    </section>
+
+    <section class="table-card">
+      <el-table
+        :data="planList"
+        row-key="id"
+        fit
+        style="width: 100%"
+        :header-cell-style="tableHeaderStyle"
+        v-loading="listLoading"
+      >
+        <el-table-column label="计划名称" min-width="190" show-overflow-tooltip>
+          <template #default="{ row }">
+            <button class="plan-name" type="button" @click="openDetail(row)">{{ row.name || `计划 #${row.id}` }}</button>
+            <div class="plan-id">ID: {{ row.id }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="执行方式" min-width="125" align="center">
+          <template #default="{ row }">
+            <div class="schedule-cell">
+              <el-tag size="small" effect="plain" :type="row.scheduleMode === 'overnight' ? 'warning' : 'info'">
+                {{ scheduleModeLabel(row.scheduleMode) }}
+              </el-tag>
+              <span v-if="row.scheduledAt" class="schedule-time">{{ formatTime(row.scheduledAt) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" effect="light" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="任务进度" min-width="125" align="center">
+          <template #default="{ row }">
+            <div class="progress-cell">
+              <span>{{ row.completedCount }}/{{ row.totalCount }}</span>
+              <el-progress
+                :percentage="row.totalCount ? Math.round((row.completedCount / row.totalCount) * 100) : 0"
+                :show-text="false"
+                :stroke-width="7"
+                :status="row.statusKey === 'completed' ? 'success' : undefined"
+              />
+              <span v-if="row.failedCount" class="failed-count">失败 {{ row.failedCount }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="创建时间" min-width="155" align="center" sortable prop="createTime">
+          <template #default="{ row }"><span class="time-text">{{ formatTime(row.createTime) }}</span></template>
+        </el-table-column>
+        <el-table-column label="任务开始时间" min-width="155" align="center">
+          <template #default="{ row }"><span class="time-text">{{ formatTime(row.startTime) }}</span></template>
+        </el-table-column>
+        <el-table-column label="完成时间" min-width="155" align="center">
+          <template #default="{ row }"><span class="time-text">{{ formatTime(row.endTime) }}</span></template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="235" align="center">
+          <template #default="{ row }">
+            <div class="row-actions">
+              <el-button link type="primary" @click="openDetail(row)">任务详情</el-button>
+              <el-button v-if="canEditPlan(row)" link type="primary" @click="editPlan(row)">编辑</el-button>
+              <el-button v-if="canStartPlan(row)" link type="success" @click="startPlan(row)">提交执行</el-button>
+              <el-button v-if="canCancelPlan(row)" link type="warning" @click="cancelPlan(row)">取消</el-button>
+              <el-button v-if="canDeletePlan(row)" link type="danger" @click="deletePlan(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="暂无批量生成计划" />
+        </template>
+      </el-table>
+
+      <div class="pagination-bar">
+        <span class="pagination-total">共 {{ planTotal }} 个计划</span>
         <el-pagination
           v-model:current-page="planPage"
           v-model:page-size="planPageSize"
-          :total="planTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
           background
-          @current-change="loadProjectList"
-          @size-change="() => { planPage = 1; loadProjectList() }"
+          layout="total, sizes, prev, pager, next"
+          :page-sizes="[10, 20, 50]"
+          :total="planTotal"
+          @current-change="loadPlanList"
+          @size-change="handlePageSizeChange"
         />
       </div>
-    </div>
+    </section>
 
-    <!-- 子任务详情页 (单独页面模式) -->
-    <div v-else class="space-y-4 animate-fade-in">
-      <div class="bg-white p-5 rounded-xl shadow-sm flex justify-between items-center border border-gray-100">
-        <div class="flex items-center gap-4">
-          <el-button circle icon="el-icon-back" @click="goBackToList"></el-button>
+    <el-drawer v-model="detail.visible" title="批量计划详情" size="min(100%, 1080px)" destroy-on-close>
+      <div v-if="detail.plan" class="detail-page">
+        <div class="detail-title-row">
           <div>
-            <h2 class="text-xl font-bold text-gray-800">
-              <span class="text-gray-400 font-normal">计划：</span>{{ currentProject.name }}
-            </h2>
-            <div class="flex gap-4 mt-1">
-
-              <span class="text-xs text-gray-400 italic">脚本：{{ currentProject.script ? '已配置通用脚本' : '由子任务独立配置' }}</span>
-            </div>
+            <div class="eyebrow">批量计划 #{{ detail.plan.id }}</div>
+            <h2>{{ detail.plan.name || '未命名计划' }}</h2>
+            <p class="detail-subtitle">{{ detail.plan.totalCount }} 个视频子任务 · {{ scheduleModeLabel(detail.plan.scheduleMode) }}</p>
+          </div>
+          <div class="detail-actions">
+            <el-button @click="refreshDetail" :loading="detail.loading">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+            <el-button v-if="canStartPlan(detail.plan)" type="success" @click="startPlan(detail.plan)">提交执行</el-button>
+            <el-button v-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
           </div>
         </div>
-        <el-button
-          type="success"
-          size="small"
-          icon="el-icon-plus"
-          :disabled="Number(currentProject.taskStatus) === 2 || currentProject.status === '已完成'"
-          @click="handleAddSubTask(currentProject)"
-        >添加子任务</el-button>
-      </div>
 
-      <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 p-5">
-        <div class="flex flex-wrap gap-6">
-          <div v-for="task in currentProject.subTasks" :key="task.id" 
-               class="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.3%-16px)] group relative bg-white border border-gray-100 rounded-xl p-4 hover:shadow-lg transition-all border-l-4 flex flex-col min-h-[280px]"
-               :class="Number(task.taskStatus) === 5 ? 'border-l-green-500' : (Number(task.taskStatus) < 0 || task.errorMessage ? 'border-l-red-500' : 'border-l-blue-500')">
-            
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h3 class="font-bold text-gray-800">{{ task.name }}</h3>
-                <div class="flex items-center gap-1 mt-0.5" v-if="task.executeTime !== '待定'">
-                  <el-icon class="text-[10px] text-gray-400"><el-icon-clock /></el-icon>
-                  <span class="text-[11px] text-gray-400">完成: {{ task.executeTime }}</span>
-                </div>
-                <span v-else class="text-xs text-gray-400">待执行</span>
-              </div>
-              <el-tooltip :content="task.status" placement="top">
-                <el-tag :type="task.statusType || getStatusType(task.status)" size="small">{{ task.status }}</el-tag>
-              </el-tooltip>
-            </div>
-
-            <div class="flex items-center gap-4 bg-gray-50 p-3 rounded-lg mb-4">
-              <div class="w-16 h-16 bg-gray-200 rounded-full flex-shrink-0 overflow-hidden border-2 border-white shadow-sm">
-                <img :src="getHumanImg(task.digitalHuman)" class="w-full h-full object-cover">
-              </div>
-              <div class="flex-grow">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-bold">{{ task.digitalHuman }}</span>
-                  <el-button v-if="task.voiceAudio || task.voiceUrl" circle size="small" icon="el-icon-headset" class="!p-1 h-6 w-6" @click="playVoice(task.voiceAudio || task.voiceUrl, task.voice)"></el-button>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">配音: {{ task.voice }}</div>
-              </div>
-            </div>
-
-            <!-- 执行结果/错误展示区域 (固定高度或弹性以对齐按钮) -->
-            <div class="flex-grow">
-              <!-- 执行中状态：显示进度条 -->
-              <div v-if="Number(task.taskStatus) > 0 && Number(task.taskStatus) !== 5" class="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs text-gray-600 font-medium">{{ task.status }}</span>
-                  <span class="text-xs text-gray-400">{{ task.statusPercent }}%</span>
-                </div>
-                <el-progress :percentage="task.statusPercent" :color="task.statusPercent === 100 ? '#67c23a' : '#e6a23c'" :show-text="false" />
-              </div>
-
-              <!-- 完成状态：显示视频预览和下载 -->
-              <div v-if="Number(task.taskStatus) === 5" class="mb-4 bg-green-50 rounded-lg p-3 border border-green-100 animate-fade-in">
-                <div class="mb-3">
-                  <div class="aspect-video bg-black rounded-lg overflow-hidden mb-2 relative group">
-                    <video v-if="task.videoUrl" :src="task.videoUrl" class="w-full h-full object-cover" preload="metadata"></video>
-                    <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
-                      <span class="text-sm">视频加载中...</span>
-                    </div>
-                    <div class="absolute inset-0 bg-black/30 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <el-button type="primary" circle icon="el-icon-video-play" size="large" @click="openVideoPreview(task.videoUrl)"></el-button>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 text-green-700 mb-2">
-                    <i class="el-icon-circle-check"></i>
-                    <span class="text-xs font-bold">生成完成</span>
-                  </div>
-                </div>
-                <div class="flex gap-2 justify-end">
-                  <el-button type="success" size="small" plain icon="el-icon-view" @click="openVideoPreview(task.videoUrl)">全屏预览</el-button>
-                  <el-button type="success" size="small" icon="el-icon-download" @click="downloadAudio(task)">下载音频</el-button>
-                  <el-button type="success" size="small" icon="el-icon-download" @click="downloadVideo(task)">下载视频</el-button>
-                </div>
-              </div>
-
-              <!-- 失败状态 -->
-              <div v-if="Number(task.taskStatus) < 0 || Number(task.taskStatus) > 5 || task.errorMessage" class="mb-4 bg-red-50 rounded-lg p-3 border border-red-100 animate-fade-in">
-                <div class="flex items-center gap-2 text-red-700 mb-2">
-                  <i class="el-icon-warning-outline"></i>
-                  <span class="text-xs font-bold">执行失败</span>
-                </div>
-                <p class="text-[11px] text-red-600 line-clamp-3 leading-relaxed">{{ task.errorMessage || '未知系统错误，请重试或联系管理员' }}</p>
-              </div>
-            </div>
-
-            <div class="flex justify-end items-center border-t border-gray-50 pt-3 gap-1.5 mt-auto">
-              <div class="flex gap-1 opacity-100 transition-opacity mr-auto">
-                <el-button type="primary" size="mini" plain class="!px-2" icon="el-icon-edit" @click="handleEditSubTask(task, currentProject)">编辑</el-button>
-                <el-button type="danger" size="mini" plain class="!px-2" icon="el-icon-delete" @click="handleDeleteSubTask(task, currentProject)">删除</el-button>
-              </div>
-              <el-button type="success" size="small" class="!px-3 font-bold" icon="el-icon-video-play" @click="handleRunTask(task)" v-show="false" :disabled="Number(task.taskStatus) !== 0">{{ Number(task.taskStatus) !== 0 ? '执行中' : '立即执行' }}</el-button>
-              <div v-if="Number(task.taskStatus) === 5" class="text-[11px] text-green-500 font-bold flex items-center gap-1">
-                <i class="el-icon-circle-check"></i>已完成
-              </div>
-            </div>
-          </div>
-          
-          <!-- 空状态 -->
-          <div v-if="currentProject.subTasks.length === 0" class="w-full py-20 flex flex-col items-center text-gray-300">
-             <i class="el-icon-folder-opened text-6xl"></i>
-             <p class="mt-4">暂无子任务，点击上方按钮添加</p>
-          </div>
-
-          <!-- 分页 -->
-          <div v-if="subTaskTotal > subTaskPageSize" class="mt-4 flex justify-center">
-            <el-pagination
-              v-model:current-page="subTaskPage"
-              v-model:page-size="subTaskPageSize"
-              :total="subTaskTotal"
-              :page-sizes="[12, 24, 48]"
-              layout="total, sizes, prev, pager, next"
-              background
-              @current-change="loadSubTaskList(currentProject.id)"
-              @size-change="() => { subTaskPage = 1; loadSubTaskList(currentProject.id) }"
-            />
-          </div>
+        <div class="detail-summary-grid">
+          <div class="summary-item"><span>状态</span><el-tag :type="statusType(detail.plan.statusKey)">{{ statusLabel(detail.plan.statusKey) }}</el-tag></div>
+          <div class="summary-item"><span>总任务数</span><strong>{{ detail.plan.totalCount }}</strong></div>
+          <div class="summary-item"><span>已完成</span><strong class="success-text">{{ detail.plan.completedCount }}</strong></div>
+          <div class="summary-item"><span>失败</span><strong class="danger-text">{{ detail.plan.failedCount }}</strong></div>
         </div>
-      </div>
-    </div>
 
-    <!-- 新建/编辑计划弹窗 -->
-    <el-dialog :title="projectDialog.title" v-model="projectDialog.visible" width="600px" append-to-body>
-      <el-form :model="projectForm" label-width="100px">
-        <el-form-item label="计划名称" required>
-          <el-input v-model="projectForm.name" placeholder="请输入计划名称" />
-        </el-form-item>
-        <el-form-item label="视频语言">
-          <el-select v-model="projectForm.language" placeholder="设置后将自动填充至子任务，也可不选" class="w-full" clearable>
-            <el-option label="自动识别" value="auto" />
-            <el-option label="中文" value="zh" />
-            <el-option label="英文" value="en" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="执行方式">
-          <el-radio-group v-model="projectForm.executionMode">
-            <el-radio label="manual">手动执行</el-radio>
-            <el-radio label="scheduled">定时执行</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="定时时间" v-if="projectForm.executionMode === 'scheduled'" required>
-          <el-date-picker
-            v-model="projectForm.scheduledTime"
-            type="datetime"
-            placeholder="选择计划执行时间"
-            class="w-full"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
-        </el-form-item>
-        <el-form-item label="公共脚本">
-          <div class="flex flex-col gap-2">
-            <el-input
-              type="textarea"
-              v-model="projectForm.script"
-              :rows="4"
-              placeholder="如果不填，则需要在子任务中单独设置；如果填写，子任务将默认使用此脚本"
-            />
-            <div class="flex justify-end gap-2">
-              <el-button size="small" plain @click="openScriptSelector('project')">从脚本库选择</el-button>
-              <el-button size="small" plain type="success" :disabled="!projectForm.script" @click="openSaveScriptDialog(projectForm.script)">保存到脚本库</el-button>
-            </div>
+        <div class="time-grid">
+          <div><span>创建时间</span><strong>{{ formatTime(detail.plan.createTime) }}</strong></div>
+          <div><span>任务开始时间</span><strong>{{ formatTime(detail.plan.startTime) }}</strong></div>
+          <div><span>完成时间</span><strong>{{ formatTime(detail.plan.endTime) }}</strong></div>
+        </div>
+
+        <div class="detail-tip">
+          <el-icon><Rank /></el-icon>
+          <span>统一排序：{{ orderModeLabel(detail.plan.taskOrderMode) }}。同一层按顶层任务组轮转，计划内子任务按序号先进先出。</span>
+        </div>
+
+        <div class="child-table-card">
+          <div class="section-heading">
+            <div><h3>视频子任务</h3><span>字幕或其他后处理完成后，才会写入最终完成时间。</span></div>
+            <el-tag type="info" effect="plain">{{ detail.children.length }} 条</el-tag>
           </div>
-        </el-form-item>
-        <el-form-item label="生成字幕">
-          <el-switch v-model="projectForm.subtitleSelector" :active-value="1" :inactive-value="0" />
-        </el-form-item>
-        <el-form-item label="角标">
-          <div class="flex items-center gap-2 w-full">
-            <div class="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded bg-white min-h-10">
-              <template v-if="projectForm.cornerMark">
-                <img
-                  v-for="item in cornerMarkOptions"
-                  v-show="item.id === projectForm.cornerMark"
-                  :key="item.id"
-                  :src="item.photoUrl"
-                  class="w-8 h-8 object-contain"
-                >
-                <span class="text-gray-700 text-sm">{{ cornerMarkOptions.find((item: any) => item.id === projectForm.cornerMark)?.name }}</span>
+          <el-table :data="detail.children" row-key="id" fit style="width: 100%" :header-cell-style="tableHeaderStyle">
+            <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
+            <el-table-column label="绑定关系" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div class="binding-name">{{ row.bindingName || `绑定关系 #${row.bindingId || '-'}` }}</div>
+                <div class="binding-subtitle">{{ row.digitalHumanName || '-' }} · {{ row.voiceName || '-' }}</div>
               </template>
-              <span v-else class="text-gray-400 text-sm">请选择角标</span>
-            </div>
-            <el-button type="primary" @click="openCornerMarkSelector('project')">选择</el-button>
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="projectDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="submitProject">确定</el-button>
-      </template>
-    </el-dialog>
+            </el-table-column>
+            <el-table-column label="状态" min-width="100" align="center">
+              <template #default="{ row }"><el-tag size="small" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="创建时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.createTime) }}</span></template></el-table-column>
+            <el-table-column label="任务开始时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.startTime) }}</span></template></el-table-column>
+            <el-table-column label="完成时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.endTime) }}</span></template></el-table-column>
+            <el-table-column label="操作" min-width="150" align="center">
+              <template #default="{ row }">
+                <el-button v-if="isFailed(row)" type="warning" link :loading="detail.retryingId === row.id" @click="retryChild(row)">手动重试</el-button>
+                <el-button v-if="row.videoUrl" type="primary" link @click="openVideoPreview(row.videoUrl)">预览</el-button>
+                <span v-if="!isFailed(row) && !row.videoUrl" class="muted-text">-</span>
+              </template>
+            </el-table-column>
+            <template #empty><el-empty description="暂无子任务" :image-size="72" /></template>
+          </el-table>
+        </div>
+      </div>
+      <el-skeleton v-else :rows="8" animated />
+    </el-drawer>
 
-    <!-- 子任务编辑弹窗 (回归简洁版UI) -->
-    <el-dialog 
-      :title="subTaskForm.id ? '编辑子任务' : '添加子任务'" 
-      v-model="subTaskDialog.visible" 
-      width="680px" 
+    <el-dialog
+      v-model="planDialog.visible"
+      :title="planDialog.isEdit ? '编辑批量计划' : '新建批量计划'"
+      width="min(820px, 92vw)"
+      destroy-on-close
       append-to-body
     >
-      <el-form :model="subTaskForm" label-width="100px" class="py-2">
-        <el-row :gutter="20">
-          <el-col :span="16">
-            <el-form-item label="任务名称" required>
-              <el-input v-model="subTaskForm.name" placeholder="请输入子任务名称" />
-            </el-form-item>
-            
-            <el-form-item label="配置方式">
-              <el-radio-group v-model="subTaskForm.useRel" size="small">
-                <el-radio-button :label="true">选择绑定关系</el-radio-button>
-                <el-radio-button :label="false">手动自由选择</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
+      <el-form ref="planFormRef" :model="planForm" :rules="planRules" label-position="top" class="plan-form">
+        <div class="form-grid">
+          <el-form-item label="计划名称" prop="planName">
+            <el-input v-model="planForm.planName" maxlength="80" show-word-limit placeholder="例如：8月新品批量生成" />
+          </el-form-item>
+          <el-form-item label="脚本（只能选择 1 个）" prop="scriptId">
+            <el-select v-model="planForm.scriptId" class="w-full" filterable clearable placeholder="选择文案库脚本" @visible-change="handleScriptSelectVisible">
+              <el-option v-for="script in scriptOptions" :key="script.id" :label="script.title" :value="script.id">
+                <div class="select-option-main">{{ script.title }}</div>
+                <div class="select-option-sub">{{ truncate(script.content, 72) }}</div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </div>
 
-            <el-form-item label="视频语言" required>
-              <el-select v-model="subTaskForm.language" placeholder="请选择视频语言" class="w-full">
-                <el-option label="自动识别" value="auto" />
-                <el-option label="中文" value="zh" />
-                <el-option label="英文" value="en" />
-              </el-select>
-            </el-form-item>
-
-            <template v-if="subTaskForm.useRel">
-              <el-form-item label="绑定关系" required>
-                <el-button 
-                  class="w-full" 
-                  type="primary" 
-                  plain
-                  @click="openRelSelector"
-                >
-                  {{ findRelById(subTaskForm.relId)?.displayName || '选择预设绑定关系' }}
-                </el-button>
-                <div v-if="subTaskForm.relId" class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3">
-                  <img 
-                    v-if="findRelById(subTaskForm.relId)?.humanImg"
-                    :src="findRelById(subTaskForm.relId)?.humanImg"
-                    class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                  >
-                  <div>
-                    <div class="text-sm font-semibold text-blue-900">{{ subTaskForm.digitalHuman }}</div>
-                    <div class="flex items-center gap-2 text-xs text-blue-700 mt-1">
-                      <i class="el-icon-headset"></i>
-                      <span>{{ subTaskForm.voice }}</span>
-                      <el-button v-if="subTaskForm.voiceAudio" type="text" icon="el-icon-video-play" size="small" @click="playVoice(subTaskForm.voiceAudio, subTaskForm.voice)"></el-button>
-                    </div>
-                  </div>
-                </div>
-              </el-form-item>
-            </template>
-
-            <template v-else>
-              <el-form-item label="数字人" required>
-                <el-button 
-                  class="w-full"
-                  type="primary" 
-                  plain
-                  @click="openHumanSelector"
-                >
-                  {{ subTaskForm.digitalHuman || '选择数字人' }}
-                </el-button>
-              </el-form-item>
-              <el-form-item label="配音选择" required>
-                <div class="flex gap-2">
-                  <el-button 
-                    class="flex-1"
-                    type="primary" 
-                    plain
-                    @click="openVoiceSelector"
-                  >
-                    {{ subTaskForm.voice || '选择配音' }}
-                  </el-button>
-                  <el-button v-if="subTaskForm.voice && subTaskForm.voiceAudio" type="primary" plain icon="el-icon-headset" @click="playVoice(subTaskForm.voiceAudio, subTaskForm.voice)">试听</el-button>
-                </div>
-              </el-form-item>
-            </template>
-          </el-col>
-          <el-col :span="8" class="flex flex-col items-center">
-             <!-- 预览区域 -->
-             <div class="w-48 h-48 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden relative">
-                <!-- 使用预设时显示预设的图片；手动选择时显示humanOptions的图片 -->
-                <img 
-                  v-if="subTaskForm.humanImg" 
-                  :src="subTaskForm.humanImg" 
-                  class="w-full h-full object-cover"
-                >
-                <img 
-                  v-else-if="!subTaskForm.humanImg && subTaskForm.digitalHuman" 
-                  :src="getHumanImg(subTaskForm.digitalHuman)" 
-                  class="w-full h-full object-cover"
-                >
-                <div v-else class="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                    <i class="el-icon-user text-4xl"></i>
-                    <span class="text-xs mt-2">形象预览</span>
-                </div>
-                <!-- 声音播放指示 -->
-                <div v-if="isPlaying" class="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <div class="flex gap-1">
-                        <div class="w-1 h-3 bg-white animate-bounce"></div>
-                        <div class="w-1 h-5 bg-white animate-bounce" style="animation-delay: 0.1s"></div>
-                        <div class="w-1 h-3 bg-white animate-bounce" style="animation-delay: 0.2s"></div>
-                    </div>
-                </div>
-             </div>
-             <div class="mt-2 text-[10px] text-gray-400">形象/声音预览</div>
-          </el-col>
-        </el-row>
-
-        <el-form-item label="脚本内容">
-          <template v-if="subTaskForm.isInherited">
-            <div class="p-3 bg-blue-50 border border-blue-100 rounded text-blue-600 text-xs italic">
-              {{ subTaskForm.script || '已继承公共脚本' }}
-              <p class="mt-1 text-[10px] text-blue-400 not-italic">(公共脚本模式下不支持在本级编辑)</p>
-            </div>
-          </template>
-          <template v-else>
-            <el-input
-              type="textarea"
-              v-model="subTaskForm.script"
-              :rows="5"
-              placeholder="请输入脚本内容"
-            />
-            <div class="flex justify-end gap-2 mt-2">
-              <el-button size="small" plain @click="openScriptSelector('subtask', 'library')">从脚本库选择</el-button>
-              <el-button size="small" plain type="success" :disabled="!subTaskForm.script" @click="openSaveScriptDialog(subTaskForm.script)">保存到脚本库</el-button>
-            </div>
-          </template>
-        </el-form-item>
-        <el-form-item label="生成字幕">
-          <el-switch v-model="subTaskForm.subtitleSelector" :active-value="1" :inactive-value="0" />
-        </el-form-item>
-        <el-form-item label="角标">
-          <div class="flex items-center gap-2 w-full">
-            <div class="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded bg-white min-h-10">
-              <template v-if="subTaskForm.cornerMark">
-                <img
-                  v-for="item in cornerMarkOptions"
-                  v-show="item.id === subTaskForm.cornerMark"
-                  :key="item.id"
-                  :src="item.photoUrl"
-                  class="w-8 h-8 object-contain"
-                >
-                <span class="text-gray-700 text-sm">{{ cornerMarkOptions.find((item: any) => item.id === subTaskForm.cornerMark)?.name }}</span>
-              </template>
-              <span v-else class="text-gray-400 text-sm">请选择角标（默认继承计划设置）</span>
-            </div>
-            <el-button type="primary" @click="openCornerMarkSelector('subtask')">选择</el-button>
+        <el-form-item label="预设绑定关系（至少 1 个，最多 15 个）" prop="bindingIds">
+          <el-select
+            v-model="planForm.bindingIds"
+            class="w-full"
+            filterable
+            multiple
+            collapse-tags
+            :max-collapse-tags="4"
+            :multiple-limit="15"
+            placeholder="选择数字人与配音的绑定关系"
+            @visible-change="handleBindingSelectVisible"
+          >
+            <el-option v-for="binding in bindingOptions" :key="binding.id" :label="binding.name" :value="binding.id">
+              <div class="binding-option"><span>{{ binding.name }}</span><small>{{ binding.digitalHumanName || '-' }} · {{ binding.voiceName || '-' }}</small></div>
+            </el-option>
+          </el-select>
+          <div class="selection-summary" :class="{ warning: planForm.bindingIds.length > 15 }">
+            已选择 <strong>{{ planForm.bindingIds.length }}</strong> 个绑定关系，将生成 <strong>{{ planForm.bindingIds.length }}</strong> 个视频
           </div>
+        </el-form-item>
+
+        <el-form-item label="执行方式" prop="scheduleMode">
+          <el-radio-group v-model="planForm.scheduleMode" class="schedule-radio-group">
+            <el-radio-button label="immediate">立即执行</el-radio-button>
+            <el-radio-button label="scheduled">指定时间</el-radio-button>
+            <el-radio-button label="overnight">夜间预排</el-radio-button>
+          </el-radio-group>
+          <div class="form-help" v-if="planForm.scheduleMode === 'overnight'">夜间任务保留原始创建时间，普通任务清空后按创建时间进入视频通道。</div>
+        </el-form-item>
+
+        <el-form-item v-if="planForm.scheduleMode === 'scheduled'" label="计划执行时间" prop="scheduledAt">
+          <el-date-picker
+            v-model="planForm.scheduledAt"
+            class="w-full"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disablePastDate"
+            placeholder="选择未来的执行时间"
+          />
+        </el-form-item>
+
+        <el-form-item label="视频后处理（可选）">
+          <el-checkbox-group v-model="planForm.processTypes">
+            <el-checkbox label="subtitle">字幕</el-checkbox>
+            <el-checkbox label="corner_mark">角标</el-checkbox>
+            <el-checkbox label="banner_overlay">横幅</el-checkbox>
+          </el-checkbox-group>
+          <el-select v-if="planForm.processTypes.includes('corner_mark')" v-model="planForm.cornerMarkId" class="w-full mt-2" clearable filterable placeholder="选择角标素材">
+            <el-option v-for="mark in cornerMarkOptions" :key="mark.id" :label="mark.name" :value="mark.id" />
+          </el-select>
+          <div class="form-help">需要后处理时，视频接口完成不代表最终完成，页面会等后处理结束再更新完成时间。</div>
         </el-form-item>
       </el-form>
+
       <template #footer>
-        <el-button @click="subTaskDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="submitSubTask">保存</el-button>
+        <el-button @click="planDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="planDialog.submitting" @click="submitPlan">{{ planDialog.isEdit ? '保存修改' : '创建并提交' }}</el-button>
       </template>
     </el-dialog>
 
-    <!-- 脚本选择器 -->
-    <el-dialog title="选择脚本" v-model="scriptSelector.visible" width="850px" append-to-body>
-      <el-tabs v-model="scriptSelector.activeTab" class="custom-tabs" @tab-change="handleScriptTabChange">
-        <el-tab-pane label="脚本库" name="library">
-          <div class="mb-4 flex gap-2">
-            <el-input placeholder="查找脚本..." v-model="scriptSelector.search" size="small" style="width: 240px">
-                <template #prefix><i class="el-icon-search"></i></template>
-            </el-input>
-          </div>
-          <el-table :data="filteredScriptLibrary" height="350px" border>
-            <el-table-column prop="title" label="标题" width="150" />
-            <el-table-column label="标签" width="180">
-              <template #default="scope">
-                <div class="flex flex-wrap gap-1">
-                  <el-tag v-for="tag in scope.row.tags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="content" label="内容" show-overflow-tooltip />
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="scope">
-                <el-button type="primary" size="mini" text @click="selectScript(scope.row)">选入</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
-        <el-tab-pane label="历史记录" name="history">
-          <div class="mb-4 flex gap-2">
-            <el-input placeholder="查找脚本..." v-model="scriptSelector.search" size="small" style="width: 240px">
-                <template #prefix><i class="el-icon-search"></i></template>
-            </el-input>
-          </div>
-           <el-table :data="filteredScriptHistory" height="350px" border>
-            <el-table-column prop="createTime" label="生成时间" width="180" />
-            <el-table-column prop="content" label="内容片段" show-overflow-tooltip />
-            <el-table-column label="操作" width="120" fixed="right">
-              <template #default="scope">
-                <el-button type="primary" size="mini" text @click="selectScript(scope.row)">选入</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
-      </el-tabs>
-    </el-dialog>
-
-    <!-- 保存到脚本库弹窗 -->
-    <el-dialog title="保存到脚本库" v-model="saveScriptDialog.visible" width="450px" append-to-body>
-      <el-form :model="saveScriptDialog.form" label-width="80px">
-        <el-form-item label="脚本标题" required>
-          <el-input v-model="saveScriptDialog.form.title" placeholder="请输入标题" />
-        </el-form-item>
-        <el-form-item label="脚本内容">
-          <el-input type="textarea" v-model="saveScriptDialog.form.content" :rows="4" readonly />
-        </el-form-item>
-        <el-form-item label="脚本标签">
-          <div class="flex flex-wrap gap-2 mb-2">
-            <el-tag 
-              v-for="(tag, index) in saveScriptDialog.form.tags" 
-              :key="index" 
-              closable 
-              size="small"
-              @close="saveScriptDialog.form.tags.splice(index, 1)"
-            >
-              {{ tag }}
-            </el-tag>
-          </div>
-          <el-input 
-            v-model="saveScriptDialog.form.newTag" 
-            placeholder="输入标签按回车添加" 
-            size="small"
-            @keyup.enter="() => {
-              if (saveScriptDialog.form.newTag) {
-                saveScriptDialog.form.tags.push(saveScriptDialog.form.newTag);
-                saveScriptDialog.form.newTag = '';
-              }
-            }"
-          >
-            <template #append>
-              <el-button @click="() => {
-                if (saveScriptDialog.form.newTag) {
-                   saveScriptDialog.form.tags.push(saveScriptDialog.form.newTag);
-                   saveScriptDialog.form.newTag = '';
-                }
-              }">添加</el-button>
-            </template>
-          </el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="saveScriptDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="confirmSaveScript">确认保存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 角标选择器 -->
-    <el-dialog title="选择角标" v-model="cornerMarkSelectorDialog.visible" width="900px" append-to-body>
-      <div class="space-y-4">
-        <div class="flex items-center gap-2">
-          <el-input placeholder="搜索角标..." v-model="cornerMarkSelectorDialog.search" size="small" style="width: 300px;" clearable>
-            <template #prefix><i class="el-icon-search"></i></template>
-          </el-input>
-          <span v-if="pinnedCornerMarkIds.length > 0" class="text-xs text-blue-500 flex items-center gap-1">
-            <i class="el-icon-top"></i>{{ pinnedCornerMarkIds.length }} 个已置顶
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[700px] overflow-y-auto">
-          <div
-            v-for="item in sortedCornerMarkOptions"
-            :key="item.id"
-            class="relative cursor-pointer group text-center"
-            @click="selectCornerMark(item)"
-          >
-            <!-- 置顶标识 -->
-            <div v-if="pinnedCornerMarkIds.includes(item.id)" class="absolute top-2 left-2 z-10">
-              <el-tag type="primary" size="small" effect="dark" class="!px-1.5 !text-[10px] !h-5 leading-5 shadow">
-                置顶
-              </el-tag>
-            </div>
-            <div
-              class="rounded-lg overflow-hidden border-2 transition-all shadow-sm p-2 bg-white h-[400px] flex items-center justify-center"
-              :class="(cornerMarkSelectorDialog.context === 'project' ? projectForm.cornerMark : subTaskForm.cornerMark) === item.id
-                ? 'border-blue-500 shadow-lg shadow-blue-300/50'
-                : 'border-blue-300 group-hover:border-blue-400 group-hover:shadow-md'"
-            >
-              <img
-                :src="item.photoUrl"
-                class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform"
-                :alt="item.name"
-              >
-            </div>
-            <div class="mt-3 flex items-center justify-center gap-2">
-              <p class="text-sm text-gray-700 font-medium truncate flex-1 text-center">{{ item.name }}</p>
-              <div
-                :class="[
-                  'flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded border cursor-pointer transition-all select-none flex-shrink-0 font-medium',
-                  pinnedCornerMarkIds.includes(item.id)
-                    ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
-                    : 'bg-white border-blue-300 text-blue-400 hover:border-blue-500 hover:text-blue-500'
-                ]"
-                @click.stop="togglePinCornerMark(item.id)"
-              >
-                <svg viewBox="0 0 24 24" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="19" x2="12" y2="5"/>
-                  <polyline points="5 12 12 5 19 12"/>
-                  <line x1="5" y1="3" x2="19" y2="3"/>
-                </svg>
-                <span>置顶</span>
-              </div>
-            </div>
-            <div
-              v-if="(cornerMarkSelectorDialog.context === 'project' ? projectForm.cornerMark : subTaskForm.cornerMark) === item.id"
-              class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md"
-            >
-              <i class="el-icon-check text-white text-sm"></i>
-            </div>
-          </div>
-        </div>
+    <el-dialog v-model="preview.visible" title="视频预览" width="min(720px, 92vw)" append-to-body @closed="stopPreview">
+      <div class="video-preview-wrap">
+        <video v-if="preview.url" ref="previewVideo" :src="preview.url" controls autoplay playsinline class="preview-video" />
+        <el-empty v-else description="暂无视频地址" />
       </div>
-    </el-dialog>
-
-    <!-- 数字人选择器 -->
-    <el-dialog title="选择数字人" v-model="humanSelectorDialog.visible" width="600px" append-to-body>
-      <!-- 数字人选择器搜索框 -->
-      <el-input
-        v-model="humanSelectorDialog.search"
-        placeholder="搜索数字人..."
-        clearable
-        size="large"
-        class="mb-4"
-        @input="filterHumanSelector"
-      >
-        <template #prefix>
-          <i class="el-icon-search text-gray-400"></i>
-        </template>
-      </el-input>
-      <div v-if="humanSelectorDialog.displayList.length > 0" style="height: 400px; overflow-y: auto;">
-        <div class="grid grid-cols-4 gap-4 p-4">
-          <div 
-            v-for="item in humanSelectorDialog.displayList" 
-            :key="item.name"
-            class="cursor-pointer text-center hover:opacity-80 transition"
-            @click="selectHuman(item)"
-          >
-            <img :src="item.img" class="w-full h-24 rounded-lg object-cover mb-2">
-            <div class="text-sm">{{ item.name }}</div>
-          </div>
-        </div>
-      </div>
-      <div v-else class="text-center text-gray-400 py-8">暂无匹配的数字人</div>
-    </el-dialog>
-
-    <!-- 配音选择器 -->
-    <el-dialog title="选择配音" v-model="voiceSelectorDialog.visible" width="500px" append-to-body>
-      <!-- 配音选择器搜索框 -->
-      <el-input
-        v-model="voiceSelectorDialog.search"
-        placeholder="搜索配音..."
-        clearable
-        size="large"
-        class="mb-4"
-        @input="filterVoiceSelector"
-      >
-        <template #prefix>
-          <i class="el-icon-search text-gray-400"></i>
-        </template>
-      </el-input>
-      <div v-if="voiceSelectorDialog.displayList.length > 0" style="height: 400px; overflow-y: auto;">
-        <div class="space-y-2 p-4">
-          <div 
-            v-for="item in voiceSelectorDialog.displayList" 
-            :key="item.name"
-            class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition"
-            @click="selectVoice(item)"
-          >
-            <span>{{ item.name }}</span>
-            <el-button type="text" icon="el-icon-headset" size="small" @click.stop="playVoice(item.url, item.name)"></el-button>
-          </div>
-        </div>
-      </div>
-      <div v-else class="text-center text-gray-400 py-8">暂无匹配的配音</div>
-    </el-dialog>
-
-    <!-- 预设选择器 -->
-    <el-dialog title="选择预设绑定" v-model="relSelectorDialog.visible" width="700px" append-to-body>
-      <!-- 预设选择器中的搜索框 -->
-      <el-input
-        v-model="relSelectorDialog.search"
-        placeholder="搜索数字人或配音..."
-        clearable
-        size="large"
-        class="mb-4"
-        @input="filterRelSelector"
-      >
-        <template #prefix>
-          <i class="el-icon-search text-gray-400"></i>
-        </template>
-      </el-input>
-      <div v-if="relSelectorDialog.displayList.length > 0" style="height: 450px; overflow-y: auto;">
-        <div class="space-y-3 p-4">
-          <div 
-            v-for="item in relSelectorDialog.displayList" 
-            :key="item.id"
-            class="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition"
-            @click="selectRel(item)"
-          >
-            <!-- 左边：数字人头像 -->
-            <img 
-              v-if="item.humanImg" 
-              :src="item.humanImg" 
-              class="w-24 h-24 rounded-lg object-cover flex-shrink-0 shadow-sm"
-            >
-            <div v-else class="w-24 h-24 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <i class="el-icon-user text-3xl text-gray-400"></i>
-            </div>
-
-            <!-- 中间：信息 -->
-            <div class="flex-1 min-w-0">
-              <div class="font-semibold text-sm mb-1">{{ item.human }}</div>
-              <div class="flex items-center gap-2 mb-2">
-                <i class="el-icon-headset text-gray-400"></i>
-                <span class="text-sm text-gray-600">{{ item.voice }}</span>
-              </div>
-              <div class="text-xs text-gray-400">{{ item.displayName }}</div>
-            </div>
-
-            <!-- 右边：操作按钮 -->
-            <div class="flex flex-col gap-2 flex-shrink-0">
-              <el-button 
-                type="primary" 
-                icon="el-icon-headset" 
-                circle
-                size="small"
-                @click.stop="playVoice(item.voiceUrl, item.voice)"
-                title="试听配音"
-              ></el-button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-else class="text-center text-gray-400 py-12">暂无匹配的预设数据</div>
-    </el-dialog>
-
-    <!-- 视频播放弹窗 -->
-    <el-dialog title="视频预览" v-model="videoPreview.visible" width="85%" :modal="true" append-to-body top="5vh" custom-class="video-preview-dialog" @closed="handleVideoPreviewClosed">
-      <div class="flex flex-col gap-4">
-        <div class="bg-black flex items-center justify-center rounded-lg overflow-hidden" style="height: 500px;">
-          <video v-if="videoPreview.url" ref="videoPreviewRef" :src="videoPreview.url" controls autoplay class="max-w-full max-h-full object-contain"></video>
-          <div v-else class="text-white text-center">
-            <i class="el-icon-loading text-4xl animate-spin"></i>
-            <p class="mt-2 text-sm">加载中...</p>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button type="primary" @click="videoPreview.visible = false">关闭</el-button>
-        </span>
-      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useTaskStore } from '/@/store/modules/task'
-import { createPlanVideo, createPlanVideoTask, deletePlanVideoTask, deletePlanVideo, getPlanVideoList, getScriptPaginateList, getScriptHistoryList, createScript, getDigitalHumanList, getVoiceList, getBindingList, startPlanVideoTask, startAllPlanTasks, getCornerMarkList, toTopCornerMark } from '/@/api/material/index'
-import request from '/@/utils/request'
-import { downloadProxyFile, normalizeAssetUrl } from '/@/utils/download'
+import { Plus, Rank, Refresh, Search } from '@element-plus/icons-vue'
+import {
+  cancelVideoBatchPlan,
+  createVideoBatchPlan,
+  deleteVideoBatchPlan,
+  getBindingList,
+  getCornerMarkList,
+  getScriptPaginateList,
+  getVideoBatchPlanDetail,
+  getVideoBatchPlanList,
+  getVideoDispatchGroups,
+  reorderVideoDispatchGroups,
+  retryVideoBatchChild,
+  startVideoBatchPlan,
+  updateVideoBatchPlan
+} from '/@/api/material'
+import { useLayoutStore } from '/@/store/modules/layout'
 
-const DEFAULT_PLAN_SUBTITLE_CONFIG = {
-  font_name: '竹言体',
-  font_size: 18,
-  margin_v: 74,
-  primary_colour: '#FFFF00',
-  outline: 1,
-  outline_colour: '#000000',
-  bold: 1,
-  bg_mode: 'none',
-  bg_height: 60,
-  bg_colour: 'rgba(0,0,0,0.5)',
-  blur_subtitles: false,
-  blur_strength: 15,
+type ScheduleMode = 'immediate' | 'scheduled' | 'overnight'
+type StatusKey = 'draft' | 'waiting' | 'running' | 'completed' | 'partial_failed' | 'failed' | 'cancelled'
+
+interface ScriptOption {
+  id: string | number
+  title: string
+  content: string
 }
 
-const buildPlanSubtitlePayload = (subtitleSelector: number, cornerMarkId?: string | number) => {
-  const processTypes: string[] = []
-  if (Number(subtitleSelector) === 1) processTypes.push('subtitle')
-  if (cornerMarkId) processTypes.push('corner_mark')
-  if (processTypes.length === 0) return undefined
-
-  return {
-    process_types: processTypes,
-    subtitle_config: Number(subtitleSelector) === 1 ? { ...DEFAULT_PLAN_SUBTITLE_CONFIG } : null,
-  }
+interface BindingOption {
+  id: string | number
+  name: string
+  digitalHumanName: string
+  voiceName: string
+  digitalHumanExternalId?: string
+  voiceExternalId?: string
+  coverUrl?: string
+  voiceUrl?: string
 }
 
-// --- 数据定义 ---
-const taskStore = useTaskStore()
-const viewMode = ref('list') // 'list' 或 'detail'
-const currentProject = ref<any>(null)
-const isPlaying = ref(false)
-let currentAudio: HTMLAudioElement | null = null
-let currentAudioUrl = ''
+interface BatchChild {
+  id: string | number
+  seqNo: number
+  bindingId?: string | number
+  bindingName: string
+  digitalHumanName: string
+  voiceName: string
+  statusKey: StatusKey
+  createTime?: string
+  startTime?: string
+  endTime?: string
+  errorMessage?: string
+  videoUrl?: string
+  retryable?: boolean
+  attemptNo?: number
+}
 
-// --- 模拟数据 ---
-const humanOptions = ref<any[]>([
-  { name: '小美', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop' },
-  { name: '阿强', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop' },
-  { name: '露西', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
-  { name: '大白', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop' }
-])
+interface BatchPlan {
+  id: string | number
+  name: string
+  statusKey: StatusKey
+  taskOrderMode?: string
+  scheduleMode: ScheduleMode
+  scheduledAt?: string
+  createTime?: string
+  startTime?: string
+  endTime?: string
+  totalCount: number
+  completedCount: number
+  failedCount: number
+  bindingIds: Array<string | number>
+  scriptId?: string | number
+  processTypes: string[]
+  cornerMarkId?: string | number | null
+  children: BatchChild[]
+}
 
-const voiceOptions = ref<any[]>([
-  { name: '甜美女声', audio: '' },
-  { name: '磁性男声', audio: '' },
-  { name: '活力少女', audio: '' },
-  { name: '成熟稳重', audio: '' }
-])
+interface DispatchGroup {
+  id: string | number
+  title: string
+  groupTypeLabel: string
+  dispatchMode: string
+  priorityLevel: number
+  priorityRank: number
+  canReorder: boolean
+  waitingItemCount: number
+  activeItemCount: number
+  createdAt?: string
+}
 
-const relList = ref<any[]>([
-  { 
-    id: 1, 
-    name: '夏季服装场景', 
-    displayName: '小美 + 甜美女声',
-    human: '小美', 
-    humanImg: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
-    voice: '甜美女声', 
-    voiceAudio: ''
-  },
-  { 
-    id: 2, 
-    name: '专业测评场景', 
-    displayName: '阿强 + 磁性男声',
-    human: '阿强', 
-    humanImg: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
-    voice: '磁性男声',
-    voiceAudio: ''
-  }
-])
+const layoutStore = useLayoutStore()
+const isPlatformSuperAdmin = computed(() => Boolean(layoutStore.getUserInfo.isPlatformSuperAdmin))
+const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
 
-const projectList = ref<any[]>([])
-const searchKeyword = ref('')
+const listLoading = ref(false)
+const planList = ref<BatchPlan[]>([])
 const planPage = ref(1)
 const planPageSize = ref(20)
 const planTotal = ref(0)
+const searchKeyword = ref('')
+const dispatchLoading = ref(false)
+const dispatchSaving = ref(false)
+const dispatchOrderMode = ref('chronological')
+const dispatchGroups = ref<DispatchGroup[]>([])
+const draggedDispatchIndex = ref<number | null>(null)
 
-// 子任务分页
-const subTaskPage = ref(1)
-const subTaskPageSize = ref(12)
-const subTaskTotal = ref(0)
-
-const scriptLibrary = ref([
-  { title: '带货通用模板', content: '家人们，今天这款产品真的超级划算...', tags: ['带货', '通用'] },
-  { title: '品牌故事模板', content: '跨越十年的坚持，只为给你最极致的体验...', tags: ['品牌', '案例'] }
-])
-
-const scriptHistory = ref([
-  { date: '2023-11-15', content: '上一场直播用过的开场白...' },
-  { date: '2023-11-16', content: '关于洗面奶的解说词...' }
-])
-
-// --- 弹窗逻辑 ---
-const projectDialog = reactive({ visible: false, title: '新建生成计划' })
-const projectForm = reactive<any>({
-  id: null,
-  name: '',
-  language: 'zh',
-  script: '',
-  executionMode: 'manual',
-  scheduledTime: '',
-  subtitleSelector: 1, // 0=不生成字幕，1=生成字幕
-  colour: 'yellow', // 字幕颜色，固定黄色
-  cornerMark: '', // 角标ID
+const planFormRef = ref<any>()
+const planForm = reactive({
+  id: null as string | number | null,
+  planName: '',
+  scriptId: null as string | number | null,
+  bindingIds: [] as Array<string | number>,
+  scheduleMode: 'immediate' as ScheduleMode,
+  scheduledAt: '',
+  processTypes: [] as string[],
+  cornerMarkId: null as string | number | null
 })
 
-const subTaskDialog = reactive({ visible: false, title: '编辑子任务' })
-const subTaskForm = reactive<any>({ 
-  id: null, 
-  name: '',  // 标题
-  language: 'zh',
-  script: '',  // 字幕/脚本内容
-  subtitleSelector: 0,
-  colour: 'yellow',
-  cornerMark: '', // 角标ID
-  // 数字人相关
-  relId: '',  // 预设ID
-  useRel: true,  // 是否使用预设
-  digital_human_id: '',
-  digital_human_name: '',
-  digital_human_cover_url: '',
-  // 配音相关
-  voice_id: '',
-  voice_name: '',
-  voice_url: '',  // 配音试听URL
-  base_voice_url: '',
-  // 兼容字段
-  digitalHuman: '',
-  voice: '',
-  humanImg: '',
-  voiceAudio: ''
-})
-
-const scriptSelector = reactive({ 
-  visible: false, 
-  activeTab: 'library', 
-  search: '', 
-  target: 'project' 
-})
-
-const saveScriptDialog = reactive({
+const planDialog = reactive({ visible: false, isEdit: false, submitting: false })
+const detail = reactive({
   visible: false,
-  form: {
-    title: '',
-    content: '',
-    tags: [] as string[],
-    newTag: ''
-  }
-})
-
-// --- 数字人选择器 ---
-const humanSelectorDialog = reactive({
-  visible: false,
-  search: '',
-  allList: [] as any[],
-  displayList: [] as any[],
-  page: 1,
-  pageSize: 20,
   loading: false,
-  hasMore: true
+  retryingId: null as string | number | null,
+  plan: null as BatchPlan | null,
+  children: [] as BatchChild[]
 })
+const preview = reactive({ visible: false, url: '' })
+const previewVideo = ref<HTMLVideoElement | null>(null)
 
-// --- 配音选择器 ---
-const voiceSelectorDialog = reactive({
-  visible: false,
-  search: '',
-  allList: [] as any[],
-  displayList: [] as any[],
-  page: 1,
-  pageSize: 20,
-  loading: false,
-  hasMore: true
-})
+const scriptOptions = ref<ScriptOption[]>([])
+const bindingOptions = ref<BindingOption[]>([])
+const cornerMarkOptions = ref<Array<{ id: string | number; name: string }>>([])
+const resourcesLoaded = reactive({ scripts: false, bindings: false, cornerMarks: false })
 
-// --- 快捷预设选择器 ---
-const relSelectorDialog = reactive({
-  visible: false,
-  search: '',
-  allList: [] as any[],
-  displayList: [] as any[],
-  page: 1,
-  pageSize: 20,
-  loading: false,
-  hasMore: true
-})
+const planRules = {
+  planName: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
+  scriptId: [{ required: true, message: '请选择一个脚本', trigger: 'change' }],
+  bindingIds: [{ required: true, message: '至少选择一个绑定关系', trigger: 'change' }],
+  scheduleMode: [{ required: true, message: '请选择执行方式', trigger: 'change' }],
+  scheduledAt: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
+    if (planForm.scheduleMode !== 'scheduled') return callback()
+    if (!value) return callback(new Error('请选择计划执行时间'))
+    if (new Date(value.replace(' ', 'T')).getTime() <= Date.now()) return callback(new Error('指定时间必须晚于当前时间'))
+    callback()
+  }, trigger: 'change' }]
+}
 
-// --- 角标选择器 ---
-const cornerMarkOptions = ref<any[]>([])
-const cornerMarkSelectorDialog = reactive({
-  visible: false,
-  search: '',
-  context: 'project' as 'project' | 'subtask'
-})
+function getResponseData(response: any): any {
+  return response?.data?.data ?? response?.data ?? {}
+}
 
-// 置顶的角标 ID（按 sort 倒序，sort 越大越靠前）
-const pinnedCornerMarkIds = ref<(string | number)[]>([])
+function getPageData(response: any): { items: any[]; total: number } {
+  const data = getResponseData(response)
+  if (Array.isArray(data)) return { items: data, total: data.length }
+  const items = data?.data || data?.items || data?.results || []
+  return { items: Array.isArray(items) ? items : [], total: Number(data?.total ?? data?.count ?? items.length) }
+}
 
-// 置顶排序后的角标列表
-const sortedCornerMarkOptions = computed(() => {
-  const filtered = cornerMarkOptions.value.filter(
-    (i: any) => !cornerMarkSelectorDialog.search || i.name.includes(cornerMarkSelectorDialog.search)
-  )
-  const pinned = filtered
-    .filter((i: any) => i.sort !== null && i.sort !== undefined)
-    .sort((a: any, b: any) => b.sort - a.sort)
-  const rest = filtered.filter((i: any) => i.sort === null || i.sort === undefined)
-  return [...pinned, ...rest]
-})
+function responseId(response: any): string | number | null {
+  const data = getResponseData(response)
+  return data?.id ?? data?.planId ?? data?.plan?.id ?? null
+}
 
-// 切换置顶状态（调用后端接口，接口同时处理置顶和取消置顶）
-const togglePinCornerMark = async (id: string | number) => {
-  try {
-    await toTopCornerMark(id)
-    // 重新拉取列表以获取最新 sort 值
-    await fetchCornerMarks()
-    const isPinned = pinnedCornerMarkIds.value.includes(id)
-    ElMessage.success(isPinned ? '已置顶，排在最前' : '已取消置顶')
-  } catch (error) {
-    console.error('置顶操作失败:', error)
-    ElMessage.error('操作失败，请重试')
+function normalizeStatus(value: any, fallback: StatusKey = 'waiting'): StatusKey {
+  const raw = String(value ?? '').trim().toLowerCase()
+  if (['draft', 'unsubmitted', '未执行', '草稿'].includes(raw)) return 'draft'
+  if (['running', 'processing', 'in_progress', '执行中', '生成中'].includes(raw)) return 'running'
+  if (['completed', 'success', 'succeeded', 'done', '已完成', '5', '2'].includes(raw)) return 'completed'
+  if (['partial_failed', 'partial-failed', '部分失败'].includes(raw)) return 'partial_failed'
+  if (['failed', 'fail', 'error', '失败', '执行失败', '-1'].includes(raw)) return 'failed'
+  if (['cancelled', 'canceled', '已取消'].includes(raw)) return 'cancelled'
+  if (['waiting', 'pending', 'queued', 'submitted', '等待中', '待执行', '0', '1'].includes(raw)) return 'waiting'
+  return fallback
+}
+
+function normalizeScheduleMode(value: any): ScheduleMode {
+  const raw = String(value ?? '').trim().toLowerCase()
+  if (raw === 'scheduled' || raw === '2' || raw === '指定时间') return 'scheduled'
+  if (raw === 'overnight' || raw === 'night' || raw === '夜间预排') return 'overnight'
+  return 'immediate'
+}
+
+function extractChildren(raw: any): any[] {
+  const data = raw?.plan || raw?.detail || raw || {}
+  return data?.children || raw?.children || data?.tasks || data?.items || data?.subTasks || []
+}
+
+function normalizeChild(item: any, index: number): BatchChild {
+  const snapshot = item.bindingSnapshot || item.binding_snapshot || {}
+  const rawStatus = item.taskStatus ?? item.status ?? item.state
+  return {
+    id: item.id ?? item.taskId ?? item.videoTaskId ?? index,
+    seqNo: Number(item.seqNo ?? item.seq_no ?? item.childSeq ?? item.child_seq ?? index + 1),
+    bindingId: item.bindingId ?? item.binding_id,
+    bindingName: item.bindingName || item.binding_name || snapshot.name || `${item.digitalHumanName || snapshot.digitalHumanName || '数字人'} + ${item.voiceName || snapshot.voiceName || '配音'}`,
+    digitalHumanName: item.digitalHumanName || item.digital_human_name || snapshot.digitalHumanName || snapshot.digital_human_name || '',
+    voiceName: item.voiceName || item.voice_name || snapshot.voiceName || snapshot.voice_name || '',
+    statusKey: normalizeStatus(rawStatus, item.errorMessage || item.error_message ? 'failed' : 'waiting'),
+    createTime: item.createTime || item.create_time,
+    startTime: item.startTime || item.start_time,
+    endTime: item.endTime || item.end_time,
+    errorMessage: item.errorMessage || item.error_message || '',
+    videoUrl: item.videoUrl || item.video_url || '',
+    retryable: Boolean(item.retryable ?? normalizeStatus(rawStatus) === 'failed'),
+    attemptNo: Number(item.attemptNo ?? item.attempt_no ?? 0)
   }
 }
 
-const videoPreview = reactive({
-  visible: false,
-  url: ''
-})
-const videoPreviewRef = ref<HTMLVideoElement | null>(null)
-
-const handleVideoPreviewClosed = () => {
-  if (!videoPreviewRef.value) return
-  videoPreviewRef.value.pause()
-  videoPreviewRef.value.currentTime = 0
-}
-
-const filteredScriptLibrary = computed(() => {
-  const s = scriptSelector.search.toLowerCase()
-  if (!Array.isArray(scriptLibrary.value)) {
-    console.warn('脚本库数据不是数组:', scriptLibrary.value)
-    return []
-  }
-  return scriptLibrary.value.filter(item => 
-    item.title.toLowerCase().includes(s) || 
-    item.content.toLowerCase().includes(s) ||
-    item.tags.some((t: string) => t.toLowerCase().includes(s))
-  )
-})
-
-const filteredScriptHistory = computed(() => {
-  const s = scriptSelector.search.toLowerCase()
-  if (!Array.isArray(scriptHistory.value)) {
-    console.warn('历史脚本数据不是数组:', scriptHistory.value)
-    return []
-  }
-  return scriptHistory.value.filter(item => 
-    item.content.toLowerCase().includes(s)
-  )
-})
-
-// --- 数据加载函数 ---
-const loadDigitalHumanList = async () => {
-  try {
-    const response = await getDigitalHumanList()
-    if (response.data && response.data.data && Array.isArray(response.data.data)) {
-      // 映射API字段：digitalHumanName -> name，coverUrl -> img，externalId -> externalId
-      humanOptions.value = response.data.data.map((item: any) => ({
-        externalId: item.externalId || item.id || '',
-        name: item.digitalHumanName || item.name || '',
-        img: item.coverUrl || item.img || '',
-        ...item  // 保留原始字段以备使用
-      }))
-    }
-  } catch (error) {
-    console.error('加载数字人列表失败:', error)
+function normalizePlan(item: any): BatchPlan {
+  const source = item?.plan || item?.detail || item || {}
+  const children = extractChildren(item).map(normalizeChild).sort((a, b) => a.seqNo - b.seqNo || String(a.id).localeCompare(String(b.id)))
+  const statusValue = source.taskStatus ?? source.status ?? source.state
+  const failedCount = Number(source.failedCount ?? source.failed_count ?? children.filter(child => isFailed(child)).length)
+  const completedCount = Number(source.completedCount ?? source.completed_count ?? children.filter(child => child.statusKey === 'completed').length)
+  const totalCount = Number(source.totalCount ?? source.total_count ?? source.childCount ?? source.child_count ?? source.size ?? children.length)
+  return {
+    id: source.id ?? source.planId,
+    name: source.planName || source.name || '',
+    statusKey: normalizeStatus(statusValue, failedCount > 0 && completedCount > 0 ? 'partial_failed' : 'waiting'),
+    taskOrderMode: source.taskOrderMode || source.task_order_mode || source.orderMode || '',
+    scheduleMode: normalizeScheduleMode(source.scheduleMode ?? source.schedule_mode ?? source.dispatchMode),
+    scheduledAt: source.scheduledAt || source.scheduled_at || source.eligibleAt || source.eligible_at || '',
+    createTime: source.createTime || source.create_time,
+    startTime: source.startTime || source.start_time,
+    endTime: source.endTime || source.end_time,
+    totalCount,
+    completedCount,
+    failedCount,
+    bindingIds: Array.isArray(source.bindingIds) ? source.bindingIds : Array.isArray(source.binding_ids) ? source.binding_ids : children.map(child => child.bindingId).filter(Boolean) as Array<string | number>,
+    scriptId: source.scriptId ?? source.script_id ?? source.scriptSnapshot?.scriptId,
+    processTypes: Array.isArray(source.postProcessConfig?.processTypes) ? source.postProcessConfig.processTypes : Array.isArray(source.processTypes) ? source.processTypes : [],
+    cornerMarkId: source.postProcessConfig?.cornerMarkId ?? source.cornerMarkId ?? source.corner_mark_id ?? null,
+    children
   }
 }
 
-const loadVoiceList = async () => {
+function statusLabel(status: StatusKey): string {
+  return ({ draft: '未执行', waiting: '等待中', running: '执行中', completed: '已完成', partial_failed: '部分失败', failed: '失败', cancelled: '已取消' } as Record<StatusKey, string>)[status]
+}
+
+function statusType(status: StatusKey): 'success' | 'warning' | 'danger' | 'info' | '' {
+  return ({ draft: 'info', waiting: 'info', running: 'warning', completed: 'success', partial_failed: 'danger', failed: 'danger', cancelled: '' } as Record<StatusKey, 'success' | 'warning' | 'danger' | 'info' | ''>)[status]
+}
+
+function scheduleModeLabel(mode: ScheduleMode): string {
+  return ({ immediate: '立即执行', scheduled: '指定时间', overnight: '夜间预排' } as Record<ScheduleMode, string>)[mode]
+}
+
+function orderModeLabel(mode?: string): string {
+  return String(mode || '').toLowerCase() === 'free' ? '自由搭配' : '时间顺序'
+}
+
+function formatTime(value?: string | number | null): string {
+  if (!value) return '-'
+  const raw = String(value)
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw)) return raw.replace('T', ' ').slice(0, 19)
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  return date.toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-')
+}
+
+function truncate(value: string, length: number): string {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  return text.length > length ? `${text.slice(0, length)}…` : text || '暂无脚本内容'
+}
+
+function isFailed(row: Pick<BatchChild, 'statusKey'> | any): boolean {
+  return normalizeStatus(row?.statusKey ?? row?.taskStatus ?? row?.status) === 'failed'
+}
+
+function canEditPlan(row: BatchPlan): boolean {
+  return row.statusKey === 'draft'
+}
+
+function canStartPlan(row: BatchPlan): boolean {
+  return row.statusKey === 'draft'
+}
+
+function canCancelPlan(row: BatchPlan): boolean {
+  return !['completed', 'failed', 'partial_failed', 'cancelled'].includes(row.statusKey)
+}
+
+function canDeletePlan(row: BatchPlan): boolean {
+  return row.statusKey === 'draft'
+}
+
+function disablePastDate(date: Date): boolean {
+  return date.getTime() < Date.now() - 60 * 1000
+}
+
+async function loadPlanList() {
+  listLoading.value = true
   try {
-    const response = await getVoiceList()
-    if (response.data && response.data.data && Array.isArray(response.data.data)) {
-      // 映射API字段：voiceName -> name，url -> url，externalId -> externalId
-      voiceOptions.value = response.data.data.map((item: any) => {
-        // 从多个可能的字段提取URL，然后使用辅助函数处理
-        const rawUrl = item.url || item.audio || ''
-        const processedUrl = extractAudioUrl(rawUrl)
-        return {
-          externalId: item.externalId || item.id || '',
-          name: item.voiceName || item.name || '',
-          url: processedUrl,
-          ...item  // 保留原始字段以备使用
-        }
-      })
-    }
-  } catch (error) {
-    console.error('加载配音列表失败:', error)
+    const search = searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {}
+    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search)
+    const pageData = getPageData(response)
+    planList.value = pageData.items.map(normalizePlan)
+    planTotal.value = pageData.total
+  } catch (error: any) {
+    ElMessage.error(error?.message || '批量计划加载失败')
+  } finally {
+    listLoading.value = false
   }
 }
 
-const loadBindingList = async () => {
+async function loadDispatchGroups() {
+  if (dispatchLoading.value) return
+  dispatchLoading.value = true
   try {
-    const response = await getBindingList(1, 50)
-    if (response.data && response.data.data && response.data.data.data && Array.isArray(response.data.data.data)) {
-      relList.value = response.data.data.data.map((item: any) => {
-        return {
-          ...item,
-          id: item.bindingId,
-          name: item.digitalHumanName,
-          human: item.digitalHumanName,
-          displayName: `${item.digitalHumanName} + ${item.voiceName}`,
-          humanImg: item.digitalHumanCoverUrl || '',
-          voice: item.voiceName,
-          // voiceUrl 直接用 API 返回的原始值，playVoice 内部会调 extractAudioUrl 处理格式
-          voiceUrl: item.voiceUrl || '',
-          voiceAudio: item.voiceUrl || '',
-        }
-      })
-    }
-  } catch (error) {
-    console.error('加载绑定关系列表失败:', error)
-  }
-}
-
-// --- 角标 ---
-const fetchCornerMarks = async () => {
-  try {
-    const result = await getCornerMarkList()
-    const cornerMarkData = result.data?.data || result.data || []
-    cornerMarkOptions.value = cornerMarkData.map((item: any) => ({
+    const response = await getVideoDispatchGroups()
+    const data = getResponseData(response)
+    dispatchOrderMode.value = String(data.orderMode || data.order_mode || 'chronological')
+    const groups = Array.isArray(data.groups) ? data.groups : []
+    dispatchGroups.value = groups.map((item: any, index: number) => ({
       id: item.id,
-      name: item.photoName || item.name || '',
-      photoUrl: item.photoUrl || '',
-      sort: item.sort ?? null
+      title: item.title || `任务组 #${item.id}`,
+      groupTypeLabel: item.groupTypeLabel || item.group_type_label || item.groupType || '视频任务',
+      dispatchMode: item.dispatchMode || item.dispatch_mode || 'immediate',
+      priorityLevel: Math.max(1, Number(item.priorityLevel ?? item.priority_level ?? 1)),
+      priorityRank: Math.max(0, Number(item.priorityRank ?? item.priority_rank ?? index)),
+      canReorder: Boolean(item.canReorder ?? item.can_reorder),
+      waitingItemCount: Number(item.waitingItemCount ?? item.waiting_item_count ?? 0),
+      activeItemCount: Number(item.activeItemCount ?? item.active_item_count ?? 0),
+      createdAt: item.createdAt || item.created_at
     }))
-    // 初始化置顶列表：sort不为null的按sort倒序
-    pinnedCornerMarkIds.value = cornerMarkOptions.value
-      .filter((i: any) => i.sort !== null && i.sort !== undefined)
-      .sort((a: any, b: any) => b.sort - a.sort)
-      .map((i: any) => i.id)
-  } catch (error) {
-    console.error('获取角标列表失败:', error)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '统一任务排序加载失败')
+  } finally {
+    dispatchLoading.value = false
   }
 }
 
-const openCornerMarkSelector = (context: 'project' | 'subtask') => {
-  cornerMarkSelectorDialog.context = context
-  cornerMarkSelectorDialog.search = ''
-  cornerMarkSelectorDialog.visible = true
+function startDispatchDrag(index: number) {
+  if (dispatchOrderMode.value !== 'free' || !dispatchGroups.value[index]?.canReorder) return
+  draggedDispatchIndex.value = index
 }
 
-const selectCornerMark = (item: any) => {
-  if (cornerMarkSelectorDialog.context === 'project') {
-    projectForm.cornerMark = item.id
-    // 自动同步：将新角标同步到当前打开的子任务表单（如果子任务未单独设置）
-  } else {
-    subTaskForm.cornerMark = item.id
-  }
-  cornerMarkSelectorDialog.visible = false
-  ElMessage.success('已选择角标')
-}
-
-// --- 基础工具函数 ---
-const getStatusType = (status: string) => {
-  switch (status) {
-    case '已完成':
-    case '任务已完成': return 'success'
-    case '音频克隆中':
-    case '视频克隆中':
-    case '等待中': return 'warning'
-    case '音频克隆完成': return 'primary'
-    case '未开始': return 'info'
-    case '执行失败': return 'danger'
-    default: return 'info'
-  }
-}
-
-// 获取任务状态标签和颜色
-const getTaskStatusInfo = (taskStatus: number | string) => {
-  const status = Number(taskStatus)
-  if (status < 0) {
-    return { label: '执行失败', type: 'danger', percent: 0 }
-  }
-  const statusMap: any = {
-    0: { label: '未开始', type: 'info', percent: 0 },
-    1: { label: '等待中', type: 'warning', percent: 10 },
-    2: { label: '音频克隆中', type: 'warning', percent: 30 },
-    3: { label: '音频克隆完成', type: 'primary', percent: 50 },
-    4: { label: '视频克隆中', type: 'warning', percent: 75 },
-    5: { label: '任务已完成', type: 'success', percent: 100 }
-  }
-  return statusMap[status] || statusMap[0]
-}
-
-const getHumanImg = (name: string) => {
-  return humanOptions.value.find((h: any) => h.name === name)?.img || ''
-}
-
-const hasValue = (value: any) => value !== '' && value !== null && value !== undefined
-const findRelById = (id: any) => relList.value.find((r: any) => String(r.id) === String(id))
-
-// 视频预览
-const previewVideo = (url?: string) => {
-  if (!url) {
-    ElMessage.warning('暂无视频预览地址')
+function dropDispatchGroup(targetIndex: number) {
+  const sourceIndex = draggedDispatchIndex.value
+  draggedDispatchIndex.value = null
+  if (sourceIndex === null || sourceIndex === targetIndex) return
+  const moving = dispatchGroups.value[sourceIndex]
+  const target = dispatchGroups.value[targetIndex]
+  if (!moving?.canReorder || !target?.canReorder) {
+    ElMessage.info('已经开始的任务组已锁定，不能参与拖动')
     return
   }
-  videoPreview.url = url
-  videoPreview.visible = true
-}
-
-// 打开全屏视频预览
-const openVideoPreview = (url?: string) => {
-  if (!url) {
-    ElMessage.warning('暂无视频预览地址')
-    return
-  }
-  videoPreview.url = url
-  videoPreview.visible = true
-}
-
-// 下载视频
-const downloadVideo = (task: any) => {
-  const targetUrl = normalizeAssetUrl(task.videoUrl)
-  if (!targetUrl) {
-    ElMessage.warning('暂无可下载的视频文件')
-    return
-  }
-  
-  downloadProxyFile(targetUrl, {
-    taskId: task.id,
-    assetType: 'video',
-    fallbackBaseName: `${task.name || task.title || 'plan-video'}-${task.id}`,
-    defaultExtension: '.mp4'
-  }).then(() => {
-    ElMessage.success('视频下载已开始')
-  }).catch((error) => {
-    console.error('下载视频失败:', error)
-    ElMessage.error('下载视频失败，请重试')
+  const next = [...dispatchGroups.value]
+  next.splice(sourceIndex, 1)
+  next.splice(targetIndex, 0, moving)
+  let nextPriority = 1
+  next.forEach(group => {
+    if (group.canReorder) group.priorityLevel = nextPriority++
   })
+  dispatchGroups.value = next
 }
 
-// 下载音频
-const downloadAudio = (task: any) => {
-  let audioUrl = normalizeAssetUrl(task.baseVoiceUrl || task.base_voice_url || task.voice_url || task.voiceAudio)
-  
-  if (!audioUrl) {
-    ElMessage.warning('暂无可下载的音频文件')
-    return
-  }
-  downloadProxyFile(audioUrl, {
-    taskId: task.id,
-    assetType: 'audio',
-    fallbackBaseName: `${task.voice_name || task.name || task.title || 'plan-audio'}-${task.id}`,
-    defaultExtension: '.mp3'
-  }).then(() => {
-    ElMessage.success('音频下载已开始')
-  }).catch((error) => {
-    console.error('下载音频失败:', error)
-    ElMessage.error('下载音频失败，请重试')
-  })
-}
-
-// 绑定关系切换逻辑
-const handleRelChange = (val: any) => {
-  const rel = findRelById(val)
-  if (rel) {
-    subTaskForm.digitalHuman = rel.human
-    subTaskForm.voice = rel.voice
-    ElMessage.success(`已应用预设: ${rel.displayName}`)
-  }
-}
-
-// --- 选择器打开函数 ---
-const openHumanSelector = async () => {
-  humanSelectorDialog.visible = true
-  humanSelectorDialog.search = ''
-  humanSelectorDialog.allList = humanOptions.value
-  humanSelectorDialog.displayList = humanOptions.value.slice(0, humanSelectorDialog.pageSize)
-  humanSelectorDialog.page = 1
-  humanSelectorDialog.hasMore = humanOptions.value.length > humanSelectorDialog.pageSize
-}
-
-// 数字人选择器搜索过滤
-const filterHumanSelector = () => {
-  const search = humanSelectorDialog.search.toLowerCase()
-  const filtered = humanSelectorDialog.allList.filter((item: any) => {
-    return item.name.toLowerCase().includes(search)
-  })
-  humanSelectorDialog.displayList = filtered.slice(0, humanSelectorDialog.pageSize)
-}
-
-const openVoiceSelector = async () => {
-  voiceSelectorDialog.visible = true
-  voiceSelectorDialog.search = ''
-  voiceSelectorDialog.allList = voiceOptions.value
-  voiceSelectorDialog.displayList = voiceOptions.value.slice(0, voiceSelectorDialog.pageSize)
-  voiceSelectorDialog.page = 1
-  voiceSelectorDialog.hasMore = voiceOptions.value.length > voiceSelectorDialog.pageSize
-}
-
-// 配音选择器搜索过滤
-const filterVoiceSelector = () => {
-  const search = voiceSelectorDialog.search.toLowerCase()
-  const filtered = voiceSelectorDialog.allList.filter((item: any) => {
-    return item.name.toLowerCase().includes(search)
-  })
-  voiceSelectorDialog.displayList = filtered.slice(0, voiceSelectorDialog.pageSize)
-}
-
-const openRelSelector = async () => {
-  relSelectorDialog.visible = true
-  relSelectorDialog.search = ''
-  relSelectorDialog.allList = relList.value
-  relSelectorDialog.displayList = relList.value.slice(0, relSelectorDialog.pageSize)
-  relSelectorDialog.page = 1
-  relSelectorDialog.hasMore = relList.value.length > relSelectorDialog.pageSize
-}
-
-// 绑定关系选择器搜索过滤
-const filterRelSelector = () => {
-  const search = relSelectorDialog.search.toLowerCase()
-  const filtered = relSelectorDialog.allList.filter((item: any) => {
-    return (
-      item.human.toLowerCase().includes(search) ||
-      item.voice.toLowerCase().includes(search) ||
-      item.displayName.toLowerCase().includes(search)
-    )
-  })
-  relSelectorDialog.displayList = filtered.slice(0, relSelectorDialog.pageSize)
-}
-
-// 选择数字人
-const selectHuman = (item: any) => {
-  subTaskForm.digital_human_id = item.externalId || item.digitalHumanId || item.id || ''
-  subTaskForm.digital_human_name = item.name
-  subTaskForm.digital_human_cover_url = item.img || ''
-  // 兼容字段
-  subTaskForm.digitalHuman = item.name
-  subTaskForm.humanImg = item.img
-  humanSelectorDialog.visible = false
-  ElMessage.success('已选择数字人')
-}
-
-// 选择配音
-const selectVoice = (item: any) => {
-  subTaskForm.voice_id = item.externalId || item.voiceId || item.id || ''
-  subTaskForm.voice_name = item.name
-  subTaskForm.voice_url = item.url || item.audio || ''
-  subTaskForm.base_voice_url = item.url || item.audio || ''
-  // 兼容字段
-  subTaskForm.voice = item.name
-  subTaskForm.voiceAudio = item.url || item.audio
-  voiceSelectorDialog.visible = false
-  ElMessage.success('已选择配音')
-}
-
-// 选择预设
-const selectRel = (item: any) => {
-  // 预设ID
-  subTaskForm.relId = item.id
-  subTaskForm.useRel = true
-  
-  // 数字人信息 - 优先使用externalId
-  subTaskForm.digital_human_id = item.digitalHumanExternalId || item.externalId || item.digitalHumanId || item.id || ''
-  subTaskForm.digital_human_name = item.human || item.name || ''
-  subTaskForm.digital_human_cover_url = item.humanImg || ''
-  
-  // 配音信息 - 优先使用externalId和url
-  subTaskForm.voice_id = item.voiceExternalId || item.voiceId || ''
-  subTaskForm.voice_name = item.voice || ''
-  subTaskForm.voice_url = item.voiceUrl || item.voiceAudio || ''
-  subTaskForm.base_voice_url = item.voiceUrl || item.voiceAudio || ''
-  
-  // 兼容字段
-  subTaskForm.digitalHuman = item.human
-  subTaskForm.voice = item.voice
-  subTaskForm.humanImg = item.humanImg
-  subTaskForm.voiceAudio = item.voiceUrl  // 直接用 voiceUrl，playVoice 内部处理格式
-  
-  relSelectorDialog.visible = false
-  ElMessage.success(`已应用预设: ${item.displayName}`)
-}
-
-// 脚本保存逻辑
-const openSaveScriptDialog = (content: string) => {
-  saveScriptDialog.form.title = ''
-  saveScriptDialog.form.content = content
-  saveScriptDialog.form.tags = []
-  saveScriptDialog.form.newTag = ''
-  saveScriptDialog.visible = true
-}
-
-const confirmSaveScript = async () => {
-  if (!saveScriptDialog.form.title) {
-    ElMessage.warning('请输入脚本标题')
-    return
-  }
-  
+async function saveDispatchOrder() {
+  if (dispatchOrderMode.value !== 'free' || dispatchSaving.value) return
+  dispatchSaving.value = true
   try {
-    // 按后端要求的字段名发送数据
-    const res = await createScript({
-      scriptTitle: saveScriptDialog.form.title,
-      scriptContent: saveScriptDialog.form.content,
-      scriptTags: saveScriptDialog.form.tags
-    })
-    
-    console.log('保存脚本响应:', res)
-    // res.data 是后端返回的 { code: 200, data: { id: 6 }, message: "提交成功" }
-    const apiResponse = res.data
-    if (apiResponse && apiResponse.code === 200) {
-      ElMessage.success('已存入脚本库')
-      saveScriptDialog.visible = false
-      // 重新加载脚本库以获取最新数据
-      await fetchScriptLibrary()
-    } else {
-      ElMessage.error(apiResponse?.message || '保存失败')
-    }
-  } catch (error) {
-    ElMessage.error('保存失败: ' + (error as any)?.message)
-    console.error(error)
-  }
-}
-
-// 提取音频URL 辅助函数 - 处理多种格式
-const extractAudioUrl = (urlString: string): string => {
-  if (!urlString) return ''
-  
-  // 处理一般字符串URL
-  if (typeof urlString === 'string' && urlString.startsWith('http')) {
-    return urlString
-  }
-  
-  // 处理 "['https://...']" 或 "[\"https://...\"]" 的格式
-  if (urlString.includes('[') || urlString.includes('(')) {
-    // 使用正则提取 https 或 http 开头的URL
-    const match = urlString.match(/https?:\/\/[^'"\]\)\s]+/)
-    if (match && match[0]) {
-      console.log('从数组字符串中提取URL:', match[0])
-      return match[0]
-    }
-  }
-  
-  // 作为最后的正则模式提取
-  const match = urlString.match(/https?:\/\/[^\s'"]+/)
-  if (match && match[0]) {
-    return match[0]
-  }
-  
-  return urlString
-}
-
-const playVoice = (audioUrl: string, voiceName: string = '配音') => {
-  if (!audioUrl) {
-    ElMessage.warning('暂无试听地址')
-    return
-  }
-
-  const urlToPlay = extractAudioUrl(audioUrl)
-  if (!urlToPlay) {
-    ElMessage.error('无效的音频地址')
-    return
-  }
-
-  // 同一个音频：切换播放/暂停
-  if (currentAudio && currentAudioUrl === urlToPlay) {
-    if (currentAudio.paused) {
-      currentAudio.play().catch(() => {})
-      isPlaying.value = true
-    } else {
-      currentAudio.pause()
-      isPlaying.value = false
-    }
-    return
-  }
-
-  // 不同音频：停止当前，播放新的
-  if (currentAudio) {
-    ;(currentAudio as any)._aborted = true
-    currentAudio.pause()
-    currentAudio.src = ''
-    currentAudio = null
-    isPlaying.value = false
-  }
-
-  const audio = new Audio()
-  currentAudio = audio
-  currentAudioUrl = urlToPlay
-
-  audio.addEventListener('error', () => {
-    if ((audio as any)._aborted) return
-    const errorName = ['', 'MEDIA_ERR_ABORTED', 'MEDIA_ERR_NETWORK', 'MEDIA_ERR_DECODE', 'MEDIA_ERR_SRC_NOT_SUPPORTED'][audio.error?.code!] || ''
-    if (errorName === 'MEDIA_ERR_SRC_NOT_SUPPORTED') {
-      ElMessage.error('音频格式不支持，请联系管理员')
-    } else if (errorName === 'MEDIA_ERR_NETWORK') {
-      ElMessage.error('网络加载失败，请检查网络连接')
-    } else {
-      ElMessage.error('音频播放失败: ' + (audio.error?.message || '未知错误'))
-    }
-    isPlaying.value = false
-    currentAudioUrl = ''
-  })
-
-  audio.src = urlToPlay
-  audio.play().then(() => {
-    isPlaying.value = true
-    ElMessage.success(`正在试听: ${voiceName}`)
-  }).catch((error) => {
-    ElMessage.error('音频播放失败: ' + (error.message || '请检查浏览器设置'))
-    isPlaying.value = false
-    currentAudioUrl = ''
-  })
-
-  audio.addEventListener('ended', () => {
-    isPlaying.value = false
-    currentAudio = null
-    currentAudioUrl = ''
-  })
-}
-
-// --- 页面跳转 ---
-const goBackToList = async () => {
-  viewMode.value = 'list'
-  // 刷新外部列表，确保任务数和状态是最新的
-  await loadProjectList()
-}
-
-const enterSubTaskView = async (row: any) => {
-  currentProject.value = row
-  viewMode.value = 'detail'
-  subTaskPage.value = 1
-  
-  // 加载该计划的子任务列表
-  if (row.id) {
-    await loadSubTaskList(row.id)
-  }
-}
-
-// 加载子任务列表
-const loadSubTaskList = async (planId: number | string) => {
-  try {
-    // POST 方式请求子任务分页列表
-    const response = await request.post(`/api/material/plan/video/task/paginate/post/`, {
-      page: subTaskPage.value,
-      pageSize: subTaskPageSize.value,
-      search: {
-        plan_id: planId
-      }
-    })
-    
-    const apiData = response.data
-    if (apiData && apiData.code === 200) {
-      let subTasks = []
-      
-      // 处理分页返回结构 - { page, pageSize, data: [...], total }
-      if (apiData.data && apiData.data.data && Array.isArray(apiData.data.data)) {
-        subTasks = apiData.data.data
-        subTaskTotal.value = apiData.data.total || 0
-      } else if (apiData.data && Array.isArray(apiData.data)) {
-        // 如果直接返回数组
-        subTasks = apiData.data
-      }
-      
-      // 映射字段名 - 使用camelCase格式，并使用新的状态映射
-      currentProject.value.subTasks = subTasks.map((item: any) => {
-        const statusInfo = getTaskStatusInfo(item.taskStatus)
-        const resolvedSubtitleSelector = Number(item.subtitleSelector ?? currentProject.value.subtitleSelector ?? 0)
-        const resolvedColour = item.colour ?? currentProject.value.colour ?? 'white'
-        const resolvedScript = item.msg ?? currentProject.value.script ?? ''
-        return {
-          id: item.id,
-          relId: item.relId || item.rel_id || item.bindingId || item.binding_id || '',
-          name: item.title || '',
-          script: resolvedScript,
-          digitalHuman: item.digitalHumanName || '',
-          voice: item.voiceName || '',
-          language: item.language || 'auto',
-          subtitleSelector: resolvedSubtitleSelector,
-          colour: resolvedColour,
-          taskStatus: item.taskStatus,
-          status: statusInfo.label,
-          statusType: statusInfo.type,
-          statusPercent: statusInfo.percent,
-          videoUrl: item.videoUrl || '',
-          errorMessage: item.errorMessage || '',
-          // 保留完整信息用于编辑
-          digital_human_id: item.digitalHumanId || '',
-          digital_human_cover_url: item.digitalHumanCoverUrl || '',
-          voice_id: item.voiceId || '',
-          voice_url: item.voiceUrl || '',
-          base_voice_url: item.baseVoiceUrl || '',
-          cornerMark: item.cornerMarkId || item.corner_mark_id || '',
-          cornerMarkId: item.cornerMarkId || item.corner_mark_id || '',
-          cornerMarkUrl: item.cornerMarkUrl || item.corner_mark_url || '',
-          ...item
-        }
-      })
-      
-      console.log('子任务列表已加载:', currentProject.value.subTasks)
-    }
-  } catch (error) {
-    console.error('加载子任务列表失败:', error)
-    currentProject.value.subTasks = []
-  }
-}
-
-// --- 逻辑处理 ---
-const handleAddProject = () => {
-  projectDialog.title = '新建生成计划'
-  projectForm.id = null
-  projectForm.name = ''
-  projectForm.language = 'zh'
-  projectForm.script = ''
-  projectForm.executionMode = 'manual'
-  projectForm.scheduledTime = ''
-  projectForm.subtitleSelector = 1
-  projectForm.colour = 'yellow'
-  projectForm.cornerMark = ''
-  projectDialog.visible = true
-}
-
-const handleEditProject = (row: any) => {
-  projectDialog.title = '编辑生成计划'
-  Object.assign(projectForm, row)
-
-  // 回绑执行方式和定时时间
-  const runMode = row.runMode ?? row.run_mode
-  const runTime = row.runTime ?? row.run_time
-  projectForm.executionMode = String(runMode) === '2' ? 'scheduled' : 'manual'
-  projectForm.scheduledTime = runTime || ''
-
-  // 回填角标：根据 corner_mark_id 找到对应项
-  const cornerMarkId = row.corner_mark_id || row.cornerMarkId || ''
-  projectForm.cornerMark = cornerMarkId
-
-  // 如果没有这些字段则初始化
-  if (!projectForm.executionMode) projectForm.executionMode = 'manual'
-  if (!projectForm.language) projectForm.language = 'zh'
-  if (typeof projectForm.subtitleSelector === 'undefined') projectForm.subtitleSelector = 1
-  if (!projectForm.colour) projectForm.colour = 'yellow'
-  projectDialog.visible = true
-}
-
-const handleDeleteProject = (row: any) => {
-  ElMessageBox.confirm(`确定删除计划 "${row.name}"?`, '提醒', { type: 'error' }).then(async () => {
-    try {
-      const res = await deletePlanVideo(row.id)
-      const apiData = res.data
-      if (apiData && apiData.code === 200) {
-        ElMessage.success('计划已删除')
-        // 刷新列表
-        await loadProjectList()
-      } else {
-        ElMessage.error(apiData?.message || '删除失败')
-      }
-    } catch (error) {
-      ElMessage.error('删除失败: ' + (error as any)?.message)
-    }
-  }).catch(() => {
-    // 用户取消删除
-  })
-}
-
-const handleRunProject = async (row: any) => {
-  if (Number(row.taskStatus) !== 0) {
-    ElMessage.warning('当前计划状态不允许立即执行')
-    return
-  }
-
-  try {
-    // 调用批量启动API
-    const res = await startAllPlanTasks(row.id)
-    const apiData = res.data
-    
-    if (apiData && apiData.code === 200) {
-      const result = apiData.data
-      
-      // 更新项目状态
-      row.status = '执行中'
-
-      // 同步到全局任务中心
-      taskStore.addTask({
-        taskType: 'VIDEO_PLAN_TASK',
-        subTitle: `计划名称：${row.name}`,
-        status: 'running'
-      })
-
-      // 显示详细结果
-      let message = `已启动 ${result.success_count}/${result.total_count} 个任务`
-      if (result.failed_count > 0) {
-        message += `，其中 ${result.failed_count} 个任务无法启动`
-        ElMessage.warning(message)
-      } else {
-        ElMessage.success(message)
-      }
-      
-      // 如果有失败任务，打印详细错误信息
-      if (result.failed_tasks && result.failed_tasks.length > 0) {
-        console.warn('部分任务启动失败:', result.failed_tasks)
-      }
-      
-            // 延迟2秒后重新加载列表，给后端处理时间
-      setTimeout(async () => {
-        await loadProjectList()
-      }, 2000)
-    } else {
-      ElMessage.error(apiData?.message || '计划启动失败')
-    }
-  } catch (error) {
-    console.error('启动计划失败:', error)
-    ElMessage.error('启动计划失败，请重试')
-  }
-}
-
-const handleAddSubTask = (project: any) => {
-  subTaskDialog.title = '添加子任务'
-  subTaskForm.id = null
-  subTaskForm.name = ''
-  subTaskForm.language = project.language || 'zh'
-  // 新增默认继承计划设置
-  subTaskForm.script = project.script ?? ''
-  subTaskForm.subtitleSelector = Number(project.subtitleSelector ?? 1)
-  subTaskForm.colour = 'yellow'
-  subTaskForm.cornerMark = project.cornerMark ?? ''
-  subTaskForm.useRel = relList.value.length > 0
-  subTaskForm.relId = ''
-  // 数字人相关
-  subTaskForm.digital_human_id = ''
-  subTaskForm.digital_human_name = ''
-  subTaskForm.digital_human_cover_url = ''
-  // 配音相关
-  subTaskForm.voice_id = ''
-  subTaskForm.voice_name = ''
-  subTaskForm.voice_url = ''
-  subTaskForm.base_voice_url = ''
-  // 兼容字段
-  subTaskForm.digitalHuman = ''
-  subTaskForm.voice = ''
-  subTaskForm.humanImg = ''
-  subTaskForm.voiceAudio = ''
-  subTaskDialog.visible = true
-}
-
-const handleEditSubTask = (task: any, project: any) => {
-  subTaskDialog.title = '编辑子任务'
-  Object.assign(subTaskForm, task)
-  subTaskForm.relId = task.relId || task.rel_id || task.bindingId || task.binding_id || subTaskForm.relId || ''
-  subTaskForm.useRel = hasValue(subTaskForm.relId)
-  // 回绑逻辑：子任务有值用子任务，缺失则继承计划
-  subTaskForm.script = task.script ?? task.msg ?? project.script ?? ''
-  subTaskForm.subtitleSelector = Number(task.subtitleSelector ?? project.subtitleSelector ?? 1)
-  subTaskForm.colour = 'yellow'
-  
-  // 回填角标：根据 corner_mark_id 找到对应项，或继承计划
-  const cornerMarkId = task.cornerMarkId || task.corner_mark_id || ''
-  subTaskForm.cornerMark = cornerMarkId || (project.cornerMark ?? '')
-  
-  // 确保所有字段有默认值
-  if (!subTaskForm.digital_human_id) subTaskForm.digital_human_id = ''
-  if (!subTaskForm.digital_human_name) subTaskForm.digital_human_name = task.digitalHuman || ''
-  if (!subTaskForm.digital_human_cover_url) subTaskForm.digital_human_cover_url = task.humanImg || ''
-  if (!subTaskForm.voice_id) subTaskForm.voice_id = ''
-  if (!subTaskForm.voice_name) subTaskForm.voice_name = task.voice || ''
-  if (!subTaskForm.voice_url) subTaskForm.voice_url = task.voiceAudio || ''
-  if (!subTaskForm.base_voice_url) subTaskForm.base_voice_url = task.voiceAudio || ''
-  if (typeof subTaskForm.subtitleSelector === 'undefined' || subTaskForm.subtitleSelector === null) subTaskForm.subtitleSelector = Number(project.subtitleSelector ?? 1)
-  if (!subTaskForm.colour) subTaskForm.colour = project.colour ?? 'white'
-  subTaskDialog.visible = true
-}
-
-const handleDeleteSubTask = (task: any, project: any) => {
-  ElMessageBox.confirm('确定删除此子任务?', '提醒').then(async () => {
-    try {
-      const res = await deletePlanVideoTask(task.id)
-      const apiData = res.data
-      if (apiData && apiData.code === 200) {
-        project.subTasks = project.subTasks.filter((t: any) => t.id !== task.id)
-        ElMessage.success('任务已删除')
-      } else {
-        ElMessage.error(apiData?.message || '删除失败')
-      }
-    } catch (e) {
-      ElMessage.error('删除失败')
-    }
-  }).catch(() => {
-    // 用户取消删除
-  })
-}
-
-// 获取脚本库数据
-const fetchScriptLibrary = async () => {
-  try {
-    const res = await getScriptPaginateList(1, 100)
-    console.log('脚本库原始响应:', res)
-    
-    // res 是 axios response，res.data 是后端 API 返回 { code, data: {...}, message }
-    const apiData = res.data
-    if (apiData && apiData.code === 200 && apiData.data) {
-      const pageData = apiData.data
-      // pageData 中的 data 字段是列表数组
-      if (pageData.data && Array.isArray(pageData.data)) {
-        scriptLibrary.value = pageData.data.map((item: any) => ({
-          scriptId: item.scriptId,
-          title: item.scriptTitle || item.title || '',
-          content: item.scriptContent || item.content || '',
-          tags: item.scriptTags || item.tags || [],
-          createTime: item.scriptCreateTime || item.createTime || '',
-          editTime: item.scriptEditTime || item.editTime || '',
-          createUserId: item.scriptCreateUserId,
-          userGroupCode: item.scriptUserGroupCode
-        }))
-        console.log('脚本库已加载，共', scriptLibrary.value.length, '条:', scriptLibrary.value)
-      } else {
-        scriptLibrary.value = []
-        console.warn('脚本库数据数组为空')
-      }
-    } else {
-      scriptLibrary.value = []
-      console.warn('脚本库返回数据结构不正常:', apiData)
-    }
-  } catch (error) {
-    console.error('获取脚本库失败:', error)
-    scriptLibrary.value = []
-    ElMessage.error('获取脚本库失败: ' + (error as any)?.message)
-  }
-}
-
-// 获取历史脚本数据
-const fetchScriptHistory = async () => {
-  try {
-    const res = await getScriptHistoryList(1, 100)
-    console.log('历史脚本原始响应:', res)
-    
-    // res 是 axios response，res.data 是后端 API 返回 { code, data: {...}, message }
-    const apiData = res.data
-    if (apiData && apiData.code === 200 && apiData.data) {
-      const pageData = apiData.data
-      // pageData 中的 data 字段是列表数组
-      if (pageData.data && Array.isArray(pageData.data)) {
-        scriptHistory.value = pageData.data.map((item: any) => ({
-          scriptId: item.taskId || item.scriptId,
-          title: item.scriptTitle || item.title || '',
-          content: item.taskContent || item.scriptContent || item.content || '',
-          tags: item.taskTags || item.scriptTags || item.tags || [],
-          createTime: item.usedTime || item.scriptCreateTime || item.createTime || '',
-          editTime: item.editTime || item.scriptEditTime || '',
-          createUserId: item.scriptCreateUserId,
-          userGroupCode: item.scriptUserGroupCode
-        }))
-        console.log('历史脚本已加载，共', scriptHistory.value.length, '条:', scriptHistory.value)
-      } else {
-        scriptHistory.value = []
-        console.warn('历史脚本数据数组为空')
-      }
-    } else {
-      scriptHistory.value = []
-      console.warn('历史脚本返回数据结构不正常:', apiData)
-    }
-  } catch (error) {
-    console.error('获取历史脚本失败:', error)
-    scriptHistory.value = []
-    ElMessage.error('获取历史脚本失败: ' + (error as any)?.message)
-  }
-}
-
-const openScriptSelector = async (target: any, tab: any = 'library') => {
-  scriptSelector.target = target
-  scriptSelector.activeTab = tab
-  scriptSelector.search = ''
-  
-  // 根据 tab 加载对应数据
-  if (tab === 'library') {
-    await fetchScriptLibrary()
-  } else {
-    await fetchScriptHistory()
-  }
-  
-  scriptSelector.visible = true
-}
-
-const handleScriptTabChange = async (tabName: string) => {
-  if (tabName === 'library') {
-    await fetchScriptLibrary()
-  } else if (tabName === 'history') {
-    await fetchScriptHistory()
-  }
-}
-
-const selectScript = (script: any) => {
-  if (scriptSelector.target === 'project') {
-    projectForm.script = script.content
-  } else {
-    subTaskForm.script = script.content
-  }
-  scriptSelector.visible = false
-  ElMessage.success('脚本已成功导入')
-}
-
-const handleRunTask = async (row: any) => {
-  if (Number(row.taskStatus) !== 0) {
-    ElMessage.warning('当前任务状态不允许立即执行')
-    return
-  }
-
-  try {
-    // 调用启动任务API
-    const res = await startPlanVideoTask(row.id)
-    const apiData = res.data
-    
-    if (apiData && apiData.code === 0) {
-      // 更新本地任务状态
-      row.status = '执行中'
-
-      // 同步到全局任务中心
-      taskStore.addTask({
-        taskType: 'VIDEO_TASK',
-        subTitle: `任务名称：${row.name}`,
-        status: 'running'
-      })
-
-      ElMessage.success(`已启动任务: ${row.name}`)
-    } else {
-      ElMessage.error(apiData?.message || '任务启动失败')
-    }
-  } catch (error) {
-    console.error('启动任务失败:', error)
-    ElMessage.error('任务启动失败，请重试')
-  }
-}
-
-const submitProject = async () => {
-  // 必填字段验证
-  if (!projectForm.name) {
-    ElMessage.warning('请输入计划名称')
-    return
-  }
-
-  // 构造请求参数（严格按API文档）
-  const params: any = {
-    plan_name: projectForm.name,
-  }
-  
-  // 添加可选参数
-  if (projectForm.id) {
-    params.id = projectForm.id
-  }
-  if (projectForm.script) {
-    params.msg = projectForm.script
-  }
-  if (projectForm.language) {
-    params.language = projectForm.language
-  }
-  
-  // 字幕配置
-  params.subtitleSelector = projectForm.subtitleSelector || 0
-  if (projectForm.subtitleSelector === 1) {
-    params.colour = 'yellow'
-  }
-  
-  // 角标配置
-  if (projectForm.cornerMark) {
-    params.corner_mark_id = projectForm.cornerMark
-    const selectedCornerMark = cornerMarkOptions.value.find((item: any) => item.id === projectForm.cornerMark)
-    if (selectedCornerMark?.photoUrl) {
-      params.corner_mark_url = selectedCornerMark.photoUrl
-    }
-  }
-
-  const projectSubtitlePayload = buildPlanSubtitlePayload(
-    Number(params.subtitleSelector || 0),
-    params.corner_mark_id
-  )
-  if (projectSubtitlePayload) {
-    params.subtitle_config = JSON.stringify(projectSubtitlePayload)
-  }
-
-  // 运行方式配置 (runMode: 1=手动执行, 2=自动执行)
-  params.runMode = projectForm.executionMode === 'manual' ? 1 : 2
-  if (projectForm.executionMode === 'scheduled' && projectForm.scheduledTime) {
-    params.scheduledTime = projectForm.scheduledTime
-  }
-
-  console.log('submitProject params:', params)
-  
-  try {
-    const res = await createPlanVideo(params)
-    console.log('submitProject response:', res)
-    
-    const apiData = res.data
-    if (apiData && apiData.code === 200) {
-      ElMessage.success('保存成功')
-      projectDialog.visible = false
-      
-      // 如果是新增，把返回的ID赋值给表单
-      if (apiData.data && apiData.data.id && !projectForm.id) {
-        projectForm.id = apiData.data.id
-      }
-      
-      // 刷新列表
-      await loadProjectList()
-    } else {
-      ElMessage.error(apiData?.message || '保存失败')
-    }
-  } catch (error) {
-    console.error('submitProject error:', error)
-    ElMessage.error('请求失败：' + (error as any)?.message || '未知错误')
-  }
-}
-
-const submitSubTask = async () => {
-  const taskName = (subTaskForm.name || '').trim()
-  if (!taskName) {
-    ElMessage.warning('请输入子任务名称')
-    return
-  }
-  if (!subTaskForm.language) {
-    ElMessage.warning('请选择视频语言')
-    return
-  }
-
-  const selectedRel = findRelById(subTaskForm.relId)
-  const hasRelSelection =
-    hasValue(subTaskForm.relId) ||
-    hasValue(subTaskForm.digital_human_id) ||
-    hasValue(subTaskForm.voice_id) ||
-    (hasValue(subTaskForm.digitalHuman) && hasValue(subTaskForm.voice))
-
-  if (subTaskForm.useRel) {
-    if (!hasRelSelection) {
-      console.warn('绑定关系校验失败:', {
-        useRel: subTaskForm.useRel,
-        relId: subTaskForm.relId,
-        digital_human_id: subTaskForm.digital_human_id,
-        voice_id: subTaskForm.voice_id,
-        digitalHuman: subTaskForm.digitalHuman,
-        voice: subTaskForm.voice,
-      })
-      ElMessage.warning('当前为“选择绑定关系”模式，请先选择绑定关系，或切换到“手动自由选择”')
+    const groups = dispatchGroups.value.filter(group => group.canReorder).map((group, index) => ({
+      id: group.id,
+      priorityLevel: Math.max(1, Number(group.priorityLevel || 1)),
+      priorityRank: index
+    }))
+    if (!groups.length) {
+      ElMessage.info('当前没有可调整的未开始任务组')
       return
     }
+    await reorderVideoDispatchGroups(groups)
+    ElMessage.success('任务优先级已保存')
+    await loadDispatchGroups()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '任务优先级保存失败')
+  } finally {
+    dispatchSaving.value = false
+  }
+}
 
-    if (selectedRel) {
-      if (!hasValue(subTaskForm.digital_human_id)) {
-        subTaskForm.digital_human_id = selectedRel.digitalHumanExternalId || selectedRel.externalId || selectedRel.digitalHumanId || selectedRel.id || ''
-      }
-      if (!hasValue(subTaskForm.digital_human_name)) {
-        subTaskForm.digital_human_name = selectedRel.human || selectedRel.name || ''
-      }
-      if (!hasValue(subTaskForm.digital_human_cover_url)) {
-        subTaskForm.digital_human_cover_url = selectedRel.humanImg || ''
-      }
-      if (!hasValue(subTaskForm.voice_id)) {
-        subTaskForm.voice_id = selectedRel.voiceExternalId || selectedRel.voiceId || ''
-      }
-      if (!hasValue(subTaskForm.voice_name)) {
-        subTaskForm.voice_name = selectedRel.voice || ''
-      }
-      if (!hasValue(subTaskForm.voice_url)) {
-        subTaskForm.voice_url = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
-      }
-      if (!hasValue(subTaskForm.base_voice_url)) {
-        subTaskForm.base_voice_url = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
-      }
-      if (!hasValue(subTaskForm.digitalHuman)) {
-        subTaskForm.digitalHuman = selectedRel.human || selectedRel.name || ''
-      }
-      if (!hasValue(subTaskForm.voice)) {
-        subTaskForm.voice = selectedRel.voice || ''
-      }
-      if (!hasValue(subTaskForm.humanImg)) {
-        subTaskForm.humanImg = selectedRel.humanImg || ''
-      }
-      if (!hasValue(subTaskForm.voiceAudio)) {
-        subTaskForm.voiceAudio = selectedRel.voiceUrl || selectedRel.voiceAudio || ''
-      }
-    }
-  } else {
-    if (!hasValue(subTaskForm.digital_human_id)) {
-      ElMessage.warning('请选择数字人')
-      return
-    }
-    if (!hasValue(subTaskForm.voice_id)) {
-      ElMessage.warning('请选择配音')
-      return
+async function loadResources() {
+  await Promise.all([loadScripts(), loadBindings(), loadCornerMarks()])
+}
+
+async function loadScripts() {
+  if (resourcesLoaded.scripts) return
+  try {
+    const response = await getScriptPaginateList(1, 200)
+    const { items } = getPageData(response)
+    scriptOptions.value = items.map((item: any) => ({
+      id: item.scriptId ?? item.id,
+      title: item.scriptTitle || item.title || '未命名脚本',
+      content: item.scriptContent || item.content || ''
+    })).filter((item: ScriptOption) => item.id !== undefined && item.id !== null)
+    resourcesLoaded.scripts = true
+  } catch (error) {
+    console.warn('加载脚本列表失败', error)
+  }
+}
+
+async function loadBindings() {
+  if (resourcesLoaded.bindings) return
+  try {
+    const response = await getBindingList(1, 200)
+    const { items } = getPageData(response)
+    bindingOptions.value = items.map((item: any) => ({
+      id: item.id ?? item.bindingId,
+      name: item.title || item.name || `${item.digitalHumanName || item.human || '数字人'} + ${item.voiceName || item.voice || '配音'}`,
+      digitalHumanName: item.digitalHumanName || item.human || '',
+      voiceName: item.voiceName || item.voice || '',
+      digitalHumanExternalId: item.digitalHumanExternalId || item.digital_human_external_id || '',
+      voiceExternalId: item.voiceExternalId || item.voice_external_id || '',
+      coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '',
+      voiceUrl: item.voiceUrl || item.voice_url || ''
+    })).filter((item: BindingOption) => item.id !== undefined && item.id !== null)
+    resourcesLoaded.bindings = true
+  } catch (error) {
+    console.warn('加载绑定关系列表失败', error)
+  }
+}
+
+async function loadCornerMarks() {
+  if (resourcesLoaded.cornerMarks) return
+  try {
+    const response = await getCornerMarkList()
+    const data = getResponseData(response)
+    const items = Array.isArray(data) ? data : data?.data || data?.items || []
+    cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标' }))
+    resourcesLoaded.cornerMarks = true
+  } catch (error) {
+    console.warn('加载角标列表失败', error)
+  }
+}
+
+function handleScriptSelectVisible(visible: boolean) {
+  if (visible) loadScripts()
+}
+
+function handleBindingSelectVisible(visible: boolean) {
+  if (visible) loadBindings()
+}
+
+function resetPlanForm() {
+  planForm.id = null
+  planForm.planName = ''
+  planForm.scriptId = null
+  planForm.bindingIds = []
+  planForm.scheduleMode = 'immediate'
+  planForm.scheduledAt = ''
+  planForm.processTypes = []
+  planForm.cornerMarkId = null
+  planFormRef.value?.clearValidate?.()
+}
+
+function openCreateDialog() {
+  resetPlanForm()
+  planDialog.isEdit = false
+  planDialog.visible = true
+  loadResources()
+}
+
+function fillPlanForm(plan: BatchPlan) {
+  planForm.id = plan.id
+  planForm.planName = plan.name
+  planForm.scriptId = plan.scriptId ?? null
+  planForm.bindingIds = [...plan.bindingIds]
+  planForm.scheduleMode = plan.scheduleMode
+  planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''
+  planForm.processTypes = [...plan.processTypes]
+  planForm.cornerMarkId = plan.cornerMarkId ?? null
+}
+
+async function editPlan(row: BatchPlan) {
+  try {
+    const response = await getVideoBatchPlanDetail(row.id)
+    const plan = normalizePlan(getResponseData(response))
+    fillPlanForm(plan)
+    planDialog.isEdit = true
+    planDialog.visible = true
+    await loadResources()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '计划详情加载失败')
+  }
+}
+
+function buildPlanPayload() {
+  const processTypes = [...new Set(planForm.processTypes)]
+  return {
+    planName: planForm.planName.trim(),
+    scriptId: planForm.scriptId,
+    bindingIds: [...new Set(planForm.bindingIds)],
+    scheduleMode: planForm.scheduleMode,
+    scheduledAt: planForm.scheduleMode === 'scheduled' && planForm.scheduledAt ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
+    postProcessConfig: {
+      processTypes,
+      subtitleSelector: processTypes.includes('subtitle') ? 1 : 0,
+      cornerMarkId: processTypes.includes('corner_mark') ? planForm.cornerMarkId : null
     }
   }
+}
 
-  // ????ID??projectList????????
-  const plan = projectList.value.find((p: any) => p.id === currentProject.value.id)
-  if (!plan) {
-    ElMessage.error('计划信息获取失败')
+async function submitPlan() {
+  const valid = await planFormRef.value?.validate?.().catch(() => false)
+  if (!valid) return
+  if (planForm.bindingIds.length < 1 || planForm.bindingIds.length > 15) {
+    ElMessage.warning('绑定关系数量必须是 1～15 个')
+    return
+  }
+  if (planForm.scheduleMode === 'scheduled' && !planForm.scheduledAt) {
+    ElMessage.warning('请选择计划执行时间')
     return
   }
 
-  // 如果子任务未设置字幕配置，则继承计划的设置
-  const subtitleSelector = typeof subTaskForm.subtitleSelector !== 'undefined' ? subTaskForm.subtitleSelector : plan.subtitleSelector
-  const colour = subtitleSelector === 1 ? 'yellow' : undefined
-  
-  // 构造请求参数
-  const params: any = {
-    title: taskName,
-    msg: subTaskForm.script,
-    plan_id: plan.id,
-    voice_id: subTaskForm.voice_id || '',
-    voice_name: subTaskForm.voice_name || '',
-    voice_url: subTaskForm.voice_url || '',
-    digital_human_id: subTaskForm.digital_human_id || '',
-    digital_human_name: subTaskForm.digital_human_name || '',
-    digital_human_cover_url: subTaskForm.digital_human_cover_url || '',
-    base_voice_url: subTaskForm.base_voice_url || '',
-    language: subTaskForm.language,
-    speechRate: 1.0,
-    anchor_type: 1,
-    isSkipRs: 0,
-    subtitleSelector: subtitleSelector,
-    colour: colour,
-    user_group: 'default'
-  }
-
-  if (hasValue(subTaskForm.relId)) {
-    params.rel_id = subTaskForm.relId
-    params.binding_id = subTaskForm.relId
-  }
-  
-  // 角标：子任务优先，回退到计划；现在允许与字幕独立组合
-  const cornerMarkId = subTaskForm.cornerMark || plan.cornerMark || ''
-  if (cornerMarkId) {
-    const cornerMarkItem = cornerMarkOptions.value.find((item: any) => item.id === cornerMarkId)
-    if (cornerMarkItem?.photoUrl) {
-      params.corner_mark_id = cornerMarkId
-      params.corner_mark_url = cornerMarkItem.photoUrl
-    }
-  }
-
-  const taskSubtitlePayload = buildPlanSubtitlePayload(
-    Number(subtitleSelector || 0),
-    params.corner_mark_id
-  )
-  if (taskSubtitlePayload) {
-    params.subtitle_config = JSON.stringify(taskSubtitlePayload)
-  }
-
-  // 添加ID（如果是更新）
-  if (subTaskForm.id) {
-    params.id = subTaskForm.id
-  }
-
+  planDialog.submitting = true
   try {
-    const res = await createPlanVideoTask(params)
-    const apiData = res.data
-    if (apiData && apiData.code === 200) {
-      ElMessage.success('任务保存成功')
-      subTaskDialog.visible = false
-      
-      // 如果是新增，把返回的ID赋值给表单
-      if (apiData.data && apiData.data.id && !subTaskForm.id) {
-        subTaskForm.id = apiData.data.id
-      }
-      
-      // 更新本地任务列表
-      const tasks = currentProject.value.subTasks
-      const idx = tasks.findIndex((t: any) => t.id === subTaskForm.id)
-      const taskData = { 
-        ...subTaskForm, 
-        executeTime: '待定', 
-        status: '未执行',
-        taskStatus: '0',
-        statusType: 'info',
-        statusPercent: 0
-      }
-      if (idx > -1) {
-        tasks[idx] = taskData
-      } else {
-        tasks.push(taskData)
-      }
-      
-      // 重新加载子任务列表以确保数据同步
-      await loadSubTaskList(plan.id)
+    const payload = buildPlanPayload()
+    let planId = planForm.id
+    if (planDialog.isEdit && planId !== null) {
+      await updateVideoBatchPlan(planId, payload)
+      ElMessage.success('计划修改已保存')
     } else {
-      ElMessage.error(apiData?.message || '任务保存失败')
+      const response = await createVideoBatchPlan(payload)
+      planId = responseId(response)
+      if (planId === null) throw new Error('创建成功但未返回计划 ID')
+      await startVideoBatchPlan(planId)
+      ElMessage.success('批量计划已创建并提交执行')
     }
-  } catch (e) {
-    ElMessage.error('任务保存失败')
+    planDialog.visible = false
+    await loadPlanList()
+    if (detail.visible && detail.plan?.id === planId) await openDetail({ id: planId } as BatchPlan)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '批量计划保存失败')
+  } finally {
+    planDialog.submitting = false
   }
 }
 
-// ===== 页面加载时获取列表数据 =====
-const loadProjectList = async () => {
+async function startPlan(row: BatchPlan) {
   try {
-    console.log('开始加载计划列表...')
-    const res = await getPlanVideoList(planPage.value, planPageSize.value, {})
-    console.log('计划列表原始响应:', res)
-    
-    // res 是整个 axios response，res.data 是后端返回的 API 数据
-    const apiData = res.data
-    if (apiData.code === 200) {
-      let data = []
-      
-      // 后端返回的结构：{ code, message, data: { page, pageSize, data: [...], total } }
-      if (apiData.data && apiData.data.data && Array.isArray(apiData.data.data)) {
-        data = apiData.data.data
-        planTotal.value = apiData.data.total || 0
-      } else if (apiData.data && Array.isArray(apiData.data)) {
-        data = apiData.data
-      }
-      
-      // 映射字段名称，适配后端返回的字段格式
-      projectList.value = data.map((item: any) => ({
-        id: item.id,
-        name: item.planName || item.name || '',
-        createTime: item.createTime || '',
-        startTime: item.runTime || '',
-        endTime: item.endTime || '',
-        runMode: item.runMode ?? item.run_mode ?? '1',
-        runTime: item.runTime ?? item.run_time ?? '',
-        taskStatus: item.taskStatus,
-        status: Number(item.taskStatus) < 0 ? '执行失败' : item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
-        taskCount: Number(item.size ?? item.taskCount ?? (Array.isArray(item.subTasks) ? item.subTasks.length : 0)),
-        language: item.language || '',
-        script: item.msg || '',
-        executionMode: String(item.runMode ?? item.run_mode) === '2' ? 'scheduled' : 'manual',
-        scheduledTime: item.runTime ?? item.run_time ?? '',
-        subtitleSelector: item.subtitleSelector || 0,
-        colour: item.colour || 'white',
-        cornerMark: item.cornerMarkId || item.corner_mark_id || '',
-        cornerMarkId: item.cornerMarkId || item.corner_mark_id || '',
-        cornerMarkUrl: item.cornerMarkUrl || item.corner_mark_url || '',
-        subTasks: [] // 初始化时为空，需要通过详情接口获取
-      }))
-      
-      console.log('计划列表已加载:', projectList.value)
-    } else {
-      ElMessage.error(apiData?.message || apiData?.msg || '加载列表失败')
-    }
-  } catch (error) {
-    console.error('加载计划列表失败:', error)
-    ElMessage.error('加载列表失败: ' + (error as any)?.message)
+    await ElMessageBox.confirm('提交后将按统一视频通道规则排队，是否继续？', '提交执行', { type: 'warning', confirmButtonText: '提交', cancelButtonText: '取消' })
+    await startVideoBatchPlan(row.id)
+    ElMessage.success('计划已提交执行')
+    await loadPlanList()
+    if (detail.visible && detail.plan?.id === row.id) await refreshDetail()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || '提交执行失败')
   }
 }
 
-// 搜索/查询计划
-const handleSearch = async () => {
+async function cancelPlan(row: BatchPlan) {
   try {
-    planPage.value = 1
-    const search = searchKeyword.value ? { planName: searchKeyword.value } : {}
-    const res = await getPlanVideoList(planPage.value, planPageSize.value, search)
-    
-    const apiData = res.data
-    if (apiData.code === 200) {
-      let data = []
-      
-      if (apiData.data && apiData.data.data && Array.isArray(apiData.data.data)) {
-        data = apiData.data.data
-        planTotal.value = apiData.data.total || 0
-      } else if (apiData.data && Array.isArray(apiData.data)) {
-        data = apiData.data
-      }
-      
-      projectList.value = data.map((item: any) => ({
-        id: item.id,
-        name: item.planName || item.name || '',
-        createTime: item.createTime || '',
-        startTime: item.runTime || '',
-        endTime: item.endTime || '',
-        runMode: item.runMode ?? item.run_mode ?? '1',
-        runTime: item.runTime ?? item.run_time ?? '',
-        taskStatus: item.taskStatus,
-        status: Number(item.taskStatus) < 0 ? '执行失败' : item.taskStatus === '0' ? '未执行' : item.taskStatus === '1' ? '执行中' : '已完成',
-        taskCount: Number(item.size ?? item.taskCount ?? (Array.isArray(item.subTasks) ? item.subTasks.length : 0)),
-        language: item.language || '',
-        script: item.msg || '',
-        executionMode: String(item.runMode ?? item.run_mode) === '2' ? 'scheduled' : 'manual',
-        scheduledTime: item.runTime ?? item.run_time ?? '',
-        subtitleSelector: item.subtitleSelector || 0,
-        colour: item.colour || 'white',
-        cornerMark: item.cornerMarkId || item.corner_mark_id || '',
-        cornerMarkId: item.cornerMarkId || item.corner_mark_id || '',
-        cornerMarkUrl: item.cornerMarkUrl || item.corner_mark_url || '',
-        subTasks: []
-      }))
-    } else {
-      ElMessage.error(apiData?.message || apiData?.msg || '搜索失败')
-    }
-  } catch (error) {
-    console.error('搜索计划失败:', error)
-    ElMessage.error('搜索失败')
+    await ElMessageBox.confirm('只会阻止尚未投递的子任务，已经调用第三方的任务不会被强制抢占。是否取消？', '取消计划', { type: 'warning', confirmButtonText: '取消计划', cancelButtonText: '返回' })
+    await cancelVideoBatchPlan(row.id)
+    ElMessage.success('计划已取消')
+    await loadPlanList()
+    if (detail.visible && detail.plan?.id === row.id) await refreshDetail()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || '取消计划失败')
   }
 }
 
-// 监视脚本选择器的 tab 变化
-watch(
-  () => scriptSelector.activeTab,
-  async (newTab) => {
-    if (!scriptSelector.visible) return
-    console.log('脚本选择器 tab 变化:', newTab)
-    if (newTab === 'library') {
-      await fetchScriptLibrary()
-    } else if (newTab === 'history') {
-      await fetchScriptHistory()
-    }
+async function deletePlan(row: BatchPlan) {
+  try {
+    await ElMessageBox.confirm('仅删除尚未提交的计划，删除后不可恢复，是否继续？', '删除计划', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+    await deleteVideoBatchPlan(row.id)
+    ElMessage.success('计划已删除')
+    await loadPlanList()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || '删除计划失败')
   }
-)
+}
 
-// 页面挂载时加载数据
-onMounted(() => {
-  console.log('组件已挂载，开始加载数据')
-  loadProjectList()
-  // 预加载脚本库和历史脚本
-  fetchScriptLibrary()
-  fetchScriptHistory()
-  // 预加载数字人、配音和绑定关系列表
-  loadDigitalHumanList()
-  loadVoiceList()
-  loadBindingList()
-  // 预加载角标列表
-  fetchCornerMarks()
+async function openDetail(row: BatchPlan) {
+  detail.visible = true
+  detail.loading = true
+  detail.plan = null
+  detail.children = []
+  try {
+    const response = await getVideoBatchPlanDetail(row.id)
+    const plan = normalizePlan(getResponseData(response))
+    detail.plan = plan
+    detail.children = plan.children
+  } catch (error: any) {
+    detail.visible = false
+    ElMessage.error(error?.message || '批量计划详情加载失败')
+  } finally {
+    detail.loading = false
+  }
+}
+
+async function refreshDetail() {
+  if (!detail.plan) return
+  await openDetail(detail.plan)
+}
+
+async function retryChild(child: BatchChild) {
+  if (!isFailed(child) || detail.retryingId !== null) return
+  detail.retryingId = child.id
+  try {
+    await retryVideoBatchChild(child.id)
+    ElMessage.success('失败子任务已重新进入队列')
+    await refreshDetail()
+    await loadPlanList()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '手动重试失败')
+  } finally {
+    detail.retryingId = null
+  }
+}
+
+function openVideoPreview(url: string) {
+  if (!url) return
+  preview.url = url
+  preview.visible = true
+}
+
+function stopPreview() {
+  if (previewVideo.value) {
+    previewVideo.value.pause()
+    previewVideo.value.currentTime = 0
+  }
+  preview.url = ''
+}
+
+function handlePageSizeChange(size: number) {
+  planPageSize.value = size
+  planPage.value = 1
+  loadPlanList()
+}
+
+onMounted(async () => {
+  await Promise.all([loadPlanList(), loadDispatchGroups()])
 })
 </script>
 
 <style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+.batch-plan-page {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: clamp(16px, 2vw, 28px);
+  background: #f5f7fb;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+.page-hero,
+.filter-card,
+.dispatch-card,
+.table-card,
+.child-table-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  box-shadow: 0 5px 18px rgba(38, 55, 88, 0.04);
 }
 
-:deep(.el-table) {
-  border-radius: 8px;
+.page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: clamp(20px, 3vw, 32px);
 }
 
-:deep(.el-table th.el-table__cell) {
-  padding: 10px 0;
+.eyebrow {
+  color: #7b8aa1;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-:deep(.el-table td.el-table__cell) {
-  padding: 8px 0;
+.page-hero h1,
+.detail-title-row h2 {
+  margin: 7px 0 0;
+  color: #1f2d43;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 700;
 }
 
-:deep(.el-dialog) {
-  border-radius: 12px;
+.page-hero p,
+.detail-subtitle {
+  margin: 7px 0 0;
+  color: #8c9ab0;
+  font-size: 13px;
 }
 
-:deep(.el-dialog__header) {
-  margin-right: 0;
-  border-bottom: 1px solid #f3f4f6;
-  padding-bottom: 15px;
+.hero-actions,
+.filter-actions,
+.row-actions,
+.detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-:deep(.el-dialog__title) {
-  font-weight: bold;
-  font-size: 16px;
+.hero-actions {
+  justify-content: flex-end;
 }
 
-.custom-textarea :deep(.el-textarea__inner) {
-  border-radius: 8px;
-  background-color: #f9fafb;
+.filter-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 14px 16px;
 }
 
-:deep(.custom-tabs .el-tabs__item.is-active) {
-  font-weight: bold;
+.search-input {
+  width: min(360px, 100%);
 }
 
-:deep(.video-preview-dialog) {
-  background: transparent;
-  box-shadow: none;
+.filter-note,
+.form-help,
+.section-heading span {
+  color: #93a0b2;
+  font-size: 12px;
 }
 
-:deep(.video-preview-dialog .el-dialog__header) {
-  background: white;
-  border-radius: 12px 12px 0 0;
+.table-card {
+  margin-top: 16px;
+  overflow: hidden;
 }
 
-:deep(.video-preview-dialog .el-dialog__body) {
-  background: #000;
+.dispatch-card {
+  margin-top: 16px;
+  padding: 18px;
+}
+
+.dispatch-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.dispatch-card__header h2 { margin: 4px 0 6px; color: #26384f; font-size: 18px; }
+.dispatch-card__header p { margin: 0; color: #8290a4; font-size: 12px; line-height: 1.7; }
+.dispatch-card__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.dispatch-list { display: grid; gap: 9px; margin-top: 16px; }
+.dispatch-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #e7ecf3;
+  border-radius: 10px;
+  background: #fbfcff;
+}
+.dispatch-item[draggable='true'] { cursor: grab; }
+.dispatch-item.dragging { opacity: .55; border-color: #8db6ee; }
+.dispatch-item.locked { background: #f7f8fa; }
+.dispatch-handle { display: grid; place-items: center; color: #8da0b8; }
+.dispatch-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.dispatch-main strong { overflow: hidden; color: #34445b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.dispatch-main span { color: #8b99ac; font-size: 11px; }
+.priority-editor { display: flex; align-items: center; gap: 7px; color: #748399; font-size: 12px; }
+.priority-editor :deep(.el-input-number) { width: 102px; }
+
+.plan-name {
+  display: block;
+  max-width: 100%;
   padding: 0;
-  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: #2b6cb0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-name:hover { color: #1d4ed8; }
+.plan-id,
+.binding-subtitle,
+.select-option-sub,
+.plan-id { color: #9aa7b8; font-size: 11px; margin-top: 4px; }
+
+.schedule-cell,
+.progress-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.schedule-time { color: #8b98aa; font-size: 11px; white-space: nowrap; }
+.progress-cell :deep(.el-progress) { width: 100%; }
+.failed-count { color: #e56b6f; font-size: 11px; }
+.time-text { color: #68778b; font-size: 12px; white-space: nowrap; }
+.muted-text { color: #aab4c1; font-size: 12px; }
+.success-text { color: #22a06b; }
+.danger-text { color: #e35d6a; }
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid #eff2f7;
+}
+
+.pagination-total { color: #91a0b2; font-size: 12px; }
+
+.detail-page { padding-bottom: 24px; }
+.detail-title-row { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.detail-summary-grid,
+.time-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.summary-item,
+.time-grid > div { min-width: 0; padding: 14px; border: 1px solid #edf1f6; border-radius: 10px; background: #fbfcfe; }
+.summary-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.summary-item span,
+.time-grid span { color: #8c9ab0; font-size: 12px; }
+.summary-item strong,
+.time-grid strong { color: #34445b; font-size: 15px; }
+.time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.time-grid > div { display: flex; flex-direction: column; gap: 7px; }
+.detail-tip { display: flex; align-items: center; gap: 8px; margin: 18px 0; padding: 11px 13px; border-radius: 9px; background: #f0f7ff; color: #4f78a8; font-size: 12px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid #edf1f6; }
+.section-heading h3 { margin: 0 0 5px; color: #33445b; font-size: 15px; }
+.binding-name { color: #3b4b60; font-size: 13px; font-weight: 600; }
+
+.plan-form { padding: 2px 4px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.schedule-radio-group { display: flex; flex-wrap: wrap; }
+.selection-summary { margin-top: 8px; color: #7c8da3; font-size: 12px; }
+.selection-summary strong { color: #2864b7; }
+.selection-summary.warning { color: #d97706; }
+.binding-option { display: flex; flex-direction: column; gap: 2px; line-height: 1.35; }
+.binding-option small { color: #9aa7b8; font-size: 11px; }
+.select-option-main { font-size: 13px; }
+.select-option-sub { max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.video-preview-wrap { display: flex; align-items: center; justify-content: center; min-height: 340px; padding: 12px; border-radius: 10px; background: #101827; }
+.preview-video { max-width: 100%; max-height: 70vh; border-radius: 6px; object-fit: contain; }
+
+:deep(.el-table th.el-table__cell),
+:deep(.el-table td.el-table__cell) { padding: 10px 8px; }
+:deep(.el-table .cell) { min-width: 0; }
+:deep(.el-drawer__body) { overflow-x: hidden; }
+:deep(.el-drawer__header) { margin-bottom: 0; padding-bottom: 16px; border-bottom: 1px solid #edf1f6; }
+:deep(.el-form-item__label) { color: #55657a; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .page-hero,
+  .filter-card,
+  .dispatch-card__header,
+  .detail-title-row { align-items: flex-start; flex-direction: column; }
+  .hero-actions,
+  .filter-actions,
+  .dispatch-card__actions { width: 100%; justify-content: space-between; }
+  .detail-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .batch-plan-page { padding: 12px; }
+  .form-grid,
+  .time-grid { grid-template-columns: 1fr; }
+  .filter-note { display: none; }
+  .dispatch-item { align-items: flex-start; flex-wrap: wrap; }
+  .dispatch-main { flex-basis: calc(100% - 34px); }
+  .pagination-bar { align-items: flex-start; flex-direction: column; }
 }
 </style>

@@ -1,5 +1,120 @@
 import request from '/@/utils/request'
 
+// ===== 云上批量视频生成接口（video-batch） =====
+
+/** 创建云上批量视频计划：一个脚本对应 1～15 个绑定关系。 */
+export function createVideoBatchPlan(data: any) {
+    return request({
+        url: '/api/material/video-batch/create/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 分页查询云上批量视频计划。 */
+export function getVideoBatchPlanList(page: number = 1, pageSize: number = 20, search: any = {}) {
+    return request({
+        url: '/api/material/video-batch/paginate/',
+        method: 'post',
+        data: { page, pageSize, search },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 查询批量计划详情及其子任务。 */
+export function getVideoBatchPlanDetail(id: number | string) {
+    return request({
+        url: `/api/material/video-batch/${id}/`,
+        method: 'get'
+    })
+}
+
+/** 编辑尚未开始执行的批量计划。 */
+export function updateVideoBatchPlan(id: number | string, data: any) {
+    return request({
+        url: `/api/material/video-batch/${id}/`,
+        method: 'put',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 提交批量计划执行。 */
+export function startVideoBatchPlan(id: number | string) {
+    return request({
+        url: `/api/material/video-batch/${id}/start/`,
+        method: 'post',
+        data: {},
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 取消尚未完成的批量计划。 */
+export function cancelVideoBatchPlan(id: number | string) {
+    return request({
+        url: `/api/material/video-batch/${id}/cancel/`,
+        method: 'post',
+        data: {},
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 删除尚未提交的批量计划。 */
+export function deleteVideoBatchPlan(id: number | string) {
+    return request({
+        url: `/api/material/video-batch/${id}/`,
+        method: 'delete'
+    })
+}
+
+/** 手动重试一个已经明确失败的批量子任务。 */
+export function retryVideoBatchChild(taskId: number | string) {
+    return request({
+        url: `/api/material/video-batch/child/${taskId}/retry/`,
+        method: 'post',
+        data: {},
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 查询当前账号可见的统一视频顶层任务组。 */
+export function getVideoDispatchGroups() {
+    return request({
+        url: '/api/material/scheduling/video/groups/',
+        method: 'get'
+    })
+}
+
+/** 保存自由搭配模式的优先级层和同层顺序。 */
+export function reorderVideoDispatchGroups(groups: Array<{ id: number | string; priorityLevel: number; priorityRank: number }>) {
+    return request({
+        url: '/api/material/scheduling/video/groups/reorder/',
+        method: 'post',
+        data: { groups },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
+/** 查询统一视频等待队列中的顶层任务组。 */
+export function getVideoSchedulingGroups(params: Record<string, any> = {}) {
+    return request({
+        url: '/api/material/scheduling/video/groups/',
+        method: 'get',
+        params
+    })
+}
+
+/** 保存自由搭配模式下等待任务组的顺序。 */
+export function reorderVideoSchedulingGroups(data: any) {
+    return request({
+        url: '/api/material/scheduling/video/groups/reorder/',
+        method: 'post',
+        data,
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+    })
+}
+
 // ===== 视频计划管理（A2EPlanVideoViews）相关接�?=====
 
 /**

@@ -108,7 +108,7 @@
           </el-table-column>
           <el-table-column label="完成时间" min-width="140" align="center">
             <template #default="scope">
-              <span class="text-[11px] whitespace-nowrap">{{ scope.row.status === 'success' ? (scope.row.endTime || scope.row.updateTime || '-') : '-' }}</span>
+              <span class="text-[11px] whitespace-nowrap">{{ scope.row.status === 'success' ? (scope.row.endTime || '-') : '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" min-width="120" align="center">
@@ -673,7 +673,6 @@ const loadTaskList = async () => {
           progress,
           time: item.createTime,
           startTime: item.startTime || item.start_time,
-          updateTime: item.updateTime,
           endTime: item.endTime,
           videoUrl: item.videoUrl,
           voiceUrl: item.voiceUrl,
@@ -1382,7 +1381,7 @@ const pollTaskProgress = async () => {
             name: taskData.digitalHumanName || taskData.name,
             videoUrl: taskData.videoUrl,
             voiceUrl: taskData.voiceUrl,
-            time: taskData.endTime || taskData.updateTime || taskData.createTime,
+            time: taskData.endTime || taskData.create_time || taskData.createTime,
             gender: taskData.gender === 'male' ? '男' : '女',
             status: 'success'
           }

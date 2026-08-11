@@ -1,6 +1,23 @@
 import request from '/@/utils/request'
 import { AxiosResponse } from 'axios'
 
+export interface TaskQueueEfficiencyQuery {
+  startTime: string
+  endTime: string
+  tenantId?: number | string
+  queueCodes?: string[]
+}
+
+/** 查询平台超级管理员专属的按队列任务效率统计。 */
+export function getTaskQueueEfficiency(params: TaskQueueEfficiencyQuery, config: Record<string, any> = {}) {
+  return request({
+    url: '/api/system/task-statistics/queue-efficiency/',
+    method: 'get',
+    params,
+    ...config
+  })
+}
+
 export function getAllRoute(): Promise<AxiosResponse<IResponse<any[]>>> {
   return request({
     url: '/api/system/get-all-route/',

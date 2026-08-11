@@ -98,7 +98,11 @@ export function updateTenantDigitalHumanScope(payload: {
     })
 }
 
-export function updateTenantSchedulerPriorityConfig(payload: { tenantId: number; priorityMode: string }): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
+export function updateTenantSchedulerPriorityConfig(payload: {
+    tenantId: number
+    priorityMode: string
+    taskOrderMode?: 'chronological' | 'free'
+}): Promise<AxiosResponse<IResponse<ITenantDetailResponse>>> {
     return request({
         url: '/api/tenant/scheduler-config/update/',
         method: 'post',

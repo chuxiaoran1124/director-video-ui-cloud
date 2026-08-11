@@ -59,19 +59,25 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="创建时间" width="170" align="center">
+        <el-table-column label="创建时间" min-width="150" align="center">
           <template #default="{ row }">
             <span class="text-gray-500 text-xs">{{ row.createTime }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="完成时间" width="170" align="center">
+        <el-table-column label="任务开始时间" min-width="150" align="center">
           <template #default="{ row }">
-            <span class="text-gray-400 text-xs">{{ row.status === '已完成' ? (row.finishTime || '-') : '-' }}</span>
+            <span class="text-gray-500 text-xs">{{ row.startTime || '-' }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="190" align="center" fixed="right">
+        <el-table-column label="完成时间" min-width="150" align="center">
+          <template #default="{ row }">
+            <span class="text-gray-400 text-xs">{{ row.status === '已完成' ? (row.endTime || '-') : '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" min-width="190" align="center" fixed="right">
           <template #default="{ $index, row }">
             <div class="flex items-center justify-center gap-2">
               <el-button size="mini" type="primary" plain :disabled="row.status !== '已完成'" @click="previewVideo(row)">
@@ -309,7 +315,8 @@ interface DigitalHumanTask {
   basePhotoUrl: string
   videoUrl?: string
   createTime: string
-  finishTime?: string
+  startTime?: string
+  endTime?: string
 }
 
 interface PromptWordItem {
@@ -456,7 +463,8 @@ const loadDigitalHumanTaskList = async () => {
           basePhotoUrl: item.basePhotoUrl || item.coverUrl || item.sourceImage || item.image || '',
           videoUrl,
           createTime: item.createTime,
-          finishTime: item.updateTime || item.completeTime || item.finishTime
+          startTime: item.startTime || item.start_time || '',
+          endTime: item.endTime || item.end_time || ''
         }
       })
       pagination.total = res.data.data?.total || 0

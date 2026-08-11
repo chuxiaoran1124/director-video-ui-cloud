@@ -264,6 +264,17 @@
                                     <div class='priority-panel__order'>
                                         当前顺序：{{ currentPriorityOrderText }}
                                     </div>
+                                    <div class='priority-panel__task-order'>
+                                        <strong>统一视频任务排序</strong>
+                                        <el-radio-group
+                                            v-model='schedulerTaskOrderMode'
+                                            :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerPriorityConfig'
+                                        >
+                                            <el-radio-button label='chronological'>时间顺序</el-radio-button>
+                                            <el-radio-button label='free'>自由搭配</el-radio-button>
+                                        </el-radio-group>
+                                        <p>{{ schedulerTaskOrderMode === 'free' ? '可在批量生成页设置 P 层并拖动同层顺序；同层仍按任务组轮转。' : '批量、单条和数字人按首次创建时间进入任务组轮转。' }}</p>
+                                    </div>
                                     <div class='priority-panel__footer'>
                                         <el-button
                                             v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
@@ -480,6 +491,7 @@ const postProcessPipelineEnabled = ref(false)
 const audioDriveEnabled = ref(false)
 const digitalHumanScope = ref<'self' | 'tenant'>('self')
 const schedulerPriorityMode = ref('balanced')
+const schedulerTaskOrderMode = ref<'chronological' | 'free'>('chronological')
 const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
 const schedulerVideoSlots = ref(1)
@@ -610,6 +622,7 @@ const loadTenantDetail = async(tenantId: number) => {
     audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
     digitalHumanScope.value = response.data.data?.runtimeConfig?.digitalHumanScope === 'tenant' ? 'tenant' : 'self'
     schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
+    schedulerTaskOrderMode.value = response.data.data?.schedulerConfig?.taskOrderMode === 'free' ? 'free' : 'chronological'
     syncSchedulerQuotaState(response.data.data)
 }
 
@@ -701,10 +714,12 @@ const saveSchedulerPriorityConfig = async() => {
     try {
         const response = await updateTenantSchedulerPriorityConfig({
             tenantId: tenantDetail.value.id,
-            priorityMode: schedulerPriorityMode.value
+            priorityMode: schedulerPriorityMode.value,
+            taskOrderMode: schedulerTaskOrderMode.value
         })
         tenantDetail.value = response.data.data
         schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || schedulerPriorityMode.value
+        schedulerTaskOrderMode.value = response.data.data?.schedulerConfig?.taskOrderMode === 'free' ? 'free' : 'chronological'
         syncSchedulerQuotaState(response.data.data)
         ElMessage.success(`该团队已切换为${response.data.data?.schedulerConfig?.priorityModeLabel || '当前'}模式`)
     } catch (error: any) {
@@ -901,6 +916,18 @@ onMounted(loadTenants)
     color: #1f4f9e;
     font-weight: 600;
 }
+
+.priority-panel__task-order {
+    display: grid;
+    gap: 9px;
+    padding: 13px;
+    border: 1px solid #e4eaf3;
+    border-radius: 10px;
+    background: #f8faff;
+}
+
+.priority-panel__task-order strong { color: #33445d; font-size: 13px; }
+.priority-panel__task-order p { margin: 0; color: #728097; font-size: 12px; line-height: 1.65; }
 
 .priority-panel__footer {
     display: flex;
