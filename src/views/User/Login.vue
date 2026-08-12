@@ -257,7 +257,7 @@ watch(
 )
 
 const onSubmit = async() => {
-    if (!canUsePasswordLogin.value) {
+    if (submitting.value || !canUsePasswordLogin.value) {
         return
     }
 
@@ -265,13 +265,13 @@ const onSubmit = async() => {
         return
     }
 
-    const valid = await ruleFormRef.value.validate().catch(() => false)
-    if (!valid) {
-        return
-    }
-
     submitting.value = true
     try {
+        const valid = await ruleFormRef.value.validate().catch(() => false)
+        if (!valid) {
+            return
+        }
+
         await layoutStore.login({
             username: form.username,
             password: form.password,
