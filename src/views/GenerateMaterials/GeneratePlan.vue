@@ -701,6 +701,7 @@ function validateDraftForSubmission() {
 }
 function buildDraftPayload() {
   const first = planForm.performerConfigs[0]
+  const allPerformersReady = planForm.performerConfigs.every(performerReady)
   const configs = planForm.performerConfigs.map((config, index) => {
     const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
     const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
@@ -709,18 +710,24 @@ function buildDraftPayload() {
       ? { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
       : { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
-  return {
-    performerConfigs: configs,
+  const payload: Record<string, any> = {
     videoOptions: deepClone(first.videoOptions),
     postProcessConfig: { processTypes: [...planForm.processTypes] },
     scheduleMode: planForm.scheduleMode,
     scheduledAt: scheduledAtPayload()
   }
+  if (allPerformersReady) payload.performerConfigs = configs
+  return payload
 }
 async function saveDraftConfiguration(notify = true) {
   if (!detail.plan || !validateDraftForSave()) return false
   detail.saving = true
-  try { await updateVideoBatchPlan(detail.plan.id, buildDraftPayload()); if (notify) ElMessage.success('草稿配置已保存'); await refreshDetail(); await loadPlanList(); return true } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
+  try {
+    const hasIncompletePerformer = planForm.performerConfigs.some(config => !performerReady(config))
+    await updateVideoBatchPlan(detail.plan.id, buildDraftPayload())
+    if (notify) ElMessage.success(hasIncompletePerformer ? '计划设置已保存；执行项选完人和声音后再保存' : '草稿配置已保存')
+    await refreshDetail(); await loadPlanList(); return true
+  } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
 }
 async function saveAndStartPlan() {
   if (!detail.plan || !validateDraftForSubmission()) return
