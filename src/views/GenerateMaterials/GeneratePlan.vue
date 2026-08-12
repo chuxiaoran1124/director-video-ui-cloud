@@ -38,24 +38,24 @@
         style="width: 100%"
         :header-cell-style="tableHeaderStyle"
       >
-        <el-table-column label="计划名称" min-width="190" show-overflow-tooltip>
+        <el-table-column label="计划名称" min-width="135" show-overflow-tooltip>
           <template #default="{ row }">
             <button class="plan-name" type="button" @click="openDetail(row)">{{ row.name || `计划 #${row.id}` }}</button>
             <div class="plan-id">ID: {{ row.id }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="脚本" min-width="220" show-overflow-tooltip>
+        <el-table-column label="脚本" min-width="145" show-overflow-tooltip>
           <template #default="{ row }"><span class="script-cell">{{ truncate(row.script?.content || '', 62) }}</span></template>
         </el-table-column>
-        <el-table-column label="执行方式" min-width="120" align="center">
+        <el-table-column label="执行方式" min-width="85" align="center">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" :type="row.scheduleMode === 'overnight' ? 'warning' : 'info'">{{ scheduleModeLabel(row.scheduleMode) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" min-width="95" align="center">
+        <el-table-column label="状态" min-width="72" align="center">
           <template #default="{ row }"><el-tag size="small" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="任务进度" min-width="130" align="center">
+        <el-table-column label="任务进度" min-width="88" align="center">
           <template #default="{ row }">
             <div class="progress-cell">
               <span>{{ row.completedCount }}/{{ row.totalCount }}</span>
@@ -63,10 +63,10 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.createTime) }}</template></el-table-column>
-        <el-table-column label="任务开始时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.startTime) }}</template></el-table-column>
-        <el-table-column label="完成时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.endTime) }}</template></el-table-column>
-        <el-table-column label="操作" min-width="220" align="center">
+        <el-table-column label="创建时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.createTime) }}</span></template></el-table-column>
+        <el-table-column label="任务开始时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.startTime) }}</span></template></el-table-column>
+        <el-table-column label="完成时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.endTime) }}</span></template></el-table-column>
+        <el-table-column label="操作" min-width="105" align="center">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' ? '继续配置' : '任务详情' }}</el-button>
@@ -697,6 +697,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .plan-name { border:0; padding:0; background:transparent; color:#177ddc; cursor:pointer; font:inherit; font-weight:700; }
 .plan-id { color:#9ba8ba; font-size:12px; margin-top:3px; }
 .script-cell { color:#69788e; }
+.time-cell { display:inline-block; color:#596a80; font-size:12px; line-height:1.45; }
 .progress-cell { display:grid; gap:6px; min-width:90px; }
 .row-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; }
 .pagination-bar { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:16px; color:#7b8aa1; }
