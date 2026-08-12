@@ -614,7 +614,7 @@ function responseId(response: any): string | number | null {
 function normalizeStatus(value: any, fallback: StatusKey = 'waiting'): StatusKey {
   const raw = String(value ?? '').trim().toLowerCase()
   if (['draft', 'unsubmitted', '未执行', '草稿'].includes(raw)) return 'draft'
-  if (['running', 'processing', 'in_progress', '执行中', '生成中'].includes(raw)) return 'running'
+  if (['running', 'processing', 'in_progress', 'post_processing', 'subtitle_processing', 'video_generating', '执行中', '生成中'].includes(raw)) return 'running'
   if (['completed', 'success', 'succeeded', 'done', '已完成', '5', '2'].includes(raw)) return 'completed'
   if (['partial_failed', 'partial-failed', '部分失败'].includes(raw)) return 'partial_failed'
   if (['failed', 'fail', '失败', '执行失败', '-1'].includes(raw)) return 'failed'
