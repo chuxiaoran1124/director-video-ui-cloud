@@ -238,15 +238,21 @@
                     <div class="block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
                     <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row">
                       <span class="enhancement-label">角标 <em>*</em></span>
-                      <el-select v-model="activePerformer.postProcessConfig.cornerMarkId" filterable clearable placeholder="选择角标" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
-                        <el-option v-for="item in cornerMarkOptions" :key="item.id" :label="item.name" :value="item.id" />
-                      </el-select>
+                      <div>
+                        <el-select v-model="activePerformer.postProcessConfig.cornerMarkId" filterable clearable placeholder="选择角标" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
+                          <el-option v-for="item in cornerMarkOptions" :key="item.id" :label="item.name" :value="item.id" />
+                        </el-select>
+                        <small v-if="!cornerMarkOptions.length" class="asset-empty-warning">当前团队暂无可用角标，请先在素材管理中创建。</small>
+                      </div>
                     </div>
                     <div v-if="planForm.processTypes.includes('banner_overlay')" class="enhancement-row">
                       <span class="enhancement-label">横幅 <em>*</em></span>
-                      <el-select v-model="activePerformer.postProcessConfig.bannerOverlayId" filterable clearable placeholder="选择横幅" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
-                        <el-option v-for="item in bannerOverlayOptions" :key="item.id" :label="item.name" :value="item.id" />
-                      </el-select>
+                      <div>
+                        <el-select v-model="activePerformer.postProcessConfig.bannerOverlayId" filterable clearable placeholder="选择横幅" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
+                          <el-option v-for="item in bannerOverlayOptions" :key="item.id" :label="item.name" :value="item.id" />
+                        </el-select>
+                        <small v-if="!bannerOverlayOptions.length" class="asset-empty-warning">当前团队暂无可用横幅，请先在素材管理中创建。</small>
+                      </div>
                     </div>
                     <div v-if="planForm.processTypes.includes('subtitle')" class="subtitle-note">
                       字幕样式在右侧预览区调整，配置会随当前执行项保存。
@@ -262,14 +268,14 @@
                 <aside class="preview-panel">
                   <div class="preview-heading"><strong>预览效果</strong><span>{{ performerSummary(activePerformer) }}</span></div>
                   <SubtitlePreview
-                    v-if="planForm.processTypes.includes('subtitle')"
+                    v-if="activePreviewProcessTypes.length"
                     :key="activePerformer.key"
                     :frame-base64="activePreviewFrame"
                     :script-text="planForm.scriptContent"
                     :corner-mark-url="activeCornerMarkUrl"
                     :banner-overlay-base64="activeBannerBase64"
-                    :process-types="planForm.processTypes"
-                    :enable-subtitle="true"
+                    :process-types="activePreviewProcessTypes"
+                    :enable-subtitle="planForm.processTypes.includes('subtitle')"
                     :initial-config="activePerformer.postProcessConfig.subtitleConfig"
                     @update:config="updateActiveSubtitleConfig"
                   />
@@ -459,6 +465,12 @@ const createRules = {
 
 const activePerformer = computed(() => planForm.performerConfigs[activePerformerIndex.value] || null)
 const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activePerformer.value?.postProcessConfig.cornerMarkId))?.url || '')
+const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((type) => {
+  if (type === 'subtitle') return true
+  if (type === 'corner_mark') return Boolean(activeCornerMarkUrl.value)
+  if (type === 'banner_overlay') return Boolean(activeBannerBase64.value)
+  return false
+}))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
 const filteredScriptOptions = computed(() => {
   const source = scriptSelector.mode === 'library' ? scriptOptions.value : historyOptions.value
@@ -615,7 +627,9 @@ function validateDraft() {
   const first = planForm.performerConfigs[0]
   if (planForm.processTypes.includes('subtitle') && !Object.keys(first.postProcessConfig.subtitleConfig || {}).length) { activePerformerIndex.value = 0; ElMessage.warning('请先完成第1项字幕设置'); return false }
   if (planForm.processTypes.includes('corner_mark') && !first.postProcessConfig.cornerMarkId) { activePerformerIndex.value = 0; ElMessage.warning('请先为第1项选择角标'); return false }
+  if (planForm.processTypes.includes('corner_mark') && !cornerMarkOptions.value.find(item => String(item.id) === String(first.postProcessConfig.cornerMarkId))?.url) { activePerformerIndex.value = 0; ElMessage.warning('所选角标缺少图片地址，请重新上传角标'); return false }
   if (planForm.processTypes.includes('banner_overlay') && !first.postProcessConfig.bannerOverlayId) { activePerformerIndex.value = 0; ElMessage.warning('请先为第1项选择横幅'); return false }
+  if (planForm.processTypes.includes('banner_overlay') && !bannerOverlayOptions.value.find(item => String(item.id) === String(first.postProcessConfig.bannerOverlayId))?.url) { activePerformerIndex.value = 0; ElMessage.warning('所选横幅缺少图片地址，请重新生成横幅'); return false }
   return true
 }
 function buildDraftPayload() {
@@ -647,7 +661,7 @@ async function saveAndStartPlan() {
 }
 
 async function loadPlanList() { listLoading.value = true; try { const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {}); const page = getPageData(response); planList.value = page.items.map(normalizePlan); planTotal.value = page.total } catch (error: any) { ElMessage.error(error?.message || '计划加载失败') } finally { listLoading.value = false } }
-async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; voiceAudio?.pause() }
 async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm('取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
@@ -659,9 +673,9 @@ async function loadHistory() { if (resourcesLoaded.history) return; const respon
 async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
 async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
 async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
-async function loadCorners() { if (resourcesLoaded.corners) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
-async function loadBanners() { if (resourcesLoaded.banners) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
-async function loadResources() { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(), loadBanners()]) }
+async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
+async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
+async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
 function openAssetPicker(type: AssetPickerType) { assetPicker.type = type; assetPicker.search = ''; assetPicker.visible = true; if (type === 'binding') loadBindings(); else if (type === 'human') loadHumans(); else loadVoices() }
 function selectAsset(item: any) { if (!activePerformer.value) return; if (assetPicker.type === 'binding') activePerformer.value.bindingId = item.id; else if (assetPicker.type === 'human') activePerformer.value.digitalHumanId = item.id; else activePerformer.value.voiceId = item.id; assetPicker.visible = false; refreshActivePreview() }
