@@ -335,7 +335,7 @@ const taskCategoryOptions = [
     value: 'digitalHuman'
   },
   {
-    label: '批量生成',
+    label: '批量数字人生成',
     value: 'planVideo'
   },
   {
@@ -903,7 +903,7 @@ const summaryCards = computed(() => [
     value: formatNumber(
       currentTaskStats.value.finishedCount || 0
     ),
-    note: `单条生成 ${formatNumber(videoTaskCount.value)} · 批量生成 ${formatNumber(planVideoTaskCount.value)}`,
+    note: `单条生成 ${formatNumber(videoTaskCount.value)} · 批量数字人生成 ${formatNumber(planVideoTaskCount.value)}`,
     badge: '视频产出',
     tone: 'tone-blue'
   },
@@ -999,8 +999,8 @@ const stageRows = computed(() => {
     },
     {
       key: 'planVideo',
-      label: '批量生成',
-      desc: '批量生成任务数',
+      label: '批量数字人生成',
+      desc: '批量数字人生成任务数',
       value: planVideoTaskCount.value,
       color: '#f59e0b'
     },
@@ -1149,7 +1149,7 @@ const createStageOption = (): ECOption => ({
       color: '#64748b',
       fontSize: 11,
       interval: 0,
-      formatter: (value: string) => value.replace('同时训练', '同时\n训练').replace('批量生成', '批量\n生成').replace('单条生成', '单条\n生成')
+      formatter: (value: string) => value.replace('同时训练', '同时\n训练').replace('批量数字人生成', '批量数字人\n生成').replace('单条生成', '单条\n生成')
     }
   },
   yAxis: {

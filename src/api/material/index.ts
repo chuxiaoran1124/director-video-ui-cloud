@@ -2,8 +2,31 @@ import request from '/@/utils/request'
 
 // ===== 云上批量视频生成接口（video-batch） =====
 
-/** 创建云上批量视频计划：一个脚本对应 1～15 个绑定关系。 */
-export function createVideoBatchPlan(data: any) {
+export interface BatchDigitalHumanPlanPayload {
+    planName: string
+    script: {
+        source: 'manual' | 'library' | 'history'
+        sourceId?: number | string | null
+        title?: string
+        content: string
+    }
+    performerConfigs: Array<{
+        selectionMode: 'binding' | 'custom'
+        bindingId?: number | string | null
+        digitalHumanId?: number | string | null
+        voiceId?: number | string | null
+    }>
+    videoOptions?: Record<string, any>
+    postProcessConfig?: Record<string, any>
+    scheduleMode: 'immediate' | 'scheduled' | 'overnight'
+    scheduledAt?: string | null
+    /** 兼容旧版云上后端，升级后可移除。 */
+    scriptId?: number | string | null
+    bindingIds?: Array<number | string>
+}
+
+/** 创建云上批量数字人生成计划：1 份脚本对应 1～15 个数字人执行项。 */
+export function createVideoBatchPlan(data: BatchDigitalHumanPlanPayload | Record<string, any>) {
     return request({
         url: '/api/material/video-batch/create/',
         method: 'post',
@@ -31,7 +54,7 @@ export function getVideoBatchPlanDetail(id: number | string) {
 }
 
 /** 编辑尚未开始执行的批量计划。 */
-export function updateVideoBatchPlan(id: number | string, data: any) {
+export function updateVideoBatchPlan(id: number | string, data: BatchDigitalHumanPlanPayload | Record<string, any>) {
     return request({
         url: `/api/material/video-batch/${id}/`,
         method: 'put',
@@ -1711,6 +1734,16 @@ export function downloadFileByProxy(fileUrl: string, taskId?: string | number, a
         },
         responseType: 'blob',
         timeout: 120000
+    })
+}
+
+/** 获取横幅素材列表，批量数字人计划复用单条生成的横幅选择体验。 */
+export function getBannerOverlayList(page: number = 1, pageSize: number = 50, search: Record<string, any> = {}) {
+    return request({
+        url: '/api/material/banner-overlay/paginate/',
+        method: 'post',
+        data: { page, pageSize, search },
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
     })
 }
 

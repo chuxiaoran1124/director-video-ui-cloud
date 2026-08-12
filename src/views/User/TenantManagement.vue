@@ -273,7 +273,7 @@
                                             <el-radio-button label='chronological'>时间顺序</el-radio-button>
                                             <el-radio-button label='free'>自由搭配</el-radio-button>
                                         </el-radio-group>
-                                        <p>{{ schedulerTaskOrderMode === 'free' ? '可在批量生成页设置 P 层并拖动同层顺序；同层仍按任务组轮转。' : '批量、单条和数字人按首次创建时间进入任务组轮转。' }}</p>
+                                        <p>{{ schedulerTaskOrderMode === 'free' ? '可在批量数字人生成页设置 P 层并拖动同层顺序；同层仍按任务组轮转。' : '批量数字人、单条和数字人任务按首次创建时间进入任务组轮转。' }}</p>
                                     </div>
                                     <div class='priority-panel__footer'>
                                         <el-button

@@ -6,6 +6,9 @@ export interface TaskQueueEfficiencyQuery {
   endTime: string
   tenantId?: number | string
   queueCodes?: string[]
+  /** 统计分桶：1 小时 5 分钟、1 天小时、1 周/月/长自定义日。 */
+  granularity?: '5m' | '1h' | '1d' | string
+  preset?: '1h' | '1d' | '1w' | '1m' | 'custom' | string
 }
 
 /** 查询平台超级管理员专属的按队列任务效率统计。 */
