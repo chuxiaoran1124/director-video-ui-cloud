@@ -4,15 +4,12 @@
       <div>
         <div class="eyebrow">内容生成 / 批量数字人生成</div>
         <h1>生成计划管理</h1>
-        <p>一份脚本搭配 1～15 个数字人执行项，统一进入视频通道排队。</p>
+        <p>先创建计划，再进入详情逐个配置数字人执行项。</p>
       </div>
-      <div class="hero-actions">
-        <el-tag type="info" effect="plain">1 个脚本 × 1～15 个数字人执行项</el-tag>
-        <el-button type="primary" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
-          新建批量计划
-        </el-button>
-      </div>
+      <el-button type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>
+        新建批量计划
+      </el-button>
     </section>
 
     <section class="filter-card">
@@ -26,71 +23,20 @@
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      <div class="filter-actions">
-        <span class="filter-note">批量父计划不占用效率统计，实际视频子任务按队列执行。</span>
-        <el-button :loading="listLoading" @click="loadPlanList">
-          <el-icon><Refresh /></el-icon>
-          刷新
-        </el-button>
-      </div>
-    </section>
-
-    <section class="dispatch-card">
-      <div class="dispatch-card__header">
-        <div>
-          <div class="eyebrow">统一视频通道</div>
-          <h2>任务排序</h2>
-          <p v-if="dispatchOrderMode === 'free'">自由搭配模式：拖动会重排 P，P 数字越小越先执行；需要并行时可把多个组设为同一 P，同一 P 仍按创建时间 FIFO 和任务组轮转。</p>
-          <p v-else>时间顺序模式：批量、单条和数字人顶层任务先按创建时间进入，同层按任务组轮转。</p>
-        </div>
-        <div class="dispatch-card__actions">
-          <el-tag :type="dispatchOrderMode === 'free' ? 'warning' : 'info'" effect="plain">{{ orderModeLabel(dispatchOrderMode) }}</el-tag>
-          <el-button :loading="dispatchLoading" @click="loadDispatchGroups"><el-icon><Refresh /></el-icon>刷新</el-button>
-          <el-button v-if="dispatchOrderMode === 'free'" type="primary" :loading="dispatchSaving" @click="saveDispatchOrder">保存优先级</el-button>
-        </div>
-      </div>
-      <div v-if="dispatchState === 'loading'" class="dispatch-state"><el-skeleton :rows="3" animated /></div>
-      <div v-else-if="dispatchState === 'error'" class="dispatch-state dispatch-state-error">
-        <el-empty :image-size="54" :description="dispatchError || '任务排序加载失败'"><el-button type="primary" @click="loadDispatchGroups">重新加载</el-button></el-empty>
-      </div>
-      <div v-else-if="dispatchGroups.length" class="dispatch-list">
-        <div
-          v-for="(group, index) in dispatchGroups"
-          :key="group.id"
-          class="dispatch-item"
-          :class="{ locked: !group.canReorder, dragging: draggedDispatchIndex === index }"
-          :draggable="dispatchOrderMode === 'free' && group.canReorder"
-          @dragstart="startDispatchDrag(index)"
-          @dragover.prevent
-          @drop="dropDispatchGroup(index)"
-          @dragend="draggedDispatchIndex = null"
-        >
-          <div class="dispatch-handle"><el-icon><Rank /></el-icon></div>
-          <div class="dispatch-main">
-            <strong>{{ group.title }}</strong>
-            <span>{{ group.groupTypeLabel }} · {{ formatTime(group.createdAt) }} · 待排 {{ group.waitingItemCount }}/{{ group.activeItemCount }}</span>
-          </div>
-          <el-tag size="small" effect="plain" :type="group.dispatchMode === 'overnight' ? 'warning' : 'info'">
-            {{ group.dispatchMode === 'overnight' ? '夜间预排' : '普通任务' }}
-          </el-tag>
-          <label v-if="dispatchOrderMode === 'free'" class="priority-editor">
-            <span>优先级</span>
-            <el-input-number v-model="group.priorityLevel" :min="1" :max="99" :disabled="!group.canReorder" controls-position="right" />
-          </label>
-          <el-tag v-if="!group.canReorder" size="small" type="info">已开始，已锁定</el-tag>
-        </div>
-      </div>
-      <el-empty v-else :image-size="68" description="当前没有等待中的视频任务组" />
+      <el-button :loading="listLoading" @click="loadPlanList">
+        <el-icon><Refresh /></el-icon>
+        刷新
+      </el-button>
     </section>
 
     <section class="table-card">
       <el-table
+        v-loading="listLoading"
         :data="planList"
         row-key="id"
         fit
         style="width: 100%"
         :header-cell-style="tableHeaderStyle"
-        v-loading="listLoading"
       >
         <el-table-column label="计划名称" min-width="190" show-overflow-tooltip>
           <template #default="{ row }">
@@ -98,62 +44,41 @@
             <div class="plan-id">ID: {{ row.id }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="执行方式" min-width="125" align="center">
+        <el-table-column label="脚本" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }"><span class="script-cell">{{ truncate(row.script?.content || '', 62) }}</span></template>
+        </el-table-column>
+        <el-table-column label="执行方式" min-width="120" align="center">
           <template #default="{ row }">
-            <div class="schedule-cell">
-              <el-tag size="small" effect="plain" :type="row.scheduleMode === 'overnight' ? 'warning' : 'info'">
-                {{ scheduleModeLabel(row.scheduleMode) }}
-              </el-tag>
-              <span v-if="row.scheduledAt" class="schedule-time">{{ formatTime(row.scheduledAt) }}</span>
-            </div>
+            <el-tag size="small" effect="plain" :type="row.scheduleMode === 'overnight' ? 'warning' : 'info'">{{ scheduleModeLabel(row.scheduleMode) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" min-width="100" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" effect="light" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag>
-          </template>
+        <el-table-column label="状态" min-width="95" align="center">
+          <template #default="{ row }"><el-tag size="small" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="任务进度" min-width="125" align="center">
+        <el-table-column label="任务进度" min-width="130" align="center">
           <template #default="{ row }">
             <div class="progress-cell">
               <span>{{ row.completedCount }}/{{ row.totalCount }}</span>
-              <el-progress
-                :percentage="row.totalCount ? Math.round((row.completedCount / row.totalCount) * 100) : 0"
-                :show-text="false"
-                :stroke-width="7"
-                :status="row.statusKey === 'completed' ? 'success' : undefined"
-              />
-              <span v-if="row.failedCount" class="failed-count">失败 {{ row.failedCount }}</span>
+              <el-progress :percentage="row.totalCount ? Math.round(row.completedCount / row.totalCount * 100) : 0" :show-text="false" :stroke-width="7" />
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" min-width="155" align="center" sortable prop="createTime">
-          <template #default="{ row }"><span class="time-text">{{ formatTime(row.createTime) }}</span></template>
-        </el-table-column>
-        <el-table-column label="任务开始时间" min-width="155" align="center">
-          <template #default="{ row }"><span class="time-text">{{ formatTime(row.startTime) }}</span></template>
-        </el-table-column>
-        <el-table-column label="完成时间" min-width="155" align="center">
-          <template #default="{ row }"><span class="time-text">{{ formatTime(row.endTime) }}</span></template>
-        </el-table-column>
-        <el-table-column label="操作" min-width="235" align="center">
+        <el-table-column label="创建时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.createTime) }}</template></el-table-column>
+        <el-table-column label="任务开始时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.startTime) }}</template></el-table-column>
+        <el-table-column label="完成时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.endTime) }}</template></el-table-column>
+        <el-table-column label="操作" min-width="220" align="center">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button link type="primary" @click="openDetail(row)">任务详情</el-button>
-              <el-button v-if="canEditPlan(row)" link type="primary" @click="editPlan(row)">编辑</el-button>
-              <el-button v-if="canStartPlan(row)" link type="success" @click="startPlan(row)">提交执行</el-button>
+              <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' ? '继续配置' : '任务详情' }}</el-button>
+              <el-button v-if="row.statusKey === 'draft'" link type="danger" @click="deletePlan(row)">删除</el-button>
               <el-button v-if="canCancelPlan(row)" link type="warning" @click="cancelPlan(row)">取消</el-button>
-              <el-button v-if="canDeletePlan(row)" link type="danger" @click="deletePlan(row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
-        <template #empty>
-          <el-empty description="暂无批量数字人生成计划" />
-        </template>
+        <template #empty><el-empty description="暂无批量数字人生成计划" /></template>
       </el-table>
-
       <div class="pagination-bar">
-        <span class="pagination-total">共 {{ planTotal }} 个计划</span>
+        <span>共 {{ planTotal }} 个计划</span>
         <el-pagination
           v-model:current-page="planPage"
           v-model:page-size="planPageSize"
@@ -167,99 +92,14 @@
       </div>
     </section>
 
-    <el-drawer v-model="detail.visible" title="批量数字人生成详情" size="min(100%, 1180px)" destroy-on-close>
-      <div v-if="detail.plan" class="detail-page">
-        <div class="detail-title-row">
-          <div>
-            <div class="eyebrow">批量计划 #{{ detail.plan.id }}</div>
-            <h2>{{ detail.plan.name || '未命名计划' }}</h2>
-            <p class="detail-subtitle">{{ detail.plan.totalCount }} 个视频子任务 · {{ scheduleModeLabel(detail.plan.scheduleMode) }}</p>
-          </div>
-          <div class="detail-actions">
-            <el-button @click="refreshDetail" :loading="detail.loading">
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
-            <el-button v-if="canStartPlan(detail.plan)" type="success" @click="startPlan(detail.plan)">提交执行</el-button>
-            <el-button v-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
-          </div>
-        </div>
-
-        <div class="detail-summary-grid">
-          <div class="summary-item"><span>状态</span><el-tag :type="statusType(detail.plan.statusKey)">{{ statusLabel(detail.plan.statusKey) }}</el-tag></div>
-          <div class="summary-item"><span>总任务数</span><strong>{{ detail.plan.totalCount }}</strong></div>
-          <div class="summary-item"><span>已完成</span><strong class="success-text">{{ detail.plan.completedCount }}</strong></div>
-          <div class="summary-item"><span>失败</span><strong class="danger-text">{{ detail.plan.failedCount }}</strong></div>
-        </div>
-
-        <div class="time-grid">
-          <div><span>创建时间</span><strong>{{ formatTime(detail.plan.createTime) }}</strong></div>
-          <div><span>任务开始时间</span><strong>{{ formatTime(detail.plan.startTime) }}</strong></div>
-          <div><span>完成时间</span><strong>{{ formatTime(detail.plan.endTime) }}</strong></div>
-        </div>
-
-        <div class="detail-tip">
-          <el-icon><Rank /></el-icon>
-          <span>统一排序：{{ orderModeLabel(detail.plan.taskOrderMode) }}。同一层按顶层任务组轮转，计划内子任务按序号先进先出。</span>
-        </div>
-
-        <div class="child-table-card">
-          <div class="section-heading">
-            <div><h3>视频子任务</h3><span>打开详情只加载封面；点击预览或下载时才通过后端代理取视频。</span></div>
-            <el-tag type="info" effect="plain">{{ detail.children.length }} 条</el-tag>
-          </div>
-          <el-table :data="detail.children" row-key="id" fit style="width: 100%" :header-cell-style="tableHeaderStyle">
-            <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
-            <el-table-column label="视频封面" min-width="125" align="center">
-              <template #default="{ row }">
-                <button class="cover-button" type="button" :disabled="!row.coverUrl" @click="openVideoPreview(row)">
-                  <img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="视频封面" />
-                  <span v-else class="cover-placeholder"><el-icon><Picture /></el-icon></span>
-                  <span v-if="row.videoUrl" class="cover-play"><el-icon><VideoPlay /></el-icon></span>
-                </button>
-              </template>
-            </el-table-column>
-            <el-table-column label="数字人执行项" min-width="210" show-overflow-tooltip>
-              <template #default="{ row }">
-                <div class="binding-name">{{ row.performerName || row.bindingName || `执行项 #${row.seqNo}` }}</div>
-                <div class="binding-subtitle">{{ row.digitalHumanName || '-' }} · {{ row.voiceName || '-' }}<span v-if="row.bindingId"> · 绑定关系</span></div>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" min-width="100" align="center">
-              <template #default="{ row }"><el-tag size="small" :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template>
-            </el-table-column>
-            <el-table-column label="创建时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.createTime) }}</span></template></el-table-column>
-            <el-table-column label="任务开始时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.startTime) }}</span></template></el-table-column>
-            <el-table-column label="完成时间" min-width="150" align="center"><template #default="{ row }"><span class="time-text">{{ formatTime(row.endTime) }}</span></template></el-table-column>
-            <el-table-column label="操作" min-width="190" align="center">
-              <template #default="{ row }">
-                <el-button v-if="isFailed(row)" type="warning" link :loading="detail.retryingId === row.id" @click="retryChild(row)">手动重试</el-button>
-                <el-button v-if="row.videoUrl" type="primary" link :loading="preview.loading && preview.childId === row.id" @click="openVideoPreview(row)">预览</el-button>
-                <el-button v-if="row.videoUrl" type="primary" link :loading="preview.downloadingId === row.id" @click="downloadChild(row)">下载</el-button>
-                <span v-if="!isFailed(row) && !row.videoUrl" class="muted-text">视频完成后可预览/下载</span>
-              </template>
-            </el-table-column>
-            <template #empty><el-empty description="暂无子任务" :image-size="72" /></template>
-          </el-table>
-        </div>
-      </div>
-      <el-skeleton v-else :rows="8" animated />
-    </el-drawer>
-
-    <el-dialog
-      v-model="planDialog.visible"
-      :title="planDialog.isEdit ? '编辑批量数字人计划' : '新建批量数字人计划'"
-      width="min(1080px, 94vw)"
-      destroy-on-close
-      append-to-body
-    >
-      <el-form ref="planFormRef" :model="planForm" :rules="planRules" label-position="top" class="plan-form">
-        <div class="form-grid">
+    <el-dialog v-model="createDialog.visible" title="新建批量数字人生成计划" width="72%" append-to-body destroy-on-close>
+      <el-form ref="createFormRef" :model="planForm" :rules="createRules" label-position="top" class="create-form">
+        <div class="form-grid form-grid-two">
           <el-form-item label="计划名称" prop="planName">
             <el-input v-model="planForm.planName" maxlength="80" show-word-limit placeholder="例如：8月新品批量数字人生成" />
           </el-form-item>
           <el-form-item label="执行方式" prop="scheduleMode">
-            <el-radio-group v-model="planForm.scheduleMode" class="schedule-radio-group">
+            <el-radio-group v-model="planForm.scheduleMode">
               <el-radio-button label="immediate">立即执行</el-radio-button>
               <el-radio-button label="scheduled">指定时间</el-radio-button>
               <el-radio-button label="overnight">夜间预排</el-radio-button>
@@ -267,124 +107,257 @@
           </el-form-item>
         </div>
 
-        <section class="form-section">
-          <div class="form-section-title"><strong>1. 配置脚本</strong><span>一份计划只使用一份脚本，支持手工输入、脚本库或历史脚本。</span></div>
-          <el-radio-group v-model="planForm.scriptSource" class="source-tabs">
-            <el-radio-button label="manual">手工输入</el-radio-button>
-            <el-radio-button label="library">脚本库</el-radio-button>
-            <el-radio-button label="history">历史脚本</el-radio-button>
-          </el-radio-group>
-          <div v-if="planForm.scriptSource === 'manual'" class="script-editor-wrap">
-            <el-input v-model="planForm.scriptTitle" placeholder="脚本标题（可选）" maxlength="80" />
-            <el-input v-model="planForm.scriptContent" type="textarea" :rows="6" maxlength="2000" show-word-limit placeholder="输入本次批量生成使用的脚本内容" />
-          </div>
-          <el-select v-else-if="planForm.scriptSource === 'library'" v-model="planForm.scriptId" class="w-full" filterable clearable placeholder="选择脚本库中的脚本" @visible-change="handleScriptSelectVisible">
-            <el-option v-for="script in scriptOptions" :key="script.id" :label="script.title" :value="script.id">
-              <div class="select-option-main">{{ script.title }}</div>
-              <div class="select-option-sub">{{ truncate(script.content, 100) }}</div>
-            </el-option>
-          </el-select>
-          <el-select v-else v-model="planForm.historyId" class="w-full" filterable clearable placeholder="选择历史脚本" @visible-change="handleHistorySelectVisible">
-            <el-option v-for="script in historyOptions" :key="script.id" :label="script.title" :value="script.id">
-              <div class="select-option-main">{{ script.title }}</div>
-              <div class="select-option-sub">{{ truncate(script.content, 100) }}</div>
-            </el-option>
-          </el-select>
-          <div v-if="selectedScriptContent" class="script-preview"><span>{{ planForm.scriptTitle || '当前脚本' }}</span><p>{{ truncate(selectedScriptContent, 260) }}</p></div>
-        </section>
-
-        <section class="form-section">
-          <div class="form-section-title"><strong>2. 配置数字人执行项</strong><span>每项可选择绑定关系，也可以单独组合数字人与声音；共 {{ planForm.performerConfigs.length }}/15 项。</span></div>
-          <div class="performer-list">
-            <article v-for="(config, index) in planForm.performerConfigs" :key="config.key" class="performer-card">
-              <div class="performer-card__header">
-                <span class="performer-index">执行项 {{ index + 1 }}</span>
-                <el-button v-if="planForm.performerConfigs.length > 1" link type="danger" @click="removePerformer(index)">移除</el-button>
-              </div>
-              <el-radio-group v-model="config.selectionMode" size="small" @change="resetPerformerSelection(config)">
-                <el-radio-button label="binding">选择绑定关系</el-radio-button>
-                <el-radio-button label="custom">单独选择数字人+声音</el-radio-button>
-              </el-radio-group>
-              <div v-if="config.selectionMode === 'binding'" class="performer-fields">
-                <el-select v-model="config.bindingId" class="w-full" filterable clearable placeholder="选择绑定关系" @visible-change="handleBindingSelectVisible">
-                  <el-option v-for="binding in bindingOptions" :key="binding.id" :label="binding.name" :value="binding.id">
-                    <div class="binding-option"><span>{{ binding.name }}</span><small>{{ binding.digitalHumanName || '-' }} · {{ binding.voiceName || '-' }}</small></div>
-                  </el-option>
-                </el-select>
-                <div v-if="selectedBinding(config)" class="performer-preview-row">
-                  <img v-if="selectedBinding(config)?.coverUrl" :src="selectedBinding(config)?.coverUrl" class="performer-cover" alt="数字人封面" />
-                  <span>{{ selectedBinding(config)?.digitalHumanName }} · {{ selectedBinding(config)?.voiceName }}</span>
-                  <el-button v-if="selectedBinding(config)?.voiceUrl" link type="primary" @click="playVoice(selectedBinding(config)?.voiceUrl || '', selectedBinding(config)?.voiceName || '')"><el-icon><Headset /></el-icon>试听</el-button>
-                </div>
-              </div>
-              <div v-else class="performer-fields custom-performer-fields">
-                <el-select v-model="config.digitalHumanId" filterable clearable placeholder="选择数字人" @visible-change="handleDigitalHumanSelectVisible">
-                  <el-option v-for="human in digitalHumanOptions" :key="human.id" :label="human.name" :value="human.id">
-                    <div class="asset-option"><img v-if="human.coverUrl" :src="human.coverUrl" alt="" /><span>{{ human.name }}</span></div>
-                  </el-option>
-                </el-select>
-                <el-select v-model="config.voiceId" filterable clearable placeholder="选择声音" @visible-change="handleVoiceSelectVisible">
-                  <el-option v-for="voice in voiceOptions" :key="voice.id" :label="voice.name" :value="voice.id">
-                    <div class="binding-option"><span>{{ voice.name }}</span><small>{{ voice.language || '默认语言' }}</small></div>
-                  </el-option>
-                </el-select>
-                <div v-if="selectedHuman(config) || selectedVoice(config)" class="performer-preview-row">
-                  <img v-if="selectedHuman(config)?.coverUrl" :src="selectedHuman(config)?.coverUrl" class="performer-cover" alt="数字人封面" />
-                  <span>{{ selectedHuman(config)?.name || '未选数字人' }} · {{ selectedVoice(config)?.name || '未选声音' }}</span>
-                  <el-button v-if="selectedVoice(config)?.url" link type="primary" @click="playVoice(selectedVoice(config)?.url || '', selectedVoice(config)?.name || '')"><el-icon><Headset /></el-icon>试听</el-button>
-                </div>
-              </div>
-            </article>
-          </div>
-          <el-button class="add-performer-button" plain type="primary" :disabled="planForm.performerConfigs.length >= 15" @click="addPerformer"><el-icon><Plus /></el-icon>添加数字人执行项</el-button>
-          <div class="selection-summary">将创建 <strong>{{ planForm.performerConfigs.length }}</strong> 个实际视频子任务；批量父计划不占用任务效率统计。</div>
-        </section>
-
-        <section class="form-section">
-          <div class="form-section-title"><strong>3. 视频参数与后处理</strong><span>与单条数字人生成保持同一组基础参数。</span></div>
-          <div class="form-grid form-grid-three">
-            <el-form-item label="语言"><el-select v-model="planForm.videoOptions.language" class="w-full"><el-option label="中文" value="zh" /><el-option label="泰语" value="th" /></el-select></el-form-item>
-            <el-form-item label="视频方向"><el-radio-group v-model="planForm.videoOptions.videoType"><el-radio :label="0">竖版</el-radio><el-radio :label="1">横版</el-radio></el-radio-group></el-form-item>
-            <el-form-item label="语速"><el-input-number v-model="planForm.videoOptions.speechRate" :min="0.5" :max="2" :step="0.1" controls-position="right" /></el-form-item>
-          </div>
-          <el-checkbox-group v-model="planForm.processTypes">
-            <el-checkbox label="subtitle">字幕</el-checkbox>
-            <el-checkbox label="corner_mark">角标</el-checkbox>
-            <el-checkbox label="banner_overlay">横幅</el-checkbox>
-          </el-checkbox-group>
-          <div class="form-grid form-grid-two mt-2">
-            <el-select v-if="planForm.processTypes.includes('corner_mark')" v-model="planForm.cornerMarkId" class="w-full" clearable filterable placeholder="选择角标素材"><el-option v-for="mark in cornerMarkOptions" :key="mark.id" :label="mark.name" :value="mark.id" /></el-select>
-            <el-select v-if="planForm.processTypes.includes('banner_overlay')" v-model="planForm.bannerOverlayId" class="w-full" clearable filterable placeholder="选择横幅素材"><el-option v-for="banner in bannerOverlayOptions" :key="banner.id" :label="banner.name" :value="banner.id" /></el-select>
-          </div>
-          <div class="form-help">实际视频封面由后端生成并写回；本页创建计划时只提交素材 ID，不提前请求视频。</div>
-        </section>
-
         <el-form-item v-if="planForm.scheduleMode === 'scheduled'" label="计划执行时间" prop="scheduledAt">
-          <el-date-picker v-model="planForm.scheduledAt" class="w-full" type="datetime" format="YYYY-MM-DD HH:mm:ss" value-format="YYYY-MM-DD HH:mm:ss" :disabled-date="disablePastDate" placeholder="选择未来的执行时间" />
+          <el-date-picker v-model="planForm.scheduledAt" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" format="YYYY-MM-DD HH:mm:ss" class="w-full" :disabled-date="disablePastDate" />
         </el-form-item>
-        <div v-if="planForm.scheduleMode === 'overnight'" class="form-help">夜间预排保留原始创建时间；进入视频通道时仍按顶层任务 FIFO 和同层组轮转。</div>
-      </el-form>
 
+        <section class="create-section">
+          <div class="section-heading-row">
+            <div><strong>脚本内容 <span class="required">*</span></strong><p>手工输入不需要标题；创建后会自动进入历史脚本。</p></div>
+            <div class="script-actions">
+              <el-button plain @click="openScriptSelector('library')">脚本库</el-button>
+              <el-button plain @click="openScriptSelector('history')">历史记录</el-button>
+            </div>
+          </div>
+          <el-form-item prop="scriptContent" class="script-form-item">
+            <el-input v-model="planForm.scriptContent" type="textarea" :rows="8" maxlength="2000" show-word-limit placeholder="请直接输入本次所有视频共用的脚本内容" @input="markScriptManual" />
+          </el-form-item>
+          <div v-if="planForm.scriptSource !== 'manual'" class="selected-script-source">
+            已从{{ planForm.scriptSource === 'library' ? '脚本库' : '历史记录' }}选入，可继续在上方修改；修改后按手工脚本保存。
+          </div>
+        </section>
+
+        <section class="create-section">
+          <div class="section-heading-row">
+            <div><strong>需要的增强能力</strong><p>只选择本计划需要的能力；具体样式在第一个执行项中配置。</p></div>
+          </div>
+          <el-checkbox-group v-model="planForm.processTypes" class="feature-checkboxes">
+            <el-checkbox label="subtitle" border>字幕</el-checkbox>
+            <el-checkbox label="corner_mark" border>角标</el-checkbox>
+            <el-checkbox label="banner_overlay" border>横幅</el-checkbox>
+          </el-checkbox-group>
+        </section>
+      </el-form>
       <template #footer>
-        <el-button @click="planDialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="planDialog.submitting" @click="submitPlan">{{ planDialog.isEdit ? '保存修改' : '创建并提交' }}</el-button>
+        <el-button @click="createDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="createDialog.submitting" @click="createDraftPlan">创建任务并配置数字人</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="preview.visible" :title="preview.title || '视频预览'" width="min(820px, 92vw)" append-to-body @closed="stopPreview">
-      <div class="video-preview-wrap">
-        <el-skeleton v-if="preview.loading" :rows="5" animated />
-        <video v-else-if="preview.url" ref="previewVideo" :src="preview.url" controls autoplay playsinline class="preview-video" />
-        <el-empty v-else description="暂无可预览的视频" />
+    <el-drawer v-model="detail.visible" title="批量数字人生成详情" size="96%" destroy-on-close @closed="closeDetail">
+      <div v-if="detail.plan" class="detail-page">
+        <div class="detail-title-row">
+          <div>
+            <div class="eyebrow">批量计划 #{{ detail.plan.id }}</div>
+            <h2>{{ detail.plan.name }}</h2>
+            <p>{{ scheduleModeLabel(detail.plan.scheduleMode) }} · {{ statusLabel(detail.plan.statusKey) }}</p>
+          </div>
+          <div class="detail-actions">
+            <el-button :loading="detail.loading" @click="refreshDetail"><el-icon><Refresh /></el-icon>刷新</el-button>
+            <template v-if="detail.plan.statusKey === 'draft'">
+              <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
+              <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
+            </template>
+            <el-button v-else-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
+          </div>
+        </div>
+
+        <div class="plan-summary">
+          <div><span>脚本</span><p>{{ detail.plan.script?.content }}</p></div>
+          <div><span>增强能力</span><div class="summary-tags"><el-tag v-for="type in planForm.processTypes" :key="type" size="small" effect="plain">{{ processTypeLabel(type) }}</el-tag><em v-if="!planForm.processTypes.length">无</em></div></div>
+          <div><span>时间</span><p>创建 {{ formatTime(detail.plan.createTime) }} · 开始 {{ formatTime(detail.plan.startTime) }} · 完成 {{ formatTime(detail.plan.endTime) }}</p></div>
+        </div>
+
+        <template v-if="detail.plan.statusKey === 'draft'">
+          <div class="draft-workspace">
+            <aside class="performer-sidebar">
+              <div class="sidebar-heading">
+                <div><strong>数字人执行项</strong><span>{{ planForm.performerConfigs.length }}/15</span></div>
+                <el-button size="small" type="primary" plain :disabled="planForm.performerConfigs.length >= 15" @click="addPerformer"><el-icon><Plus /></el-icon>添加</el-button>
+              </div>
+              <button
+                v-for="(config, index) in planForm.performerConfigs"
+                :key="config.key"
+                class="performer-nav-item"
+                :class="{ active: activePerformerIndex === index }"
+                type="button"
+                @click="activePerformerIndex = index"
+              >
+                <img v-if="performerCover(config)" :src="performerCover(config)" alt="" />
+                <span v-else class="nav-placeholder"><el-icon><Picture /></el-icon></span>
+                <span class="nav-main"><strong>执行项 {{ index + 1 }}</strong><small>{{ performerSummary(config) }}</small></span>
+                <el-icon v-if="performerReady(config)" class="ready-icon"><CircleCheck /></el-icon>
+              </button>
+              <el-button v-if="planForm.performerConfigs.length > 1" class="remove-active" link type="danger" @click="removePerformer(activePerformerIndex)">移除当前执行项</el-button>
+            </aside>
+
+            <main v-if="activePerformer" class="performer-editor">
+              <div class="editor-heading">
+                <div><span class="step-badge">{{ activePerformerIndex + 1 }}</span><div><h3>配置执行项 {{ activePerformerIndex + 1 }}</h3><p>脚本已经自动带入，只需要选择人和声音并完成必要细调。</p></div></div>
+                <el-switch v-if="activePerformerIndex > 0" v-model="activePerformer.inheritFromFirst" active-text="沿用第1项设置" @change="handleInheritanceChange" />
+              </div>
+
+              <div class="editor-layout">
+                <section class="editor-form-panel">
+                  <div class="config-block">
+                    <div class="block-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
+                    <el-radio-group v-model="activePerformer.selectionMode" @change="resetPerformerSelection(activePerformer)">
+                      <el-radio-button label="binding">选择绑定关系</el-radio-button>
+                      <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
+                    </el-radio-group>
+                    <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
+                      <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
+                        <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
+                      </el-input>
+                    </div>
+                    <div v-else class="picker-row">
+                      <el-input :model-value="selectedHuman(activePerformer)?.name || ''" readonly placeholder="点击选择数字人" @click="openAssetPicker('human')">
+                        <template #prepend>选择形象</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('human')" /></template>
+                      </el-input>
+                      <el-input :model-value="selectedVoice(activePerformer)?.name || ''" readonly placeholder="点击选择声音" @click="openAssetPicker('voice')">
+                        <template #prepend>选择配音</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('voice')" /></template>
+                      </el-input>
+                    </div>
+                    <div v-if="performerReady(activePerformer)" class="selection-preview-strip">
+                      <img v-if="performerCover(activePerformer)" :src="performerCover(activePerformer)" alt="数字人封面" />
+                      <span>{{ performerSummary(activePerformer) }}</span>
+                      <el-button v-if="performerVoiceUrl(activePerformer)" link type="primary" @click="playVoice(performerVoiceUrl(activePerformer), performerSummary(activePerformer))"><el-icon><Headset /></el-icon>试听</el-button>
+                    </div>
+                  </div>
+
+                  <div class="config-block">
+                    <div class="block-title"><strong>视频参数</strong><span v-if="activePerformerIndex > 0 && activePerformer.inheritFromFirst">已沿用第1项</span></div>
+                    <div class="form-grid form-grid-three">
+                      <label>语言<el-select v-model="activePerformer.videoOptions.language" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-option label="中文" value="zh" /><el-option label="泰语" value="th" /></el-select></label>
+                      <label>视频方向<el-radio-group v-model="activePerformer.videoOptions.videoType" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-radio :label="0">竖版</el-radio><el-radio :label="1">横版</el-radio></el-radio-group></label>
+                      <label>语速<el-input-number v-model="activePerformer.videoOptions.speechRate" :min="0.5" :max="2" :step="0.1" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst" /></label>
+                    </div>
+                  </div>
+
+                  <div v-if="planForm.processTypes.length" class="config-block">
+                    <div class="block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
+                    <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row">
+                      <span class="enhancement-label">角标 <em>*</em></span>
+                      <el-select v-model="activePerformer.postProcessConfig.cornerMarkId" filterable clearable placeholder="选择角标" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
+                        <el-option v-for="item in cornerMarkOptions" :key="item.id" :label="item.name" :value="item.id" />
+                      </el-select>
+                    </div>
+                    <div v-if="planForm.processTypes.includes('banner_overlay')" class="enhancement-row">
+                      <span class="enhancement-label">横幅 <em>*</em></span>
+                      <el-select v-model="activePerformer.postProcessConfig.bannerOverlayId" filterable clearable placeholder="选择横幅" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
+                        <el-option v-for="item in bannerOverlayOptions" :key="item.id" :label="item.name" :value="item.id" />
+                      </el-select>
+                    </div>
+                    <div v-if="planForm.processTypes.includes('subtitle')" class="subtitle-note">
+                      字幕样式在右侧预览区调整，配置会随当前执行项保存。
+                    </div>
+                  </div>
+
+                  <div class="config-block script-readonly-block">
+                    <div class="block-title"><strong>本项脚本</strong><span>由父计划统一填入</span></div>
+                    <el-input :model-value="planForm.scriptContent" type="textarea" :rows="5" readonly />
+                  </div>
+                </section>
+
+                <aside class="preview-panel">
+                  <div class="preview-heading"><strong>预览效果</strong><span>{{ performerSummary(activePerformer) }}</span></div>
+                  <SubtitlePreview
+                    v-if="planForm.processTypes.includes('subtitle')"
+                    :key="activePerformer.key"
+                    :frame-base64="activePreviewFrame"
+                    :script-text="planForm.scriptContent"
+                    :corner-mark-url="activeCornerMarkUrl"
+                    :banner-overlay-base64="activeBannerBase64"
+                    :process-types="planForm.processTypes"
+                    :enable-subtitle="true"
+                    :initial-config="activePerformer.postProcessConfig.subtitleConfig"
+                    @update:config="updateActiveSubtitleConfig"
+                  />
+                  <div v-else class="cover-preview" :class="{ landscape: activePerformer.videoOptions.videoType === 1 }">
+                    <img v-if="performerCover(activePerformer)" :src="performerCover(activePerformer)" alt="数字人预览" />
+                    <div v-else><el-icon><Picture /></el-icon><span>选择数字人后显示封面预览</span></div>
+                  </div>
+                  <p class="preview-help">这里只加载数字人封面；不会提前下载或播放完整视频。</p>
+                </aside>
+              </div>
+            </main>
+          </div>
+        </template>
+
+        <section v-else class="child-table-card">
+          <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><el-tag>{{ detail.children.length }} 条</el-tag></div>
+          <el-table :data="detail.children" row-key="id" fit style="width:100%" :header-cell-style="tableHeaderStyle">
+            <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
+            <el-table-column label="封面" min-width="90" align="center"><template #default="{ row }"><img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="" /><span v-else>-</span></template></el-table-column>
+            <el-table-column label="数字人 / 声音" min-width="210"><template #default="{ row }"><strong>{{ row.digitalHumanName || row.performerName || '-' }}</strong><p>{{ row.voiceName || '-' }}</p></template></el-table-column>
+            <el-table-column label="状态" min-width="100" align="center"><template #default="{ row }"><el-tag :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template></el-table-column>
+            <el-table-column label="开始时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.startTime) }}</template></el-table-column>
+            <el-table-column label="完成时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.endTime) }}</template></el-table-column>
+            <el-table-column label="操作" min-width="190" align="center">
+              <template #default="{ row }">
+                <el-button v-if="row.videoUrl" link type="primary" @click="openVideoPreview(row)">预览</el-button>
+                <el-button v-if="row.videoUrl" link type="success" @click="downloadChild(row)">下载</el-button>
+                <el-button v-if="row.retryable" link type="warning" @click="retryChild(row)">失败重试</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
       </div>
+      <el-skeleton v-else :rows="8" animated />
+    </el-drawer>
+
+    <el-dialog v-model="scriptSelector.visible" title="选择脚本" width="76%" append-to-body>
+      <el-tabs v-model="scriptSelector.mode" @tab-change="handleScriptTabChange">
+        <el-tab-pane label="脚本库" name="library" />
+        <el-tab-pane label="历史记录" name="history" />
+      </el-tabs>
+      <el-input v-model="scriptSelector.search" class="selector-search" clearable placeholder="查找脚本内容或标签">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-table :data="filteredScriptOptions" height="420" border :header-cell-style="tableHeaderStyle">
+        <template v-if="scriptSelector.mode === 'library'">
+          <el-table-column prop="title" label="标题" min-width="150" />
+          <el-table-column label="标签" min-width="160"><template #default="{ row }"><el-tag v-for="tag in row.tags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag></template></el-table-column>
+          <el-table-column prop="content" label="内容" min-width="360" show-overflow-tooltip />
+        </template>
+        <template v-else>
+          <el-table-column prop="createTime" label="生成时间" min-width="170"><template #default="{ row }">{{ formatTime(row.createTime) }}</template></el-table-column>
+          <el-table-column prop="content" label="内容片段" min-width="500" show-overflow-tooltip />
+        </template>
+        <el-table-column label="操作" width="100" align="center" fixed="right"><template #default="{ row }"><el-button type="primary" @click="selectScript(row)">选入</el-button></template></el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body>
+      <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
+      <div v-if="assetPicker.type !== 'voice'" class="asset-grid">
+        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" type="button" @click="selectAsset(item)">
+          <img v-if="assetCover(item)" :src="assetCover(item)" alt="" />
+          <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
+          <strong>{{ assetTitle(item) }}</strong>
+          <small>{{ assetSubtitle(item) }}</small>
+          <el-button type="primary" size="small">选入</el-button>
+        </button>
+      </div>
+      <el-table v-else :data="filteredAssetOptions" height="440" border :header-cell-style="tableHeaderStyle">
+        <el-table-column prop="name" label="声音名称" min-width="220" />
+        <el-table-column prop="language" label="语言" min-width="120" />
+        <el-table-column label="试听" min-width="120" align="center"><template #default="{ row }"><el-button v-if="row.url" link type="primary" @click="playVoice(row.url, row.name)"><el-icon><Headset /></el-icon>试听</el-button></template></el-table-column>
+        <el-table-column label="操作" width="100" align="center"><template #default="{ row }"><el-button type="primary" @click="selectAsset(row)">选入</el-button></template></el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <el-dialog v-model="preview.visible" :title="preview.title" width="72%" append-to-body @closed="stopPreview">
+      <div class="video-preview-wrap"><el-skeleton v-if="preview.loading" :rows="5" animated /><video v-else-if="preview.url" ref="previewVideo" :src="preview.url" controls autoplay playsinline /></div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Headset, Picture, Plus, Rank, Refresh, Search, VideoPlay } from '@element-plus/icons-vue'
+import { CircleCheck, Headset, Picture, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import {
   cancelVideoBatchPlan,
   createVideoBatchPlan,
@@ -394,198 +367,87 @@ import {
   getBindingList,
   getCornerMarkList,
   getDigitalHumanList,
-  getScriptPaginateList,
   getScriptHistoryList,
-  getVoiceList,
+  getScriptPaginateList,
   getVideoBatchPlanDetail,
   getVideoBatchPlanList,
-  getVideoDispatchGroups,
-  reorderVideoDispatchGroups,
+  getVoiceList,
   retryVideoBatchChild,
   startVideoBatchPlan,
   updateVideoBatchPlan
 } from '/@/api/material'
-import { useLayoutStore } from '/@/store/modules/layout'
 
 type ScheduleMode = 'immediate' | 'scheduled' | 'overnight'
 type ScriptSource = 'manual' | 'library' | 'history'
 type StatusKey = 'draft' | 'waiting' | 'running' | 'completed' | 'partial_failed' | 'failed' | 'cancelled'
+type AssetPickerType = 'binding' | 'human' | 'voice'
 
-interface ScriptOption {
-  id: string | number
-  title: string
-  content: string
-}
-
+interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
+interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string }
+interface BindingOption { id: string | number; name: string; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
   key: string
   selectionMode: 'binding' | 'custom'
   bindingId: string | number | null
   digitalHumanId: string | number | null
   voiceId: string | number | null
+  inheritFromFirst: boolean
+  videoOptions: { language: string; videoType: 0 | 1; speechRate: number; anchorType: number; isSkipRs: boolean }
+  postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
-
-interface AssetOption {
-  id: string | number
-  name: string
-  coverUrl?: string
-  url?: string
-  language?: string
-}
-
-interface BindingOption {
-  id: string | number
-  name: string
-  digitalHumanName: string
-  voiceName: string
-  digitalHumanExternalId?: string
-  voiceExternalId?: string
-  coverUrl?: string
-  voiceUrl?: string
-}
-
 interface BatchChild {
-  id: string | number
-  seqNo: number
-  bindingId?: string | number
-  selectionMode?: 'binding' | 'custom'
-  digitalHumanId?: string | number | null
-  voiceId?: string | number | null
-  bindingName: string
-  performerName?: string
-  digitalHumanName: string
-  voiceName: string
-  statusKey: StatusKey
-  createTime?: string
-  startTime?: string
-  endTime?: string
-  errorMessage?: string
-  videoUrl?: string
-  coverUrl?: string
-  videoTaskId?: string | number
-  videoDurationSeconds?: number | null
-  retryable?: boolean
-  attemptNo?: number
+  id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: 'binding' | 'custom'; digitalHumanId?: string | number | null; voiceId?: string | number | null
+  bindingName: string; performerName?: string; digitalHumanName: string; voiceName: string; statusKey: StatusKey; createTime?: string; startTime?: string; endTime?: string
+  errorMessage?: string; videoUrl?: string; coverUrl?: string; videoTaskId?: string | number; retryable?: boolean; postProcessConfig?: Record<string, any>; videoOptions?: Record<string, any>
 }
-
 interface BatchPlan {
-  id: string | number
-  name: string
-  statusKey: StatusKey
-  taskOrderMode?: string
-  scheduleMode: ScheduleMode
-  scheduledAt?: string
-  createTime?: string
-  startTime?: string
-  endTime?: string
-  totalCount: number
-  completedCount: number
-  failedCount: number
-  bindingIds: Array<string | number>
-  scriptId?: string | number
-  script?: { source: ScriptSource; sourceId?: string | number | null; id?: string | number | null; title?: string; content?: string }
-  processTypes: string[]
-  cornerMarkId?: string | number | null
-  bannerOverlayId?: string | number | null
-  videoOptions?: {
-    language?: string
-    videoType?: number
-    video_type?: number
-    speechRate?: number | string
-    speech_rate?: number | string
-    anchorType?: number
-    anchor_type?: number
-    isSkipRs?: boolean | number
-    is_skip_rs?: boolean | number
-  }
-  children: BatchChild[]
+  id: string | number; name: string; statusKey: StatusKey; scheduleMode: ScheduleMode; scheduledAt?: string; createTime?: string; startTime?: string; endTime?: string
+  totalCount: number; completedCount: number; failedCount: number; script?: { source: ScriptSource; sourceId?: string | number | null; title?: string; content?: string }
+  processTypes: string[]; cornerMarkId?: string | number | null; bannerOverlayId?: string | number | null; videoOptions?: Record<string, any>; children: BatchChild[]
 }
 
-interface DispatchGroup {
-  id: string | number
-  title: string
-  groupTypeLabel: string
-  dispatchMode: string
-  priorityLevel: number
-  priorityRank: number
-  canReorder: boolean
-  waitingItemCount: number
-  activeItemCount: number
-  createdAt?: string
+const DEFAULT_SUBTITLE_CONFIG = {
+  font_name: 'Microsoft YaHei', font_size: 10, margin_v: 45, primary_colour: '#FFFFFF', outline_colour: '#000000', outline: 2,
+  bold: 0, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
 }
-
-const layoutStore = useLayoutStore()
-const isPlatformSuperAdmin = computed(() => Boolean(layoutStore.getUserInfo.isPlatformSuperAdmin))
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
-
 const listLoading = ref(false)
 const planList = ref<BatchPlan[]>([])
 const planPage = ref(1)
 const planPageSize = ref(20)
 const planTotal = ref(0)
 const searchKeyword = ref('')
-const dispatchLoading = ref(false)
-const dispatchSaving = ref(false)
-const dispatchOrderMode = ref('chronological')
-const dispatchGroups = ref<DispatchGroup[]>([])
-const dispatchState = ref<'loading' | 'error' | 'empty' | 'ready'>('loading')
-const dispatchError = ref('')
-const draggedDispatchIndex = ref<number | null>(null)
-
-const planFormRef = ref<any>()
-const planForm = reactive({
-  id: null as string | number | null,
-  planName: '',
-  scriptSource: 'manual' as ScriptSource,
-  scriptId: null as string | number | null,
-  historyId: null as string | number | null,
-  scriptTitle: '',
-  scriptContent: '',
-  performerConfigs: [] as PerformerConfig[],
-  scheduleMode: 'immediate' as ScheduleMode,
-  scheduledAt: '',
-  processTypes: [] as string[],
-  cornerMarkId: null as string | number | null,
-  bannerOverlayId: null as string | number | null,
-  videoOptions: {
-    language: 'zh',
-    videoType: 0 as 0 | 1,
-    speechRate: 1,
-    anchorType: 1,
-    isSkipRs: false
-  }
-})
-
-const planDialog = reactive({ visible: false, isEdit: false, submitting: false })
-const detail = reactive({
-  visible: false,
-  loading: false,
-  retryingId: null as string | number | null,
-  plan: null as BatchPlan | null,
-  children: [] as BatchChild[]
-})
-const preview = reactive({ visible: false, loading: false, url: '', title: '', childId: null as string | number | null, downloadingId: null as string | number | null })
+const createFormRef = ref<any>()
+const activePerformerIndex = ref(0)
+const activePreviewFrame = ref('')
+const activeBannerBase64 = ref('')
 const previewVideo = ref<HTMLVideoElement | null>(null)
 let previewObjectUrl = ''
 let voiceAudio: HTMLAudioElement | null = null
+let previewLoadSequence = 0
 
+const planForm = reactive({
+  id: null as string | number | null,
+  planName: '', scriptSource: 'manual' as ScriptSource, scriptId: null as string | number | null, historyId: null as string | number | null, scriptContent: '',
+  performerConfigs: [] as PerformerConfig[], scheduleMode: 'immediate' as ScheduleMode, scheduledAt: '', processTypes: [] as string[]
+})
+const createDialog = reactive({ visible: false, submitting: false })
+const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
+const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
+const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '' })
+const preview = reactive({ visible: false, loading: false, url: '', title: '', downloadingId: null as string | number | null })
 const scriptOptions = ref<ScriptOption[]>([])
 const historyOptions = ref<ScriptOption[]>([])
 const bindingOptions = ref<BindingOption[]>([])
 const digitalHumanOptions = ref<AssetOption[]>([])
 const voiceOptions = ref<AssetOption[]>([])
-const cornerMarkOptions = ref<Array<{ id: string | number; name: string }>>([])
-const bannerOverlayOptions = ref<Array<{ id: string | number; name: string }>>([])
-const resourcesLoaded = reactive({ scripts: false, history: false, bindings: false, digitalHumans: false, voices: false, cornerMarks: false, banners: false })
+const cornerMarkOptions = ref<Array<{ id: string | number; name: string; url?: string }>>([])
+const bannerOverlayOptions = ref<Array<{ id: string | number; name: string; url?: string }>>([])
+const resourcesLoaded = reactive({ scripts: false, history: false, bindings: false, humans: false, voices: false, corners: false, banners: false })
 
-const planRules = {
+const createRules = {
   planName: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
-  scriptContent: [{ validator: (_rule: any, _value: string, callback: (error?: Error) => void) => {
-    if (planForm.scriptSource === 'manual' && !planForm.scriptContent.trim()) return callback(new Error('请输入脚本内容'))
-    if (planForm.scriptSource === 'library' && !planForm.scriptId) return callback(new Error('请选择脚本库脚本'))
-    if (planForm.scriptSource === 'history' && !planForm.historyId) return callback(new Error('请选择历史脚本'))
-    callback()
-  }, trigger: 'change' }],
+  scriptContent: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => value?.trim() ? callback() : callback(new Error('请输入脚本内容')), trigger: 'blur' }],
   scheduleMode: [{ required: true, message: '请选择执行方式', trigger: 'change' }],
   scheduledAt: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
     if (planForm.scheduleMode !== 'scheduled') return callback()
@@ -595,22 +457,31 @@ const planRules = {
   }, trigger: 'change' }]
 }
 
-function getResponseData(response: any): any {
-  return response?.data?.data ?? response?.data ?? {}
-}
+const activePerformer = computed(() => planForm.performerConfigs[activePerformerIndex.value] || null)
+const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activePerformer.value?.postProcessConfig.cornerMarkId))?.url || '')
+const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
+const filteredScriptOptions = computed(() => {
+  const source = scriptSelector.mode === 'library' ? scriptOptions.value : historyOptions.value
+  const keyword = scriptSelector.search.trim().toLowerCase()
+  if (!keyword) return source
+  return source.filter(item => `${item.title} ${item.content} ${item.tags.join(' ')}`.toLowerCase().includes(keyword))
+})
+const filteredAssetOptions = computed<any[]>(() => {
+  const source = assetPicker.type === 'binding' ? bindingOptions.value : assetPicker.type === 'human' ? digitalHumanOptions.value : voiceOptions.value
+  const keyword = assetPicker.search.trim().toLowerCase()
+  if (!keyword) return source
+  return source.filter((item: any) => `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''}`.toLowerCase().includes(keyword))
+})
 
+function deepClone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
+function getResponseData(response: any): any { return response?.data?.data ?? response?.data ?? {} }
 function getPageData(response: any): { items: any[]; total: number } {
   const data = getResponseData(response)
   if (Array.isArray(data)) return { items: data, total: data.length }
   const items = data?.data || data?.items || data?.results || []
   return { items: Array.isArray(items) ? items : [], total: Number(data?.total ?? data?.count ?? items.length) }
 }
-
-function responseId(response: any): string | number | null {
-  const data = getResponseData(response)
-  return data?.id ?? data?.planId ?? data?.plan?.id ?? null
-}
-
+function responseId(response: any): string | number | null { const data = getResponseData(response); return data?.id ?? data?.planId ?? data?.plan?.id ?? null }
 function normalizeStatus(value: any, fallback: StatusKey = 'waiting'): StatusKey {
   const raw = String(value ?? '').trim().toLowerCase()
   if (['draft', 'unsubmitted', '未执行', '草稿'].includes(raw)) return 'draft'
@@ -622,983 +493,259 @@ function normalizeStatus(value: any, fallback: StatusKey = 'waiting'): StatusKey
   if (['waiting', 'pending', 'queued', 'submitted', '等待中', '待执行', '0', '1'].includes(raw)) return 'waiting'
   return fallback
 }
-
-function normalizeScheduleMode(value: any): ScheduleMode {
-  const raw = String(value ?? '').trim().toLowerCase()
-  if (raw === 'scheduled' || raw === '2' || raw === '指定时间') return 'scheduled'
-  if (raw === 'overnight' || raw === 'night' || raw === '夜间预排') return 'overnight'
-  return 'immediate'
-}
-
-function extractChildren(raw: any): any[] {
-  const data = raw?.plan || raw?.detail || raw || {}
-  return data?.children || raw?.children || data?.tasks || data?.items || data?.subTasks || []
-}
-
+function normalizeScheduleMode(value: any): ScheduleMode { const raw = String(value ?? '').toLowerCase(); return raw === 'scheduled' ? 'scheduled' : raw === 'overnight' ? 'overnight' : 'immediate' }
 function normalizeChild(item: any, index: number): BatchChild {
   const snapshot = item.bindingSnapshot || item.binding_snapshot || {}
-  const performer = item.performerSnapshot || item.performer_snapshot || item.configSnapshot || item.config_snapshot || {}
-  const video = item.video || item.videoTask || item.video_task || {}
   const rawStatus = item.taskStatus ?? item.status ?? item.state
   return {
-    id: item.id ?? item.taskId ?? item.videoTaskId ?? index,
-    seqNo: Number(item.seqNo ?? item.seq_no ?? item.childSeq ?? item.child_seq ?? index + 1),
-    bindingId: item.bindingId ?? item.binding_id,
-    selectionMode: item.selectionMode || item.selection_mode || snapshot.selectionMode || (item.bindingId ?? item.binding_id ? 'binding' : 'custom'),
-    digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? snapshot.digitalHumanId ?? snapshot.human?.id ?? null,
-    voiceId: item.voiceId ?? item.voice_id ?? snapshot.voiceId ?? snapshot.voice?.id ?? null,
-    bindingName: item.bindingName || item.binding_name || snapshot.name || `${item.digitalHumanName || snapshot.digitalHumanName || '数字人'} + ${item.voiceName || snapshot.voiceName || '配音'}`,
-    performerName: item.performerName || item.performer_name || performer.name || '',
-    digitalHumanName: item.digitalHumanName || item.digital_human_name || snapshot.digitalHumanName || snapshot.digital_human_name || '',
-    voiceName: item.voiceName || item.voice_name || snapshot.voiceName || snapshot.voice_name || '',
-    statusKey: normalizeStatus(rawStatus, 'waiting'),
-    createTime: item.createTime || item.create_time,
-    startTime: item.startTime || item.start_time,
-    endTime: item.endTime || item.end_time,
-    errorMessage: item.errorMessage || item.error_message || '',
-    videoUrl: item.videoUrl || item.video_url || video.videoUrl || video.video_url || '',
-    coverUrl: item.coverUrl || item.cover_url || item.digitalHumanCoverUrl || item.digital_human_cover_url || snapshot.digitalHumanCoverUrl || snapshot.human?.coverUrl || item.videoCoverUrl || item.video_cover_url || video.coverUrl || video.cover_url || '',
-    videoTaskId: item.videoTaskId || item.video_task_id || video.id,
-    videoDurationSeconds: Number(item.videoDurationSeconds ?? item.video_duration_seconds ?? item.videoDuration ?? video.duration ?? 0) || null,
-    retryable: Boolean(item.retryable ?? normalizeStatus(rawStatus) === 'failed'),
-    attemptNo: Number(item.attemptNo ?? item.attempt_no ?? 0)
+    id: item.id ?? index, seqNo: Number(item.seqNo ?? item.child_seq ?? index + 1), bindingId: item.bindingId ?? item.binding_id,
+    selectionMode: item.selectionMode || snapshot.selectionMode || (item.bindingId ? 'binding' : 'custom'),
+    digitalHumanId: snapshot.digitalHumanId ?? snapshot.human?.id ?? null, voiceId: snapshot.voiceId ?? snapshot.voice?.id ?? null,
+    bindingName: snapshot.title || `${snapshot.digitalHumanName || '数字人'} + ${snapshot.voiceName || '配音'}`,
+    performerName: snapshot.digitalHumanName || '', digitalHumanName: snapshot.digitalHumanName || '', voiceName: snapshot.voiceName || '', statusKey: normalizeStatus(rawStatus),
+    createTime: item.createTime || item.create_time, startTime: item.startTime || item.start_time, endTime: item.endTime || item.end_time,
+    errorMessage: item.errorMessage || item.error_message || '', videoUrl: item.videoUrl || item.video_url || '',
+    coverUrl: item.videoCoverUrl || item.digitalHumanCoverUrl || snapshot.digitalHumanCoverUrl || snapshot.human?.coverUrl || '', videoTaskId: item.videoTaskId,
+    retryable: Boolean(item.retryable ?? normalizeStatus(rawStatus) === 'failed'), postProcessConfig: item.postProcessConfig || {}, videoOptions: item.videoOptions || {}
   }
 }
-
 function normalizePlan(item: any): BatchPlan {
   const source = item?.plan || item?.detail || item || {}
-  const children = extractChildren(item).map(normalizeChild).sort((a, b) => a.seqNo - b.seqNo || String(a.id).localeCompare(String(b.id)))
-  const statusValue = source.taskStatus ?? source.status ?? source.state
-  const failedCount = Number(source.failedCount ?? source.failed_count ?? children.filter(child => isFailed(child)).length)
-  const completedCount = Number(source.completedCount ?? source.completed_count ?? children.filter(child => child.statusKey === 'completed').length)
-  const totalCount = Number(source.totalCount ?? source.total_count ?? source.childCount ?? source.child_count ?? source.size ?? children.length)
+  const childSource = source.children || item?.children || source.items || []
+  const children = childSource.map(normalizeChild).sort((a: BatchChild, b: BatchChild) => a.seqNo - b.seqNo)
+  const post = source.postProcessConfig || source.post_process_config || source.postProcessSnapshot || {}
+  const script = source.script || source.scriptSnapshot || source.script_snapshot || {}
   return {
-    id: source.id ?? source.planId,
-    name: source.planName || source.name || '',
-    statusKey: normalizeStatus(statusValue, failedCount > 0 && completedCount > 0 ? 'partial_failed' : 'waiting'),
-    taskOrderMode: source.taskOrderMode || source.task_order_mode || source.orderMode || '',
-    scheduleMode: normalizeScheduleMode(source.scheduleMode ?? source.schedule_mode ?? source.dispatchMode),
-    scheduledAt: source.scheduledAt || source.scheduled_at || source.eligibleAt || source.eligible_at || '',
-    createTime: source.createTime || source.create_time,
-    startTime: source.startTime || source.start_time,
-    endTime: source.endTime || source.end_time,
-    totalCount,
-    completedCount,
-    failedCount,
-    bindingIds: Array.isArray(source.bindingIds) ? source.bindingIds : Array.isArray(source.binding_ids) ? source.binding_ids : children.map(child => child.bindingId).filter(Boolean) as Array<string | number>,
-    scriptId: source.scriptId ?? source.script_id ?? source.scriptSnapshot?.scriptId,
-    script: source.script || source.scriptSnapshot || undefined,
-    processTypes: Array.isArray(source.postProcessConfig?.processTypes) ? source.postProcessConfig.processTypes : Array.isArray(source.processTypes) ? source.processTypes : [],
-    cornerMarkId: source.postProcessConfig?.cornerMarkId ?? source.cornerMarkId ?? source.corner_mark_id ?? null,
-    bannerOverlayId: source.postProcessConfig?.bannerOverlayId ?? source.bannerOverlayId ?? source.banner_overlay_id ?? null,
-    videoOptions: source.videoOptions || source.video_options || {},
-    children
+    id: source.id ?? source.planId, name: source.planName || source.name || '', statusKey: normalizeStatus(source.taskStatus ?? source.status ?? source.state),
+    scheduleMode: normalizeScheduleMode(source.scheduleMode ?? source.dispatchMode), scheduledAt: source.scheduledAt || source.eligibleAt || '',
+    createTime: source.createTime || source.created_at, startTime: source.startTime || source.start_time, endTime: source.endTime || source.end_time,
+    totalCount: Number(source.totalCount ?? source.childCount ?? children.length), completedCount: Number(source.completedCount ?? source.successCount ?? 0), failedCount: Number(source.failedCount ?? 0),
+    script: { source: script.source || 'manual', sourceId: script.sourceId ?? script.id ?? null, title: script.title || '', content: script.content || '' },
+    processTypes: post.processTypes || post.process_types || [], cornerMarkId: post.cornerMarkId ?? null, bannerOverlayId: post.bannerOverlayId ?? null, videoOptions: source.videoOptions || {}, children
   }
 }
 
-function statusLabel(status: StatusKey): string {
-  return ({ draft: '未执行', waiting: '等待中', running: '执行中', completed: '已完成', partial_failed: '部分失败', failed: '失败', cancelled: '已取消' } as Record<StatusKey, string>)[status]
-}
+function statusLabel(status: StatusKey) { return ({ draft: '未执行', waiting: '等待中', running: '执行中', completed: '已完成', partial_failed: '部分失败', failed: '失败', cancelled: '已取消' } as Record<StatusKey, string>)[status] }
+function statusType(status: StatusKey): 'success' | 'warning' | 'danger' | 'info' | '' { return ({ draft: 'info', waiting: 'info', running: 'warning', completed: 'success', partial_failed: 'danger', failed: 'danger', cancelled: '' } as Record<StatusKey, any>)[status] }
+function scheduleModeLabel(mode: ScheduleMode) { return ({ immediate: '立即执行', scheduled: '指定时间', overnight: '夜间预排' } as Record<ScheduleMode, string>)[mode] }
+function processTypeLabel(type: string) { return ({ subtitle: '字幕', corner_mark: '角标', banner_overlay: '横幅' } as Record<string, string>)[type] || type }
+function formatTime(value?: string | number | null) { if (!value) return '-'; const raw = String(value); if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw)) return raw.replace('T', ' ').slice(0, 19); const date = new Date(raw); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-') }
+function truncate(value: string, length: number) { const text = String(value || '').replace(/\s+/g, ' ').trim(); return text.length > length ? `${text.slice(0, length)}…` : text || '-' }
+function disablePastDate(date: Date) { return date.getTime() < Date.now() - 60000 }
+function canCancelPlan(plan: BatchPlan) { return ['waiting', 'running'].includes(plan.statusKey) }
 
-function statusType(status: StatusKey): 'success' | 'warning' | 'danger' | 'info' | '' {
-  return ({ draft: 'info', waiting: 'info', running: 'warning', completed: 'success', partial_failed: 'danger', failed: 'danger', cancelled: '' } as Record<StatusKey, 'success' | 'warning' | 'danger' | 'info' | ''>)[status]
-}
-
-function scheduleModeLabel(mode: ScheduleMode): string {
-  return ({ immediate: '立即执行', scheduled: '指定时间', overnight: '夜间预排' } as Record<ScheduleMode, string>)[mode]
-}
-
-function orderModeLabel(mode?: string): string {
-  return String(mode || '').toLowerCase() === 'free' ? '自由搭配' : '时间顺序'
-}
-
-function formatTime(value?: string | number | null): string {
-  if (!value) return '-'
-  const raw = String(value)
-  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw)) return raw.replace('T', ' ').slice(0, 19)
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  return date.toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-')
-}
-
-function truncate(value: string, length: number): string {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-  return text.length > length ? `${text.slice(0, length)}…` : text || '暂无脚本内容'
-}
-
-function isFailed(row: Pick<BatchChild, 'statusKey'> | any): boolean {
-  return normalizeStatus(row?.statusKey ?? row?.taskStatus ?? row?.status) === 'failed'
-}
-
-function canEditPlan(row: BatchPlan): boolean {
-  return row.statusKey === 'draft'
-}
-
-function canStartPlan(row: BatchPlan): boolean {
-  return row.statusKey === 'draft'
-}
-
-function canCancelPlan(row: BatchPlan): boolean {
-  return !['completed', 'failed', 'partial_failed', 'cancelled'].includes(row.statusKey)
-}
-
-function canDeletePlan(row: BatchPlan): boolean {
-  return row.statusKey === 'draft'
-}
-
-function disablePastDate(date: Date): boolean {
-  return date.getTime() < Date.now() - 60 * 1000
-}
-
-async function loadPlanList() {
-  listLoading.value = true
-  try {
-    const search = searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {}
-    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search)
-    const pageData = getPageData(response)
-    planList.value = pageData.items.map(normalizePlan)
-    planTotal.value = pageData.total
-  } catch (error: any) {
-    ElMessage.error(error?.message || '批量计划加载失败')
-  } finally {
-    listLoading.value = false
+function createPerformerConfig(inherit = false): PerformerConfig {
+  const first = planForm.performerConfigs[0]
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode: 'binding', bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
+    videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0, speechRate: 1, anchorType: 1, isSkipRs: false },
+    postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
 }
-
-async function loadDispatchGroups() {
-  if (dispatchLoading.value) return
-  dispatchLoading.value = true
-  dispatchState.value = 'loading'
-  dispatchError.value = ''
-  try {
-    const response = await getVideoDispatchGroups()
-    const data = getResponseData(response)
-    dispatchOrderMode.value = String(data.orderMode || data.order_mode || 'chronological')
-    const groups = findDispatchGroups(data)
-    dispatchGroups.value = groups.map((item: any, index: number) => ({
-      id: item.id ?? item.groupId ?? item.group_id ?? index,
-      title: item.title || `任务组 #${item.id}`,
-      groupTypeLabel: item.groupTypeLabel || item.group_type_label || item.groupType || '视频任务',
-      dispatchMode: item.dispatchMode || item.dispatch_mode || 'immediate',
-      priorityLevel: Math.max(1, Number(item.priorityLevel ?? item.priority_level ?? 1)),
-      priorityRank: Math.max(0, Number(item.priorityRank ?? item.priority_rank ?? index)),
-      canReorder: Boolean(item.canReorder ?? item.can_reorder),
-      waitingItemCount: Number(item.waitingItemCount ?? item.waiting_item_count ?? 0),
-      activeItemCount: Number(item.activeItemCount ?? item.active_item_count ?? 0),
-      createdAt: item.createdAt || item.created_at
-    }))
-    dispatchState.value = dispatchGroups.value.length ? 'ready' : 'empty'
-  } catch (error: any) {
-    dispatchError.value = error?.message || '统一任务排序加载失败'
-    dispatchState.value = 'error'
-  } finally {
-    dispatchLoading.value = false
-  }
-}
-
-function findDispatchGroups(data: any): any[] {
-  const candidates = [data?.groups, data?.items, data?.results, data?.waitingGroups, data?.waiting_groups, data?.data?.groups, data?.data?.items, data?.data?.results]
-  return candidates.find(Array.isArray) || []
-}
-
-function startDispatchDrag(index: number) {
-  if (dispatchOrderMode.value !== 'free' || !dispatchGroups.value[index]?.canReorder) return
-  draggedDispatchIndex.value = index
-}
-
-function dropDispatchGroup(targetIndex: number) {
-  const sourceIndex = draggedDispatchIndex.value
-  draggedDispatchIndex.value = null
-  if (sourceIndex === null || sourceIndex === targetIndex) return
-  const moving = dispatchGroups.value[sourceIndex]
-  const target = dispatchGroups.value[targetIndex]
-  if (!moving?.canReorder || !target?.canReorder) {
-    ElMessage.info('已经开始的任务组已锁定，不能参与拖动')
-    return
-  }
-  const next = [...dispatchGroups.value]
-  next.splice(sourceIndex, 1)
-  next.splice(targetIndex, 0, moving)
-  let nextPriority = 1
-  next.forEach(group => {
-    if (group.canReorder) group.priorityLevel = nextPriority++
-  })
-  dispatchGroups.value = next
-}
-
-async function saveDispatchOrder() {
-  if (dispatchOrderMode.value !== 'free' || dispatchSaving.value) return
-  dispatchSaving.value = true
-  try {
-    const groups = dispatchGroups.value.filter(group => group.canReorder).map((group, index) => ({
-      id: group.id,
-      priorityLevel: Math.max(1, Number(group.priorityLevel || 1)),
-      priorityRank: index
-    }))
-    if (!groups.length) {
-      ElMessage.info('当前没有可调整的未开始任务组')
-      return
-    }
-    await reorderVideoDispatchGroups(groups)
-    ElMessage.success('任务优先级已保存')
-    await loadDispatchGroups()
-  } catch (error: any) {
-    ElMessage.error(error?.message || '任务优先级保存失败')
-  } finally {
-    dispatchSaving.value = false
-  }
-}
-
-async function loadResources() {
-  await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadDigitalHumans(), loadVoices(), loadCornerMarks(), loadBanners()])
-}
-
-async function loadScripts() {
-  if (resourcesLoaded.scripts) return
-  try {
-    const response = await getScriptPaginateList(1, 200)
-    const { items } = getPageData(response)
-    scriptOptions.value = items.map((item: any) => ({
-      id: item.scriptId ?? item.id,
-      title: item.scriptTitle || item.title || '未命名脚本',
-      content: item.scriptContent || item.content || ''
-    })).filter((item: ScriptOption) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.scripts = true
-  } catch (error) {
-    console.warn('加载脚本列表失败', error)
-  }
-}
-
-async function loadHistory() {
-  if (resourcesLoaded.history) return
-  try {
-    const response = await getScriptHistoryList(1, 200)
-    const { items } = getPageData(response)
-    historyOptions.value = items.map((item: any) => ({
-      id: item.taskId ?? item.id,
-      title: item.taskTitle || item.title || item.name || '未命名历史脚本',
-      content: item.taskContent || item.scriptContent || item.content || item.msg || ''
-    })).filter((item: ScriptOption) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.history = true
-  } catch (error) {
-    console.warn('加载历史脚本失败', error)
-  }
-}
-
-async function loadBindings() {
-  if (resourcesLoaded.bindings) return
-  try {
-    const response = await getBindingList(1, 200)
-    const { items } = getPageData(response)
-    bindingOptions.value = items.map((item: any) => ({
-      id: item.id ?? item.bindingId,
-      name: item.title || item.name || `${item.digitalHumanName || item.human || '数字人'} + ${item.voiceName || item.voice || '配音'}`,
-      digitalHumanName: item.digitalHumanName || item.human || '',
-      voiceName: item.voiceName || item.voice || '',
-      digitalHumanExternalId: item.digitalHumanExternalId || item.digital_human_external_id || '',
-      voiceExternalId: item.voiceExternalId || item.voice_external_id || '',
-      coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '',
-      voiceUrl: item.voiceUrl || item.voice_url || ''
-    })).filter((item: BindingOption) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.bindings = true
-  } catch (error) {
-    console.warn('加载绑定关系列表失败', error)
-  }
-}
-
-async function loadDigitalHumans() {
-  if (resourcesLoaded.digitalHumans) return
-  try {
-    const response = await getDigitalHumanList()
-    const data = getResponseData(response)
-    const items = Array.isArray(data) ? data : data?.data || data?.items || data?.results || []
-    digitalHumanOptions.value = items.map((item: any) => ({
-      id: item.id ?? item.digitalHumanId ?? item.digital_human_id,
-      name: item.digitalHumanName || item.name || item.title || '未命名数字人',
-      coverUrl: item.coverUrl || item.cover_url || item.imageUrl || item.image_url || item.img || ''
-    })).filter((item: AssetOption) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.digitalHumans = true
-  } catch (error) {
-    console.warn('加载数字人列表失败', error)
-  }
-}
-
-async function loadVoices() {
-  if (resourcesLoaded.voices) return
-  try {
-    const response = await getVoiceList()
-    const data = getResponseData(response)
-    const items = Array.isArray(data) ? data : data?.data || data?.items || data?.results || []
-    voiceOptions.value = items.map((item: any) => ({
-      id: item.id ?? item.voiceId ?? item.voice_id,
-      name: item.voiceName || item.name || item.title || '未命名声音',
-      url: item.voiceUrl || item.voice_url || item.url || item.audio || '',
-      language: item.language || item.lang || ''
-    })).filter((item: AssetOption) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.voices = true
-  } catch (error) {
-    console.warn('加载声音列表失败', error)
-  }
-}
-
-async function loadCornerMarks() {
-  if (resourcesLoaded.cornerMarks) return
-  try {
-    const response = await getCornerMarkList()
-    const data = getResponseData(response)
-    const items = Array.isArray(data) ? data : data?.data || data?.items || []
-    cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标' }))
-    resourcesLoaded.cornerMarks = true
-  } catch (error) {
-    console.warn('加载角标列表失败', error)
-  }
-}
-
-async function loadBanners() {
-  if (resourcesLoaded.banners) return
-  try {
-    const response = await getBannerOverlayList(1, 200)
-    const { items } = getPageData(response)
-    bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId ?? item.banner_overlay_id, name: item.name || item.title || '未命名横幅' })).filter((item: any) => item.id !== undefined && item.id !== null)
-    resourcesLoaded.banners = true
-  } catch (error) {
-    console.warn('加载横幅列表失败', error)
-  }
-}
-
-function handleScriptSelectVisible(visible: boolean) {
-  if (visible) loadScripts()
-}
-
-function handleHistorySelectVisible(visible: boolean) {
-  if (visible) loadHistory()
-}
-
-function handleBindingSelectVisible(visible: boolean) {
-  if (visible) loadBindings()
-}
-
-function handleDigitalHumanSelectVisible(visible: boolean) {
-  if (visible) loadDigitalHumans()
-}
-
-function handleVoiceSelectVisible(visible: boolean) {
-  if (visible) loadVoices()
-}
+function selectedBinding(config: PerformerConfig) { return bindingOptions.value.find(item => String(item.id) === String(config.bindingId)) }
+function selectedHuman(config: PerformerConfig) { return digitalHumanOptions.value.find(item => String(item.id) === String(config.digitalHumanId)) }
+function selectedVoice(config: PerformerConfig) { return voiceOptions.value.find(item => String(item.id) === String(config.voiceId)) }
+function performerCover(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.coverUrl || '' : selectedHuman(config)?.coverUrl || '' }
+function performerVoiceUrl(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.voiceUrl || '' : selectedVoice(config)?.url || '' }
+function performerSummary(config: PerformerConfig) { const binding = selectedBinding(config); return config.selectionMode === 'binding' ? binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系' : `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}` }
+function performerReady(config: PerformerConfig) { return config.selectionMode === 'binding' ? Boolean(config.bindingId) : Boolean(config.digitalHumanId && config.voiceId) }
+function assetCover(item: any) { return item.coverUrl || '' }
+function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
+function assetSubtitle(item: any) { return assetPicker.type === 'binding' ? `${item.digitalHumanName} + ${item.voiceName}` : item.language || '' }
 
 function resetPlanForm() {
-  planForm.id = null
-  planForm.planName = ''
-  planForm.scriptSource = 'manual'
-  planForm.scriptId = null
-  planForm.historyId = null
-  planForm.scriptTitle = ''
-  planForm.scriptContent = ''
-  planForm.performerConfigs = [createPerformerConfig()]
-  planForm.scheduleMode = 'immediate'
-  planForm.scheduledAt = ''
-  planForm.processTypes = []
-  planForm.cornerMarkId = null
-  planForm.bannerOverlayId = null
-  Object.assign(planForm.videoOptions, { language: 'zh', videoType: 0, speechRate: 1, anchorType: 1, isSkipRs: false })
-  planFormRef.value?.clearValidate?.()
+  Object.assign(planForm, { id: null, planName: '', scriptSource: 'manual', scriptId: null, historyId: null, scriptContent: '', performerConfigs: [], scheduleMode: 'immediate', scheduledAt: '', processTypes: [] })
+  activePerformerIndex.value = 0
+  createFormRef.value?.clearValidate?.()
 }
+function openCreateDialog() { resetPlanForm(); createDialog.visible = true }
+function markScriptManual() { planForm.scriptSource = 'manual'; planForm.scriptId = null; planForm.historyId = null }
+function openScriptSelector(mode: 'library' | 'history') { scriptSelector.mode = mode; scriptSelector.search = ''; scriptSelector.visible = true; mode === 'library' ? loadScripts() : loadHistory() }
+function handleScriptTabChange(name: string | number) { scriptSelector.mode = String(name) as 'library' | 'history'; scriptSelector.search = ''; scriptSelector.mode === 'library' ? loadScripts() : loadHistory() }
+function selectScript(script: ScriptOption) { planForm.scriptSource = scriptSelector.mode; planForm.scriptId = scriptSelector.mode === 'library' ? script.id : null; planForm.historyId = scriptSelector.mode === 'history' ? script.id : null; planForm.scriptContent = script.content; scriptSelector.visible = false; ElMessage.success('脚本已选入') }
 
-function createPerformerConfig(): PerformerConfig {
-  return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode: 'binding', bindingId: null, digitalHumanId: null, voiceId: null }
-}
-
-function addPerformer() {
-  if (planForm.performerConfigs.length >= 15) return
-  planForm.performerConfigs.push(createPerformerConfig())
-}
-
-function removePerformer(index: number) {
-  if (planForm.performerConfigs.length <= 1) return
-  planForm.performerConfigs.splice(index, 1)
-}
-
-function resetPerformerSelection(config: PerformerConfig) {
-  config.bindingId = null
-  config.digitalHumanId = null
-  config.voiceId = null
-}
-
-function selectedBinding(config: PerformerConfig): BindingOption | undefined {
-  return bindingOptions.value.find(item => String(item.id) === String(config.bindingId))
-}
-
-function selectedHuman(config: PerformerConfig): AssetOption | undefined {
-  return digitalHumanOptions.value.find(item => String(item.id) === String(config.digitalHumanId))
-}
-
-function selectedVoice(config: PerformerConfig): AssetOption | undefined {
-  return voiceOptions.value.find(item => String(item.id) === String(config.voiceId))
-}
-
-const selectedScriptContent = computed(() => {
-  if (planForm.scriptSource === 'manual') return planForm.scriptContent
-  const list = planForm.scriptSource === 'library' ? scriptOptions.value : historyOptions.value
-  const id = planForm.scriptSource === 'library' ? planForm.scriptId : planForm.historyId
-  const selected = list.find(item => String(item.id) === String(id))
-  if (selected) {
-    planForm.scriptTitle = selected.title
-    planForm.scriptContent = selected.content
-  }
-  return selected?.content || planForm.scriptContent
-})
-
-function openCreateDialog() {
-  resetPlanForm()
-  planDialog.isEdit = false
-  planDialog.visible = true
-  loadResources()
+async function createDraftPlan() {
+  const valid = await createFormRef.value?.validate?.().catch(() => false)
+  if (!valid) return
+  createDialog.submitting = true
+  try {
+    const sourceId = planForm.scriptSource === 'library' ? planForm.scriptId : planForm.scriptSource === 'history' ? planForm.historyId : null
+    const response = await createVideoBatchPlan({
+      planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: planForm.scriptContent.trim() }, performerConfigs: [],
+      scheduleMode: planForm.scheduleMode, scheduledAt: planForm.scheduleMode === 'scheduled' ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
+      videoOptions: { language: 'zh', videoType: 0, speechRate: 1, anchorType: 1, isSkipRs: false },
+      postProcessConfig: { processTypes: [...planForm.processTypes] }
+    })
+    const id = responseId(response)
+    if (id === null) throw new Error('创建成功但未返回计划 ID')
+    createDialog.visible = false
+    await loadPlanList()
+    await openDetail({ id } as BatchPlan)
+    ElMessage.success('计划已创建，请配置数字人执行项')
+  } catch (error: any) { ElMessage.error(error?.message || '计划创建失败') } finally { createDialog.submitting = false }
 }
 
 function fillPlanForm(plan: BatchPlan) {
-  planForm.id = plan.id
-  planForm.planName = plan.name
-  const script = plan.script || {}
-  planForm.scriptSource = script.source || (plan.scriptId ? 'library' : 'manual')
-  planForm.scriptId = plan.scriptId ?? script.sourceId ?? script.id ?? null
-  planForm.historyId = planForm.scriptSource === 'history' ? script.sourceId ?? script.id ?? plan.scriptId ?? null : null
-  planForm.scriptTitle = script.title || ''
-  planForm.scriptContent = script.content || ''
-  planForm.performerConfigs = plan.children.length ? plan.children.map(child => ({
-    key: `${child.id}`,
-    selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'),
-    bindingId: child.bindingId ?? null,
-    digitalHumanId: child.digitalHumanId ?? null,
-    voiceId: child.voiceId ?? null
-  })) : [createPerformerConfig()]
-  planForm.scheduleMode = plan.scheduleMode
-  planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''
-  planForm.processTypes = [...plan.processTypes]
-  planForm.cornerMarkId = plan.cornerMarkId ?? null
-  planForm.bannerOverlayId = plan.bannerOverlayId ?? null
-  const options = plan.videoOptions || {}
-  Object.assign(planForm.videoOptions, {
-    language: options.language || 'zh',
-    videoType: Number(options.videoType ?? options.video_type ?? 0) === 1 ? 1 : 0,
-    speechRate: Number(options.speechRate ?? options.speech_rate ?? 1) || 1,
-    anchorType: Number(options.anchorType ?? options.anchor_type ?? 1) || 1,
-    isSkipRs: Boolean(options.isSkipRs ?? options.is_skip_rs ?? false)
+  planForm.id = plan.id; planForm.planName = plan.name; planForm.scriptSource = plan.script?.source || 'manual'; planForm.scriptId = plan.script?.source === 'library' ? plan.script.sourceId ?? null : null; planForm.historyId = plan.script?.source === 'history' ? plan.script.sourceId ?? null : null; planForm.scriptContent = plan.script?.content || ''
+  planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
+  planForm.performerConfigs = plan.children.map((child) => ({
+    key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
+    inheritFromFirst: false, videoOptions: { language: child.videoOptions?.language || 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0, speechRate: Number(child.videoOptions?.speech_rate ?? child.videoOptions?.speechRate ?? 1), anchorType: Number(child.videoOptions?.anchor_type ?? 1), isSkipRs: Boolean(child.videoOptions?.is_skip_rs) },
+    postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config || DEFAULT_SUBTITLE_CONFIG), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
+  }))
+  const first = planForm.performerConfigs[0]
+  planForm.performerConfigs.forEach((config, index) => {
+    if (index === 0 || !first) return
+    config.inheritFromFirst = JSON.stringify(config.videoOptions) === JSON.stringify(first.videoOptions)
+      && JSON.stringify(config.postProcessConfig) === JSON.stringify(first.postProcessConfig)
   })
+  if (!planForm.performerConfigs.length) planForm.performerConfigs = [createPerformerConfig(false)]
+  activePerformerIndex.value = 0
 }
+function addPerformer() { if (planForm.performerConfigs.length >= 15) return; planForm.performerConfigs.push(createPerformerConfig(true)); activePerformerIndex.value = planForm.performerConfigs.length - 1 }
+function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
+function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
+function handleInheritanceChange(value: string | number | boolean) { if (value && activePerformer.value && planForm.performerConfigs[0]) { activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions); activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig) } }
+function updateActiveSubtitleConfig(value: any) { if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return; activePerformer.value.postProcessConfig.subtitleConfig = deepClone(value) }
 
-async function editPlan(row: BatchPlan) {
-  try {
-    const response = await getVideoBatchPlanDetail(row.id)
-    const plan = normalizePlan(getResponseData(response))
-    fillPlanForm(plan)
-    planDialog.isEdit = true
-    planDialog.visible = true
-    await loadResources()
-  } catch (error: any) {
-    ElMessage.error(error?.message || '计划详情加载失败')
-  }
+function validateDraft() {
+  if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 15) { ElMessage.warning('请配置 1～15 个数字人执行项'); return false }
+  const missing = planForm.performerConfigs.findIndex(config => !performerReady(config))
+  if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和声音`); return false }
+  const first = planForm.performerConfigs[0]
+  if (planForm.processTypes.includes('subtitle') && !Object.keys(first.postProcessConfig.subtitleConfig || {}).length) { activePerformerIndex.value = 0; ElMessage.warning('请先完成第1项字幕设置'); return false }
+  if (planForm.processTypes.includes('corner_mark') && !first.postProcessConfig.cornerMarkId) { activePerformerIndex.value = 0; ElMessage.warning('请先为第1项选择角标'); return false }
+  if (planForm.processTypes.includes('banner_overlay') && !first.postProcessConfig.bannerOverlayId) { activePerformerIndex.value = 0; ElMessage.warning('请先为第1项选择横幅'); return false }
+  return true
 }
-
-function buildPlanPayload() {
-  const processTypes = [...new Set(planForm.processTypes)]
-  const scriptId = planForm.scriptSource === 'library' ? planForm.scriptId : planForm.scriptSource === 'history' ? planForm.historyId : null
-  return {
-    planName: planForm.planName.trim(),
-    script: {
-      source: planForm.scriptSource,
-      sourceId: scriptId,
-      title: planForm.scriptTitle.trim(),
-      content: selectedScriptContent.value.trim()
-    },
-    performerConfigs: planForm.performerConfigs.map(item => item.selectionMode === 'binding'
-      ? { selectionMode: 'binding' as const, bindingId: item.bindingId }
-      : { selectionMode: 'custom' as const, digitalHumanId: item.digitalHumanId, voiceId: item.voiceId }),
-    videoOptions: { ...planForm.videoOptions },
-    scheduleMode: planForm.scheduleMode,
-    scheduledAt: planForm.scheduleMode === 'scheduled' && planForm.scheduledAt ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
-    postProcessConfig: {
-      processTypes,
-      subtitleSelector: processTypes.includes('subtitle') ? 1 : 0,
-      cornerMarkId: processTypes.includes('corner_mark') ? planForm.cornerMarkId : null,
-      bannerOverlayId: processTypes.includes('banner_overlay') ? planForm.bannerOverlayId : null
-    }
-  }
+function buildDraftPayload() {
+  const first = planForm.performerConfigs[0]
+  const configs = planForm.performerConfigs.map((config, index) => {
+    const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
+    const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
+    effectivePost.processTypes = [...planForm.processTypes]
+    return config.selectionMode === 'binding'
+      ? { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+      : { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+  })
+  return { performerConfigs: configs, videoOptions: deepClone(first.videoOptions), postProcessConfig: { processTypes: [...planForm.processTypes] } }
 }
-
-async function submitPlan() {
-  const valid = await planFormRef.value?.validate?.().catch(() => false)
-  if (!valid) return
-  if (planForm.performerConfigs.length < 1 || planForm.performerConfigs.length > 15) {
-    ElMessage.warning('数字人执行项数量必须是 1～15 个')
-    return
-  }
-  if (planForm.performerConfigs.some(item => item.selectionMode === 'binding' ? !item.bindingId : !item.digitalHumanId || !item.voiceId)) {
-    ElMessage.warning('请完整配置每个数字人执行项的绑定关系或数字人与声音')
-    return
-  }
-  if (!selectedScriptContent.value.trim()) {
-    ElMessage.warning('请先配置脚本内容')
-    return
-  }
-  if (planForm.scheduleMode === 'scheduled' && !planForm.scheduledAt) {
-    ElMessage.warning('请选择计划执行时间')
-    return
-  }
-
-  planDialog.submitting = true
-  try {
-    const payload = buildPlanPayload()
-    let planId = planForm.id
-    if (planDialog.isEdit && planId !== null) {
-      await updateVideoBatchPlan(planId, payload)
-      ElMessage.success('计划修改已保存')
-    } else {
-      const response = await createVideoBatchPlan(payload)
-      planId = responseId(response)
-      if (planId === null) throw new Error('创建成功但未返回计划 ID')
-      await startVideoBatchPlan(planId)
-      ElMessage.success('批量计划已创建并提交执行')
-    }
-    planDialog.visible = false
-    await loadPlanList()
-    await loadDispatchGroups()
-    if (detail.visible && detail.plan?.id === planId) await openDetail({ id: planId } as BatchPlan)
-  } catch (error: any) {
-    ElMessage.error(error?.message || '批量计划保存失败')
-  } finally {
-    planDialog.submitting = false
-  }
+async function saveDraftConfiguration(notify = true) {
+  if (!detail.plan || !validateDraft()) return false
+  detail.saving = true
+  try { await updateVideoBatchPlan(detail.plan.id, buildDraftPayload()); if (notify) ElMessage.success('草稿配置已保存'); await refreshDetail(); await loadPlanList(); return true } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
 }
-
-async function startPlan(row: BatchPlan) {
-  try {
-    await ElMessageBox.confirm('提交后将按统一视频通道规则排队，是否继续？', '提交执行', { type: 'warning', confirmButtonText: '提交', cancelButtonText: '取消' })
-    await startVideoBatchPlan(row.id)
-    ElMessage.success('计划已提交执行')
-    await loadPlanList()
-    await loadDispatchGroups()
-    if (detail.visible && detail.plan?.id === row.id) await refreshDetail()
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || '提交执行失败')
-  }
-}
-
-async function cancelPlan(row: BatchPlan) {
-  try {
-    await ElMessageBox.confirm('只会阻止尚未投递的子任务，已经调用第三方的任务不会被强制抢占。是否取消？', '取消计划', { type: 'warning', confirmButtonText: '取消计划', cancelButtonText: '返回' })
-    await cancelVideoBatchPlan(row.id)
-    ElMessage.success('计划已取消')
-    await loadPlanList()
-    await loadDispatchGroups()
-    if (detail.visible && detail.plan?.id === row.id) await refreshDetail()
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || '取消计划失败')
-  }
-}
-
-async function deletePlan(row: BatchPlan) {
-  try {
-    await ElMessageBox.confirm('仅删除尚未提交的计划，删除后不可恢复，是否继续？', '删除计划', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
-    await deleteVideoBatchPlan(row.id)
-    ElMessage.success('计划已删除')
-    await loadPlanList()
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || '删除计划失败')
-  }
-}
-
-async function openDetail(row: BatchPlan) {
-  detail.visible = true
-  detail.loading = true
-  detail.plan = null
-  detail.children = []
-  try {
-    const response = await getVideoBatchPlanDetail(row.id)
-    const plan = normalizePlan(getResponseData(response))
-    detail.plan = plan
-    detail.children = plan.children
-  } catch (error: any) {
-    detail.visible = false
-    ElMessage.error(error?.message || '批量计划详情加载失败')
-  } finally {
-    detail.loading = false
-  }
-}
-
-async function refreshDetail() {
+async function saveAndStartPlan() {
   if (!detail.plan) return
-  await openDetail(detail.plan)
-}
-
-async function retryChild(child: BatchChild) {
-  if (!isFailed(child) || detail.retryingId !== null) return
-  detail.retryingId = child.id
+  detail.starting = true
   try {
-    await retryVideoBatchChild(child.id)
-    ElMessage.success('失败子任务已重新进入队列')
-    await refreshDetail()
-    await loadPlanList()
-    await loadDispatchGroups()
-  } catch (error: any) {
-    ElMessage.error(error?.message || '手动重试失败')
-  } finally {
-    detail.retryingId = null
-  }
+    const saved = await saveDraftConfiguration(false)
+    if (!saved) return
+    await ElMessageBox.confirm(`将提交 ${planForm.performerConfigs.length} 个视频任务，是否继续？`, '提交执行', { type: 'warning', confirmButtonText: '提交', cancelButtonText: '返回配置' })
+    await startVideoBatchPlan(detail.plan.id); ElMessage.success('计划已提交执行'); await refreshDetail(); await loadPlanList()
+  } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '提交执行失败') } finally { detail.starting = false }
 }
 
-async function getVideoBlob(child: BatchChild): Promise<Blob> {
-  if (!child.videoUrl) throw new Error('视频尚未生成')
-  const response = await downloadFileByProxy(child.videoUrl, child.videoTaskId || child.id, 'video')
-  const blob = response?.data instanceof Blob ? response.data : response instanceof Blob ? response : null
-  if (!blob) throw new Error('视频代理未返回有效文件')
-  return blob
-}
+async function loadPlanList() { listLoading.value = true; try { const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {}); const page = getPageData(response); planList.value = page.items.map(normalizePlan); planTotal.value = page.total } catch (error: any) { ElMessage.error(error?.message || '计划加载失败') } finally { listLoading.value = false } }
+async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
+function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; voiceAudio?.pause() }
+async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm('取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
+async function deletePlan(row: BatchPlan) { try { await ElMessageBox.confirm('删除未提交计划后不可恢复。', '删除计划', { type: 'warning' }); await deleteVideoBatchPlan(row.id); ElMessage.success('计划已删除'); await loadPlanList() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '删除失败') } }
+async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(row.id); ElMessage.success('失败任务已重新进入队列'); await refreshDetail() } catch (error: any) { ElMessage.error(error?.message || '重试失败') } }
 
-async function openVideoPreview(child: BatchChild) {
-  if (!child.videoUrl || preview.loading) return
-  stopPreview()
-  preview.childId = child.id
-  preview.title = `${child.performerName || child.digitalHumanName || '数字人'} · 视频预览`
-  preview.loading = true
-  preview.visible = true
-  try {
-    const blob = await getVideoBlob(child)
-    previewObjectUrl = URL.createObjectURL(blob)
-    preview.url = previewObjectUrl
-  } catch (error: any) {
-    preview.visible = false
-    ElMessage.error(error?.message || '视频预览加载失败')
-  } finally {
-    preview.loading = false
-  }
-}
+async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
+async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
+async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
+async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
+async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
+async function loadCorners() { if (resourcesLoaded.corners) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
+async function loadBanners() { if (resourcesLoaded.banners) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
+async function loadResources() { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(), loadBanners()]) }
 
-async function downloadChild(child: BatchChild) {
-  if (!child.videoUrl || preview.downloadingId !== null) return
-  preview.downloadingId = child.id
-  try {
-    const blob = await getVideoBlob(child)
-    const objectUrl = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = objectUrl
-    anchor.download = `${(child.performerName || child.digitalHumanName || '数字人')}-${child.seqNo}.mp4`
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
-  } catch (error: any) {
-    ElMessage.error(error?.message || '视频下载失败')
-  } finally {
-    preview.downloadingId = null
-  }
-}
+function openAssetPicker(type: AssetPickerType) { assetPicker.type = type; assetPicker.search = ''; assetPicker.visible = true; if (type === 'binding') loadBindings(); else if (type === 'human') loadHumans(); else loadVoices() }
+function selectAsset(item: any) { if (!activePerformer.value) return; if (assetPicker.type === 'binding') activePerformer.value.bindingId = item.id; else if (assetPicker.type === 'human') activePerformer.value.digitalHumanId = item.id; else activePerformer.value.voiceId = item.id; assetPicker.visible = false; refreshActivePreview() }
+function playVoice(url: string, name: string) { if (!url) return; voiceAudio?.pause(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
+async function blobToDataUrl(blob: Blob) { return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(blob) }) }
+async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
+async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(config.postProcessConfig.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
 
-function playVoice(url: string, name: string) {
-  if (!url) return
-  voiceAudio?.pause()
-  voiceAudio = new Audio(url)
-  voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`))
-}
+async function getVideoBlob(child: BatchChild) { if (!child.videoUrl) throw new Error('视频尚未生成'); const response = await downloadFileByProxy(child.videoUrl, child.videoTaskId || child.id, 'video'); const blob = response?.data instanceof Blob ? response.data : null; if (!blob) throw new Error('视频代理未返回有效文件'); return blob }
+async function openVideoPreview(child: BatchChild) { stopPreview(); preview.visible = true; preview.loading = true; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; try { const blob = await getVideoBlob(child); previewObjectUrl = URL.createObjectURL(blob); preview.url = previewObjectUrl } catch (error: any) { preview.visible = false; ElMessage.error(error?.message || '视频预览失败') } finally { preview.loading = false } }
+async function downloadChild(child: BatchChild) { try { const blob = await getVideoBlob(child); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${child.digitalHumanName || '数字人'}-${child.seqNo}.mp4`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000) } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
+function stopPreview() { previewVideo.value?.pause(); if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = ''; preview.url = '' }
+function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
 
-function stopPreview() {
-  if (previewVideo.value) {
-    previewVideo.value.pause()
-    previewVideo.value.currentTime = 0
-  }
-  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl)
-  previewObjectUrl = ''
-  preview.url = ''
-  preview.loading = false
-  preview.childId = null
-}
-
-function handlePageSizeChange(size: number) {
-  planPageSize.value = size
-  planPage.value = 1
-  loadPlanList()
-}
-
-onMounted(async () => {
-  resetPlanForm()
-  await Promise.all([loadPlanList(), loadDispatchGroups()])
-})
-
-onUnmounted(() => {
-  stopPreview()
-  voiceAudio?.pause()
-  voiceAudio = null
-})
+watch(activePerformerIndex, () => refreshActivePreview())
+watch(() => activePerformer.value?.postProcessConfig.cornerMarkId, () => refreshActivePreview())
+watch(() => activePerformer.value?.postProcessConfig.bannerOverlayId, () => refreshActivePreview())
+watch(() => planForm.processTypes, (types) => { planForm.performerConfigs.forEach(config => { config.postProcessConfig.processTypes = [...types]; config.postProcessConfig.subtitleSelector = types.includes('subtitle') ? 1 : 0 }) }, { deep: true })
+onMounted(loadPlanList)
+onUnmounted(() => { stopPreview(); voiceAudio?.pause(); voiceAudio = null })
 </script>
 
 <style scoped>
-.batch-plan-page {
-  width: 100%;
-  min-height: 100%;
-  box-sizing: border-box;
-  padding: clamp(16px, 2vw, 28px);
-  background: #f5f7fb;
-}
-
-.page-hero,
-.filter-card,
-.dispatch-card,
-.table-card,
-.child-table-card {
-  width: 100%;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #e8edf5;
-  border-radius: 14px;
-  box-shadow: 0 5px 18px rgba(38, 55, 88, 0.04);
-}
-
-.page-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: clamp(20px, 3vw, 32px);
-}
-
-.eyebrow {
-  color: #7b8aa1;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.page-hero h1,
-.detail-title-row h2 {
-  margin: 7px 0 0;
-  color: #1f2d43;
-  font-size: clamp(20px, 2vw, 28px);
-  font-weight: 700;
-}
-
-.page-hero p,
-.detail-subtitle {
-  margin: 7px 0 0;
-  color: #8c9ab0;
-  font-size: 13px;
-}
-
-.hero-actions,
-.filter-actions,
-.row-actions,
-.detail-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.hero-actions {
-  justify-content: flex-end;
-}
-
-.filter-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-  padding: 14px 16px;
-}
-
-.search-input {
-  width: min(360px, 100%);
-}
-.search-input :deep(.el-input__prefix),
-.search-input :deep(.el-input__prefix-inner) { display: flex; height: 100%; align-items: center; }
-
-.filter-note,
-.form-help,
-.section-heading span {
-  color: #93a0b2;
-  font-size: 12px;
-}
-
-.table-card {
-  margin-top: 16px;
-  overflow: hidden;
-}
-
-.dispatch-card {
-  margin-top: 16px;
-  padding: 18px;
-}
-
-.dispatch-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.dispatch-card__header h2 { margin: 4px 0 6px; color: #26384f; font-size: 18px; }
-.dispatch-card__header p { margin: 0; color: #8290a4; font-size: 12px; line-height: 1.7; }
-.dispatch-card__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
-.dispatch-list { display: grid; gap: 9px; margin-top: 16px; }
-.dispatch-state { min-height: 150px; padding: 24px 8px 8px; }
-.dispatch-state-error :deep(.el-empty) { padding: 10px 0; }
-.dispatch-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 11px 13px;
-  border: 1px solid #e7ecf3;
-  border-radius: 10px;
-  background: #fbfcff;
-}
-.dispatch-item[draggable='true'] { cursor: grab; }
-.dispatch-item.dragging { opacity: .55; border-color: #8db6ee; }
-.dispatch-item.locked { background: #f7f8fa; }
-.dispatch-handle { display: grid; place-items: center; color: #8da0b8; }
-.dispatch-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
-.dispatch-main strong { overflow: hidden; color: #34445b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.dispatch-main span { color: #8b99ac; font-size: 11px; }
-.priority-editor { display: flex; align-items: center; gap: 7px; color: #748399; font-size: 12px; }
-.priority-editor :deep(.el-input-number) { width: 102px; }
-
-.plan-name {
-  display: block;
-  max-width: 100%;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: #2b6cb0;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 650;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.plan-name:hover { color: #1d4ed8; }
-.plan-id,
-.binding-subtitle,
-.select-option-sub,
-.plan-id { color: #9aa7b8; font-size: 11px; margin-top: 4px; }
-
-.schedule-cell,
-.progress-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-.schedule-time { color: #8b98aa; font-size: 11px; white-space: nowrap; }
-.progress-cell :deep(.el-progress) { width: 100%; }
-.failed-count { color: #e56b6f; font-size: 11px; }
-.time-text { color: #68778b; font-size: 12px; white-space: nowrap; }
-.muted-text { color: #aab4c1; font-size: 12px; }
-.success-text { color: #22a06b; }
-.danger-text { color: #e35d6a; }
-
-.pagination-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px;
-  border-top: 1px solid #eff2f7;
-}
-
-.pagination-total { color: #91a0b2; font-size: 12px; }
-
-.detail-page { padding-bottom: 24px; }
-.detail-title-row { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
-.detail-summary-grid,
-.time-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
-.summary-item,
-.time-grid > div { min-width: 0; padding: 14px; border: 1px solid #edf1f6; border-radius: 10px; background: #fbfcfe; }
-.summary-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.summary-item span,
-.time-grid span { color: #8c9ab0; font-size: 12px; }
-.summary-item strong,
-.time-grid strong { color: #34445b; font-size: 15px; }
-.time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.time-grid > div { display: flex; flex-direction: column; gap: 7px; }
-.detail-tip { display: flex; align-items: center; gap: 8px; margin: 18px 0; padding: 11px 13px; border-radius: 9px; background: #f0f7ff; color: #4f78a8; font-size: 12px; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid #edf1f6; }
-.section-heading h3 { margin: 0 0 5px; color: #33445b; font-size: 15px; }
-.binding-name { color: #3b4b60; font-size: 13px; font-weight: 600; }
-.cover-button { position: relative; display: inline-flex; width: 88px; height: 58px; align-items: center; justify-content: center; padding: 0; overflow: hidden; border: 1px solid #e4eaf2; border-radius: 8px; background: #f4f6f9; cursor: pointer; }
-.cover-button:disabled { cursor: default; }
-.child-cover { width: 100%; height: 100%; object-fit: cover; }
-.cover-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: #aeb9c8; }
-.cover-play { position: absolute; right: 5px; bottom: 4px; display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: rgba(25, 45, 74, .76); color: #fff; }
-
-.plan-form { padding: 2px 4px; }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.form-grid-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.form-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.form-section { margin-top: 20px; padding: 16px; border: 1px solid #e8edf5; border-radius: 12px; background: #fbfcff; }
-.form-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #33445b; }
-.form-section-title span { color: #93a0b2; font-size: 12px; }
-.source-tabs { margin-bottom: 12px; }
-.script-editor-wrap { display: grid; gap: 10px; }
-.script-preview { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #f1f6fd; color: #4c6f9c; font-size: 12px; }
-.script-preview p { margin: 5px 0 0; color: #71839b; line-height: 1.6; }
-.performer-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.performer-card { min-width: 0; padding: 13px; border: 1px solid #e5ebf3; border-radius: 10px; background: #fff; }
-.performer-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.performer-index { color: #3a5575; font-size: 13px; font-weight: 650; }
-.performer-fields { display: grid; gap: 9px; margin-top: 11px; }
-.custom-performer-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.performer-preview-row { display: flex; min-width: 0; align-items: center; gap: 8px; color: #68788e; font-size: 12px; }
-.performer-cover { width: 36px; height: 36px; flex: none; border-radius: 7px; object-fit: cover; }
-.asset-option { display: flex; align-items: center; gap: 8px; }
-.asset-option img { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; }
-.add-performer-button { margin-top: 13px; }
-.schedule-radio-group { display: flex; flex-wrap: wrap; }
-.selection-summary { margin-top: 8px; color: #7c8da3; font-size: 12px; }
-.selection-summary strong { color: #2864b7; }
-.selection-summary.warning { color: #d97706; }
-.binding-option { display: flex; flex-direction: column; gap: 2px; line-height: 1.35; }
-.binding-option small { color: #9aa7b8; font-size: 11px; }
-.select-option-main { font-size: 13px; }
-.select-option-sub { max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.video-preview-wrap { display: flex; align-items: center; justify-content: center; min-height: 340px; padding: 12px; border-radius: 10px; background: #101827; }
-.preview-video { max-width: 100%; max-height: 70vh; border-radius: 6px; object-fit: contain; }
-
-:deep(.el-table th.el-table__cell),
-:deep(.el-table td.el-table__cell) { padding: 10px 8px; }
-:deep(.el-table .cell) { min-width: 0; }
-:deep(.el-drawer__body) { overflow-x: hidden; }
-:deep(.el-drawer__header) { margin-bottom: 0; padding-bottom: 16px; border-bottom: 1px solid #edf1f6; }
-:deep(.el-form-item__label) { color: #55657a; font-weight: 600; }
-
-@media (max-width: 900px) {
-  .page-hero,
-  .filter-card,
-  .dispatch-card__header,
-  .detail-title-row { align-items: flex-start; flex-direction: column; }
-  .hero-actions,
-  .filter-actions,
-  .dispatch-card__actions { width: 100%; justify-content: space-between; }
-  .detail-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 640px) {
-  .batch-plan-page { padding: 12px; }
-  .form-grid,
-  .time-grid { grid-template-columns: 1fr; }
-  .performer-list,
-  .form-grid-three,
-  .form-grid-two,
-  .custom-performer-fields { grid-template-columns: 1fr; }
-  .filter-note { display: none; }
-  .dispatch-item { align-items: flex-start; flex-wrap: wrap; }
-  .dispatch-main { flex-basis: calc(100% - 34px); }
-  .pagination-bar { align-items: flex-start; flex-direction: column; }
-}
+.batch-plan-page { width: 100%; min-height: 100%; box-sizing: border-box; padding: clamp(16px, 2vw, 28px); background: #f5f7fb; color: #26364d; }
+.page-hero, .filter-card, .table-card, .child-table-card { width: 100%; box-sizing: border-box; background: #fff; border: 1px solid #e7edf5; border-radius: 14px; box-shadow: 0 5px 18px rgba(38,55,88,.04); }
+.page-hero { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:clamp(20px,3vw,32px); }
+.eyebrow { color:#7b8aa1; font-size:12px; letter-spacing:.08em; }
+h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2vw,29px); }
+.page-hero p, .detail-title-row p { margin:7px 0 0; color:#8c9ab0; font-size:13px; }
+.filter-card { margin-top:16px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.search-input { width:min(100%, 360px); }
+.table-card { margin-top:16px; overflow:hidden; }
+.plan-name { border:0; padding:0; background:transparent; color:#177ddc; cursor:pointer; font:inherit; font-weight:700; }
+.plan-id { color:#9ba8ba; font-size:12px; margin-top:3px; }
+.script-cell { color:#69788e; }
+.progress-cell { display:grid; gap:6px; min-width:90px; }
+.row-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; }
+.pagination-bar { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:16px; color:#7b8aa1; }
+.create-form { max-height:72vh; overflow:auto; padding-right:8px; }
+.form-grid { display:grid; gap:16px; }
+.form-grid-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.form-grid-three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.w-full { width:100%; }
+.create-section { margin-top:12px; padding:18px; border:1px solid #e5ebf4; border-radius:12px; background:#fbfcfe; }
+.section-heading-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:14px; }
+.section-heading-row p, .block-title span { margin:4px 0 0; color:#8a98ac; font-size:12px; }
+.required, .enhancement-label em { color:#f56c6c; font-style:normal; }
+.script-actions { display:flex; gap:8px; }
+.script-form-item { margin:0; }
+.selected-script-source { margin-top:10px; color:#67916d; font-size:12px; }
+.feature-checkboxes { display:flex; flex-wrap:wrap; gap:10px; }
+.detail-page { padding:0 8px 24px; }
+.detail-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid #edf1f6; }
+.detail-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.plan-summary { display:grid; grid-template-columns:2fr 1fr 1.3fr; gap:14px; margin:16px 0; }
+.plan-summary>div { min-width:0; padding:14px 16px; background:#f7f9fc; border-radius:10px; }
+.plan-summary span { color:#8290a4; font-size:12px; }
+.plan-summary p { margin:6px 0 0; line-height:1.6; max-height:52px; overflow:auto; }
+.summary-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }.summary-tags em{color:#9ba8ba;font-style:normal;}
+.draft-workspace { display:grid; grid-template-columns:minmax(210px,18%) minmax(0,82%); gap:16px; min-height:650px; }
+.performer-sidebar, .performer-editor { border:1px solid #e3e9f2; border-radius:12px; background:#fff; }
+.performer-sidebar { padding:12px; align-self:start; max-height:calc(100vh - 250px); overflow:auto; }
+.sidebar-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 2px 12px; }
+.sidebar-heading>div { display:grid; gap:2px; }.sidebar-heading span{font-size:12px;color:#8492a6;}
+.performer-nav-item { width:100%; display:grid; grid-template-columns:42px minmax(0,1fr) 18px; align-items:center; gap:10px; padding:10px; margin-bottom:8px; border:1px solid #e4eaf3; border-radius:10px; background:#fff; text-align:left; cursor:pointer; }
+.performer-nav-item.active { border-color:#409eff; background:#f0f7ff; box-shadow:0 0 0 2px rgba(64,158,255,.08); }
+.performer-nav-item img, .nav-placeholder { width:42px; height:52px; border-radius:7px; object-fit:cover; background:#edf1f6; display:flex; align-items:center; justify-content:center; color:#aab5c4; }
+.nav-main { min-width:0; display:grid; gap:4px; }.nav-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7f8da1;}.ready-icon{color:#26a269;}.remove-active{width:100%;}
+.performer-editor { min-width:0; padding:18px; }
+.editor-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:16px; border-bottom:1px solid #edf1f6; }
+.editor-heading>div { display:flex; align-items:center; gap:12px; }.editor-heading h3{margin:0;}.editor-heading p{margin:4px 0 0;color:#8b98aa;font-size:12px;}
+.step-badge { width:36px; height:36px; border-radius:50%; background:#409eff; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.editor-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,34%); gap:18px; margin-top:18px; align-items:start; }
+.editor-form-panel { min-width:0; display:grid; gap:14px; }
+.config-block, .preview-panel { padding:16px; border:1px solid #e5ebf3; border-radius:11px; background:#fbfcfe; }
+.block-title, .preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }.single-picker{grid-template-columns:1fr;}
+.selection-preview-strip { display:flex; align-items:center; gap:10px; margin-top:12px; padding:9px 10px; border-radius:9px; background:#f0f7ff; }
+.selection-preview-strip img { width:38px; height:48px; object-fit:cover; border-radius:6px; }.selection-preview-strip span{min-width:0;flex:1;}
+.form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }.enhancement-row{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:10px;margin-top:10px;}.subtitle-note{margin-top:12px;color:#6d7d92;font-size:12px;}
+.preview-panel { position:sticky; top:0; background:#fff; }.preview-heading span{color:#8592a5;font-size:12px;}
+.cover-preview { width:min(100%,310px); aspect-ratio:9/16; margin:0 auto; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:42px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:12px 0 0;}
+.selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
+.child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
+@media (max-width:1280px){.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,38%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-summary{grid-template-columns:1fr 1fr}.plan-summary>div:first-child{grid-column:1/-1}}
+@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three{grid-template-columns:1fr}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>
