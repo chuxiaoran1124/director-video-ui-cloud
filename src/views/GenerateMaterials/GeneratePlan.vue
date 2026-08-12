@@ -618,7 +618,15 @@ function addPerformer() { if (planForm.performerConfigs.length >= 15) return; pl
 function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
 function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
 function handleInheritanceChange(value: string | number | boolean) { if (value && activePerformer.value && planForm.performerConfigs[0]) { activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions); activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig) } }
-function updateActiveSubtitleConfig(value: any) { if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return; activePerformer.value.postProcessConfig.subtitleConfig = deepClone(value) }
+function updateActiveSubtitleConfig(value: any) {
+  if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return
+  const nextConfig = deepClone(value)
+  const currentConfig = activePerformer.value.postProcessConfig.subtitleConfig || {}
+  // 预览成功后子组件会回传当前配置；内容未变化时不能替换对象，
+  // 否则 initialConfig 监听会再次渲染，形成连续预览请求。
+  if (JSON.stringify(currentConfig) === JSON.stringify(nextConfig)) return
+  activePerformer.value.postProcessConfig.subtitleConfig = nextConfig
+}
 
 function validateDraft() {
   if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 15) { ElMessage.warning('请配置 1～15 个数字人执行项'); return false }
