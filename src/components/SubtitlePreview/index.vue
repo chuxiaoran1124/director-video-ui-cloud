@@ -192,6 +192,13 @@
                 title="删除模板"
               >×</span>
             </div>
+            <button
+              type="button"
+              title="基于系统默认新建配置"
+              aria-label="基于系统默认新建配置"
+              class="w-6 h-6 rounded-full border border-dashed border-blue-400 text-blue-500 text-base leading-none hover:bg-blue-50"
+              @click="startFromSystemDefault"
+            >+</button>
           </div>
         </div>
       </template>
@@ -410,6 +417,18 @@ const applyTemplate = async (tpl: SubtitleTemplate) => {
     await loadFont(tpl.config.font_name)
   }
   requestBackendPreview()
+}
+
+const startFromSystemDefault = async () => {
+  const systemTemplate = BUILT_IN_TEMPLATES[0]
+  activeTemplate.value = ''
+  Object.assign(config, { ...systemTemplate.config })
+  boldSwitch.value = systemTemplate.config.bold === 1
+  showDetailSettings.value = true
+  await loadFont(systemTemplate.config.font_name)
+  emit('update:config', { ...systemTemplate.config })
+  requestBackendPreview()
+  ElMessage.info('已应用系统默认字幕配置，可直接调整')
 }
 
 const saveCurrentTemplate = async () => {

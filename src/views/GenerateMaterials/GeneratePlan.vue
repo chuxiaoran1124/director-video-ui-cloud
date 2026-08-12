@@ -267,14 +267,6 @@
                     </div>
                   </div>
 
-                  <div class="config-block">
-                    <div class="block-title"><strong>视频参数</strong><span v-if="activePerformerIndex > 0 && activePerformer.inheritFromFirst">已沿用第1项</span></div>
-                    <div class="form-grid form-grid-two">
-                      <label>语言<el-select v-model="activePerformer.videoOptions.language" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-option label="中文" value="zh" /></el-select></label>
-                      <label>视频方向<el-radio-group v-model="activePerformer.videoOptions.videoType" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-radio :label="0">竖版</el-radio><el-radio :label="1">横版</el-radio></el-radio-group></label>
-                    </div>
-                  </div>
-
                   <div v-if="planForm.processTypes.length" class="config-block">
                     <div class="block-title enhancement-block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
                     <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row">
@@ -307,7 +299,7 @@
                 </section>
 
                 <aside class="preview-panel">
-                  <div class="preview-heading"><strong>预览效果</strong><span>{{ performerSummary(activePerformer) }}</span></div>
+                  <div class="preview-heading"><strong>预览效果</strong><span>执行项 {{ activePerformerIndex + 1 }}</span></div>
                   <SubtitlePreview
                     v-if="activePreviewProcessTypes.length"
                     :key="activePerformer.key"
@@ -317,7 +309,7 @@
                     :banner-overlay-base64="activeBannerBase64"
                     :process-types="activePreviewProcessTypes"
                     :enable-subtitle="planForm.processTypes.includes('subtitle')"
-                    :initial-config="activePerformer.postProcessConfig.subtitleConfig"
+                    :initial-config="activeEffectivePostProcessConfig.subtitleConfig"
                     @update:config="updateActiveSubtitleConfig"
                   />
                   <div v-else class="cover-preview" :class="{ landscape: activePerformer.videoOptions.videoType === 1 }">
@@ -454,8 +446,8 @@ interface BatchPlan {
 }
 
 const DEFAULT_SUBTITLE_CONFIG = {
-  font_name: 'Microsoft YaHei', font_size: 10, margin_v: 45, primary_colour: '#FFFFFF', outline_colour: '#000000', outline: 2,
-  bold: 0, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
+  font_name: '竹言体', font_size: 18, margin_v: 74, primary_colour: '#fee002', outline_colour: '#000000', outline: 1,
+  bold: 1, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
 }
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
 const listLoading = ref(false)
@@ -505,7 +497,15 @@ const createRules = {
 }
 
 const activePerformer = computed(() => planForm.performerConfigs[activePerformerIndex.value] || null)
-const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activePerformer.value?.postProcessConfig.cornerMarkId))?.url || '')
+const activeEffectivePostProcessConfig = computed(() => {
+  const active = activePerformer.value
+  const first = planForm.performerConfigs[0]
+  if (activePerformerIndex.value > 0 && active?.inheritFromFirst && first) return first.postProcessConfig
+  return active?.postProcessConfig || {
+    processTypes: [], subtitleSelector: 0, subtitleConfig: DEFAULT_SUBTITLE_CONFIG, cornerMarkId: null, bannerOverlayId: null
+  }
+})
+const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.cornerMarkId))?.url || '')
 const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((type) => {
   if (type === 'subtitle') return true
   if (type === 'corner_mark') return Boolean(activeCornerMarkUrl.value)
@@ -615,6 +615,13 @@ function performerCover(config: PerformerConfig) { return config.selectionMode =
 function performerVoiceUrl(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.voiceUrl || '' : selectedVoice(config)?.url || '' }
 function performerSummary(config: PerformerConfig) { const binding = selectedBinding(config); return config.selectionMode === 'binding' ? binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系' : `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}` }
 function performerReady(config: PerformerConfig) { return config.selectionMode === 'binding' ? Boolean(config.bindingId) : Boolean(config.digitalHumanId && config.voiceId) }
+function normalizeBatchSubtitleConfig(rawConfig: any) {
+  const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {}
+  const isLegacyBatchDefault = Number(config.font_size) === 10
+    && String(config.font_name || '').toLowerCase() === 'microsoft yahei'
+    && Number(config.margin_v) === 45
+  return deepClone(isLegacyBatchDefault || !Object.keys(config).length ? DEFAULT_SUBTITLE_CONFIG : config)
+}
 function assetCover(item: any) { return item.coverUrl || '' }
 function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
 function assetSubtitle(item: any) { return assetPicker.type === 'binding' ? `${item.digitalHumanName} + ${item.voiceName}` : item.language || '' }
@@ -657,7 +664,7 @@ function fillPlanForm(plan: BatchPlan) {
   planForm.performerConfigs = plan.children.map((child) => ({
     key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
     inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
-    postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config || DEFAULT_SUBTITLE_CONFIG), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
+    postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
   const first = planForm.performerConfigs[0]
   planForm.performerConfigs.forEach((config, index) => {
@@ -763,7 +770,7 @@ function selectAsset(item: any) { if (!activePerformer.value) return; if (assetP
 function playVoice(url: string, name: string) { if (!url) return; voiceAudio?.pause(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
 async function blobToDataUrl(blob: Blob) { return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(blob) }) }
 async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
-async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(config.postProcessConfig.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
+async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
 
 async function getVideoBlob(child: BatchChild) { if (!child.videoUrl) throw new Error('视频尚未生成'); const response = await downloadFileByProxy(child.videoUrl, child.videoTaskId || child.id, 'video'); const blob = response?.data instanceof Blob ? response.data : null; if (!blob) throw new Error('视频代理未返回有效文件'); return blob }
 async function openVideoPreview(child: BatchChild) { stopPreview(); preview.visible = true; preview.loading = true; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; try { const blob = await getVideoBlob(child); previewObjectUrl = URL.createObjectURL(blob); preview.url = previewObjectUrl } catch (error: any) { preview.visible = false; ElMessage.error(error?.message || '视频预览失败') } finally { preview.loading = false } }
@@ -772,8 +779,7 @@ function stopPreview() { previewVideo.value?.pause(); if (previewObjectUrl) URL.
 function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
 
 watch(activePerformerIndex, () => refreshActivePreview())
-watch(() => activePerformer.value?.postProcessConfig.cornerMarkId, () => refreshActivePreview())
-watch(() => activePerformer.value?.postProcessConfig.bannerOverlayId, () => refreshActivePreview())
+watch(() => activeEffectivePostProcessConfig.value.bannerOverlayId, () => refreshActivePreview())
 watch(() => planForm.processTypes, (types) => { planForm.performerConfigs.forEach(config => { config.postProcessConfig.processTypes = [...types]; config.postProcessConfig.subtitleSelector = types.includes('subtitle') ? 1 : 0 }) }, { deep: true })
 onMounted(loadPlanList)
 onUnmounted(() => { stopPreview(); voiceAudio?.pause(); voiceAudio = null })
@@ -858,7 +864,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .enhancement-control .el-select { width:100%; }
 .asset-empty-warning { display:block; color:#8a98ac; font-size:12px; line-height:1.6; }
 .subtitle-note { margin-top:16px; padding-top:14px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.7; }
-.preview-panel { position:sticky; top:0; background:#fff; }.preview-heading span{color:#8592a5;font-size:12px;}
+.preview-panel { position:sticky; top:0; background:#fff; }.preview-heading{min-width:0;flex-wrap:nowrap;}.preview-heading strong{white-space:nowrap;font-size:15px;}.preview-heading span{flex:0 0 auto;color:#6f8096;font-size:12px;line-height:24px;padding:0 9px;border-radius:999px;background:#f0f4f9;white-space:nowrap;}
 .cover-preview { width:min(100%,310px); aspect-ratio:9/16; margin:0 auto; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:42px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:12px 0 0;}
 .selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
