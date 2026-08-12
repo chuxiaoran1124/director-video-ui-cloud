@@ -18,12 +18,12 @@
         class="search-input"
         clearable
         placeholder="搜索计划名称"
-        @keyup.enter="loadPlanList"
-        @clear="loadPlanList"
+        @keyup.enter="loadPlanList()"
+        @clear="loadPlanList()"
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      <el-button :loading="listLoading" @click="loadPlanList">
+      <el-button :loading="listLoading" @click="loadPlanList()">
         <el-icon><Refresh /></el-icon>
         刷新
       </el-button>
@@ -86,7 +86,7 @@
           layout="total, sizes, prev, pager, next"
           :page-sizes="[10, 20, 50]"
           :total="planTotal"
-          @current-change="loadPlanList"
+          @current-change="loadPlanList()"
           @size-change="handlePageSizeChange"
         />
       </div>
@@ -464,6 +464,8 @@ const previewVideo = ref<HTMLVideoElement | null>(null)
 let previewObjectUrl = ''
 let voiceAudio: HTMLAudioElement | null = null
 let previewLoadSequence = 0
+let listRefreshTimer: number | null = null
+let listRequestRunning = false
 
 const planForm = reactive({
   id: null as string | number | null,
@@ -748,7 +750,22 @@ async function saveAndStartPlan() {
   } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '提交执行失败') } finally { detail.starting = false }
 }
 
-async function loadPlanList() { listLoading.value = true; try { const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {}); const page = getPageData(response); planList.value = page.items.map(normalizePlan); planTotal.value = page.total } catch (error: any) { ElMessage.error(error?.message || '计划加载失败') } finally { listLoading.value = false } }
+async function loadPlanList(options: { silent?: boolean } = {}) {
+  if (listRequestRunning) return
+  listRequestRunning = true
+  if (!options.silent) listLoading.value = true
+  try {
+    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {})
+    const page = getPageData(response)
+    planList.value = page.items.map(normalizePlan)
+    planTotal.value = page.total
+  } catch (error: any) {
+    if (!options.silent) ElMessage.error(error?.message || '计划加载失败')
+  } finally {
+    listRequestRunning = false
+    if (!options.silent) listLoading.value = false
+  }
+}
 async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; voiceAudio?.pause() }
@@ -777,12 +794,21 @@ async function openVideoPreview(child: BatchChild) { stopPreview(); preview.visi
 async function downloadChild(child: BatchChild) { try { const blob = await getVideoBlob(child); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${child.digitalHumanName || '数字人'}-${child.seqNo}.mp4`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000) } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
 function stopPreview() { previewVideo.value?.pause(); if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = ''; preview.url = '' }
 function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
+function refreshPlanListWhenVisible() { if (document.visibilityState === 'visible') loadPlanList({ silent: true }) }
 
 watch(activePerformerIndex, () => refreshActivePreview())
 watch(() => activeEffectivePostProcessConfig.value.bannerOverlayId, () => refreshActivePreview())
 watch(() => planForm.processTypes, (types) => { planForm.performerConfigs.forEach(config => { config.postProcessConfig.processTypes = [...types]; config.postProcessConfig.subtitleSelector = types.includes('subtitle') ? 1 : 0 }) }, { deep: true })
-onMounted(loadPlanList)
-onUnmounted(() => { stopPreview(); voiceAudio?.pause(); voiceAudio = null })
+onMounted(() => {
+  loadPlanList()
+  listRefreshTimer = window.setInterval(refreshPlanListWhenVisible, 5000)
+  document.addEventListener('visibilitychange', refreshPlanListWhenVisible)
+})
+onUnmounted(() => {
+  if (listRefreshTimer !== null) window.clearInterval(listRefreshTimer)
+  document.removeEventListener('visibilitychange', refreshPlanListWhenVisible)
+  stopPreview(); voiceAudio?.pause(); voiceAudio = null
+})
 </script>
 
 <style scoped>
@@ -794,6 +820,9 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .page-hero p, .detail-title-row p { margin:7px 0 0; color:#8c9ab0; font-size:13px; }
 .filter-card { margin-top:16px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .search-input { width:min(100%, 360px); }
+.search-input :deep(.el-input__wrapper) { align-items:center; }
+.search-input :deep(.el-input__prefix), .search-input :deep(.el-input__prefix-inner) { height:100%; display:flex; align-items:center; justify-content:center; }
+.search-input :deep(.el-input__prefix-inner .el-icon) { margin:0; line-height:1; align-self:center; }
 .table-card { margin-top:16px; overflow:hidden; }
 .plan-name { border:0; padding:0; background:transparent; color:#177ddc; cursor:pointer; font:inherit; font-weight:700; }
 .plan-id { color:#9ba8ba; font-size:12px; margin-top:3px; }

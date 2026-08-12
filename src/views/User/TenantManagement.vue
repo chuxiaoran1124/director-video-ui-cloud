@@ -244,7 +244,7 @@
                             <section class='capability-card capability-card--editable'>
                                 <header>
                                     <h4>任务处理偏好</h4>
-                                    <span>根据团队当前阶段，决定更偏向先出成片还是先补素材。</span>
+                                    <span>统一管理单条视频、快速任务和数字人克隆三个功能的处理顺序。</span>
                                 </header>
                                 <div class='priority-panel'>
                                     <el-radio-group
@@ -262,18 +262,23 @@
                                     </el-radio-group>
                                     <p class='priority-panel__description'>{{ currentPriorityDescription }}</p>
                                     <div class='priority-panel__order'>
-                                        当前顺序：{{ currentPriorityOrderText }}
+                                        {{ schedulerPriorityMode === 'balanced' ? '执行规则' : '当前优先级' }}：{{ currentPriorityOrderText }}
                                     </div>
-                                    <div class='priority-panel__task-order'>
-                                        <strong>统一视频任务排序</strong>
-                                        <el-radio-group
-                                            v-model='schedulerTaskOrderMode'
-                                            :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerPriorityConfig'
-                                        >
-                                            <el-radio-button label='chronological'>时间顺序</el-radio-button>
-                                            <el-radio-button label='free'>自由搭配</el-radio-button>
-                                        </el-radio-group>
-                                        <p>{{ schedulerTaskOrderMode === 'free' ? '可在批量数字人生成页设置 P 层并拖动同层顺序；同层仍按任务组轮转。' : '批量数字人、单条和数字人任务按首次创建时间进入任务组轮转。' }}</p>
+                                    <div v-if='schedulerPriorityMode === "free"' class='function-priority-list'>
+                                        <div v-for='item in schedulerFunctionOptions' :key='item.value' class='function-priority-row'>
+                                            <div>
+                                                <strong>{{ item.label }}</strong>
+                                                <small>{{ item.description }}</small>
+                                            </div>
+                                            <el-select
+                                                v-model='schedulerFunctionPriorities[item.value]'
+                                                class='function-priority-select'
+                                                :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerPriorityConfig'
+                                            >
+                                                <el-option v-for='level in [1, 2, 3]' :key='level' :label='`P${level}${level === 1 ? "（最高）" : ""}`' :value='level' />
+                                            </el-select>
+                                        </div>
+                                        <p>先比较功能优先级；同优先级时严格按可执行任务的创建时间先后处理。</p>
                                     </div>
                                     <div class='priority-panel__footer'>
                                         <el-button
@@ -490,8 +495,12 @@ const tenantDetail = ref<ITenantDetailResponse | null>(null)
 const postProcessPipelineEnabled = ref(false)
 const audioDriveEnabled = ref(false)
 const digitalHumanScope = ref<'self' | 'tenant'>('self')
-const schedulerPriorityMode = ref('balanced')
-const schedulerTaskOrderMode = ref<'chronological' | 'free'>('chronological')
+const schedulerPriorityMode = ref<'balanced' | 'free'>('balanced')
+const schedulerFunctionPriorities = reactive<Record<string, number>>({
+    video_realtime: 1,
+    decompose_quick: 1,
+    avatar_clone_not_voice: 1
+})
 const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
 const schedulerVideoSlots = ref(1)
@@ -506,26 +515,21 @@ const createDialogVisible = ref(false)
 const creatingTenant = ref(false)
 const schedulerPriorityOptions = [
     {
-        value: 'video_first',
-        label: '视频优先',
-        description: '单条视频会优先进入处理链路，适合交付高峰期。'
-    },
-    {
         value: 'balanced',
         label: '均衡模式',
-        description: '素材准备和成片生成一起兼顾，适合作为日常默认。'
+        description: '三个功能不区分优先级，严格按可执行任务的创建时间先后处理。'
     },
     {
-        value: 'asset_first',
-        label: '素材优先',
-        description: '会先补声音、数字人和快速克隆，适合集中扩素材阶段。'
+        value: 'free',
+        label: '自由模式',
+        description: '分别设置三个功能的优先级；同优先级仍严格按任务创建时间处理。'
     }
 ]
-const schedulerPriorityOrderMap: Record<string, string[]> = {
-    video_first: ['单条视频', '快速任务', '数字人克隆'],
-    balanced: ['快速任务', '数字人克隆', '单条视频'],
-    asset_first: ['快速任务', '数字人克隆', '单条视频']
-}
+const schedulerFunctionOptions = [
+    { value: 'video_realtime', label: '单条视频', description: '包含批量数字人生成的实际视频子任务' },
+    { value: 'decompose_quick', label: '快速任务', description: '有配音快速训练的顶层任务' },
+    { value: 'avatar_clone_not_voice', label: '数字人克隆', description: '仅数字人训练的顶层任务' }
+]
 
 const createForm = reactive<ICreateTenantPayload>({
     tenantCode: '',
@@ -556,16 +560,32 @@ const createRules = reactive<FormRules>({
 const activeTenantCount = computed(() => tenantList.value.filter((item) => item.status === 'active').length)
 const totalUserCount = computed(() => tenantList.value.reduce((total, item) => total + Number(item.userCount || 0), 0))
 const currentPriorityOption = computed(() => (
-    schedulerPriorityOptions.find((item) => item.value === schedulerPriorityMode.value) || schedulerPriorityOptions[1]
+    schedulerPriorityOptions.find((item) => item.value === schedulerPriorityMode.value) || schedulerPriorityOptions[0]
 ))
 const currentPriorityDescription = computed(() => currentPriorityOption.value.description)
 const currentPriorityOrderText = computed(() => {
-    const labels = schedulerPriorityOrderMap[schedulerPriorityMode.value] || tenantDetail.value?.schedulerConfig?.commonQueueOrderLabels || []
-    if (!Array.isArray(labels) || !labels.length) {
-        return '快速克隆 > 数字人克隆 > 单条视频'
+    if (schedulerPriorityMode.value === 'balanced') {
+        return '三个功能严格按任务创建时间 FIFO'
     }
-    return labels.join(' > ')
+    const grouped = new Map<number, string[]>()
+    schedulerFunctionOptions.forEach((item) => {
+        const level = Number(schedulerFunctionPriorities[item.value] || 1)
+        grouped.set(level, [...(grouped.get(level) || []), item.label])
+    })
+    return [...grouped.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([level, labels]) => `P${level} ${labels.join('、')}`)
+        .join(' > ')
 })
+
+const syncSchedulerPriorityState = (detail?: ITenantDetailResponse | null) => {
+    schedulerPriorityMode.value = detail?.schedulerConfig?.priorityMode === 'free' ? 'free' : 'balanced'
+    const priorities = detail?.schedulerConfig?.functionPriorities || {}
+    schedulerFunctionOptions.forEach((item) => {
+        const level = Number(priorities[item.value] || 1)
+        schedulerFunctionPriorities[item.value] = Math.min(3, Math.max(1, level))
+    })
+}
 
 const formatStatusLabel = (status: string) => getStatusDisplayName(status)
 const formatDeployModeLabel = (mode: string) => getDeployModeDisplayName(mode)
@@ -621,8 +641,7 @@ const loadTenantDetail = async(tenantId: number) => {
     postProcessPipelineEnabled.value = Boolean(response.data.data?.runtimeConfig?.enablePostProcessPipeline)
     audioDriveEnabled.value = Boolean(response.data.data?.runtimeConfig?.enableAudioDrive)
     digitalHumanScope.value = response.data.data?.runtimeConfig?.digitalHumanScope === 'tenant' ? 'tenant' : 'self'
-    schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || 'balanced'
-    schedulerTaskOrderMode.value = response.data.data?.schedulerConfig?.taskOrderMode === 'free' ? 'free' : 'chronological'
+    syncSchedulerPriorityState(response.data.data)
     syncSchedulerQuotaState(response.data.data)
 }
 
@@ -715,11 +734,10 @@ const saveSchedulerPriorityConfig = async() => {
         const response = await updateTenantSchedulerPriorityConfig({
             tenantId: tenantDetail.value.id,
             priorityMode: schedulerPriorityMode.value,
-            taskOrderMode: schedulerTaskOrderMode.value
+            functionPriorities: { ...schedulerFunctionPriorities }
         })
         tenantDetail.value = response.data.data
-        schedulerPriorityMode.value = response.data.data?.schedulerConfig?.priorityMode || schedulerPriorityMode.value
-        schedulerTaskOrderMode.value = response.data.data?.schedulerConfig?.taskOrderMode === 'free' ? 'free' : 'chronological'
+        syncSchedulerPriorityState(response.data.data)
         syncSchedulerQuotaState(response.data.data)
         ElMessage.success(`该团队已切换为${response.data.data?.schedulerConfig?.priorityModeLabel || '当前'}模式`)
     } catch (error: any) {
@@ -917,17 +935,22 @@ onMounted(loadTenants)
     font-weight: 600;
 }
 
-.priority-panel__task-order {
+.function-priority-list {
     display: grid;
-    gap: 9px;
+    gap: 10px;
     padding: 13px;
     border: 1px solid #e4eaf3;
     border-radius: 10px;
     background: #f8faff;
 }
 
-.priority-panel__task-order strong { color: #33445d; font-size: 13px; }
-.priority-panel__task-order p { margin: 0; color: #728097; font-size: 12px; line-height: 1.65; }
+.function-priority-row { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:10px 0; border-bottom:1px solid #e8edf5; }
+.function-priority-row > div { min-width:0; display:grid; gap:4px; }
+.function-priority-row strong { color:#33445d; font-size:13px; }
+.function-priority-row small { color:#7b889d; font-size:12px; line-height:1.5; }
+.function-priority-row:last-of-type { border-bottom:0; }
+.function-priority-select { flex:0 0 132px; width:132px; }
+.function-priority-list p { margin:2px 0 0; color:#728097; font-size:12px; line-height:1.65; }
 
 .priority-panel__footer {
     display: flex;
