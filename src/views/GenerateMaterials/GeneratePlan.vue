@@ -227,18 +227,17 @@
 
                   <div class="config-block">
                     <div class="block-title"><strong>视频参数</strong><span v-if="activePerformerIndex > 0 && activePerformer.inheritFromFirst">已沿用第1项</span></div>
-                    <div class="form-grid form-grid-three">
-                      <label>语言<el-select v-model="activePerformer.videoOptions.language" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-option label="中文" value="zh" /><el-option label="泰语" value="th" /></el-select></label>
+                    <div class="form-grid form-grid-two">
+                      <label>语言<el-select v-model="activePerformer.videoOptions.language" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-option label="中文" value="zh" /></el-select></label>
                       <label>视频方向<el-radio-group v-model="activePerformer.videoOptions.videoType" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"><el-radio :label="0">竖版</el-radio><el-radio :label="1">横版</el-radio></el-radio-group></label>
-                      <label>语速<el-input-number v-model="activePerformer.videoOptions.speechRate" :min="0.5" :max="2" :step="0.1" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst" /></label>
                     </div>
                   </div>
 
                   <div v-if="planForm.processTypes.length" class="config-block">
-                    <div class="block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
+                    <div class="block-title enhancement-block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
                     <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row">
                       <span class="enhancement-label">角标 <em>*</em></span>
-                      <div>
+                      <div class="enhancement-control">
                         <el-select v-model="activePerformer.postProcessConfig.cornerMarkId" filterable clearable placeholder="选择角标" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
                           <el-option v-for="item in cornerMarkOptions" :key="item.id" :label="item.name" :value="item.id" />
                         </el-select>
@@ -247,7 +246,7 @@
                     </div>
                     <div v-if="planForm.processTypes.includes('banner_overlay')" class="enhancement-row">
                       <span class="enhancement-label">横幅 <em>*</em></span>
-                      <div>
+                      <div class="enhancement-control">
                         <el-select v-model="activePerformer.postProcessConfig.bannerOverlayId" filterable clearable placeholder="选择横幅" :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst">
                           <el-option v-for="item in bannerOverlayOptions" :key="item.id" :label="item.name" :value="item.id" />
                         </el-select>
@@ -398,7 +397,7 @@ interface PerformerConfig {
   digitalHumanId: string | number | null
   voiceId: string | number | null
   inheritFromFirst: boolean
-  videoOptions: { language: string; videoType: 0 | 1; speechRate: number; anchorType: number; isSkipRs: boolean }
+  videoOptions: { language: string; videoType: 0 | 1 }
   postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
 interface BatchChild {
@@ -550,7 +549,7 @@ function createPerformerConfig(inherit = false): PerformerConfig {
   const first = planForm.performerConfigs[0]
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode: 'binding', bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
-    videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0, speechRate: 1, anchorType: 1, isSkipRs: false },
+    videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0 },
     postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
 }
@@ -585,7 +584,7 @@ async function createDraftPlan() {
     const response = await createVideoBatchPlan({
       planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: planForm.scriptContent.trim() }, performerConfigs: [],
       scheduleMode: planForm.scheduleMode, scheduledAt: planForm.scheduleMode === 'scheduled' ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
-      videoOptions: { language: 'zh', videoType: 0, speechRate: 1, anchorType: 1, isSkipRs: false },
+      videoOptions: { language: 'zh', videoType: 0 },
       postProcessConfig: { processTypes: [...planForm.processTypes] }
     })
     const id = responseId(response)
@@ -602,7 +601,7 @@ function fillPlanForm(plan: BatchPlan) {
   planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
   planForm.performerConfigs = plan.children.map((child) => ({
     key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
-    inheritFromFirst: false, videoOptions: { language: child.videoOptions?.language || 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0, speechRate: Number(child.videoOptions?.speech_rate ?? child.videoOptions?.speechRate ?? 1), anchorType: Number(child.videoOptions?.anchor_type ?? 1), isSkipRs: Boolean(child.videoOptions?.is_skip_rs) },
+    inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
     postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config || DEFAULT_SUBTITLE_CONFIG), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
   const first = planForm.performerConfigs[0]
@@ -726,7 +725,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .create-form { max-height:72vh; overflow:auto; padding-right:8px; }
 .form-grid { display:grid; gap:16px; }
 .form-grid-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.form-grid-three { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .w-full { width:100%; }
 .create-section { margin-top:12px; padding:18px; border:1px solid #e5ebf4; border-radius:12px; background:#fbfcfe; }
 .section-heading-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:14px; }
@@ -764,7 +762,16 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }.single-picker{grid-template-columns:1fr;}
 .selection-preview-strip { display:flex; align-items:center; gap:10px; margin-top:12px; padding:9px 10px; border-radius:9px; background:#f0f7ff; }
 .selection-preview-strip img { width:38px; height:48px; object-fit:cover; border-radius:6px; }.selection-preview-strip span{min-width:0;flex:1;}
-.form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }.enhancement-row{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:10px;margin-top:10px;}.subtitle-note{margin-top:12px;color:#6d7d92;font-size:12px;}
+.form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }
+.enhancement-block-title { display:grid; justify-content:start; gap:4px; }
+.enhancement-block-title span { margin:0; line-height:1.6; }
+.enhancement-row { display:grid; gap:8px; margin-top:16px; }
+.enhancement-row + .enhancement-row { padding-top:16px; border-top:1px dashed #dfe6ef; }
+.enhancement-label { color:#44546a; font-size:13px; font-weight:600; line-height:1.5; }
+.enhancement-control { display:grid; gap:7px; width:100%; }
+.enhancement-control .el-select { width:100%; }
+.asset-empty-warning { display:block; color:#8a98ac; font-size:12px; line-height:1.6; }
+.subtitle-note { margin-top:16px; padding-top:14px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.7; }
 .preview-panel { position:sticky; top:0; background:#fff; }.preview-heading span{color:#8592a5;font-size:12px;}
 .cover-preview { width:min(100%,310px); aspect-ratio:9/16; margin:0 auto; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:42px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:12px 0 0;}
 .selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
