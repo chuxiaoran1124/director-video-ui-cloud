@@ -682,10 +682,13 @@ function updateActiveSubtitleConfig(value: any) {
   activePerformer.value.postProcessConfig.subtitleConfig = nextConfig
 }
 
-function validateDraft() {
-  if (planForm.scheduleMode === 'scheduled' && !planForm.scheduledAt) { ElMessage.warning('请选择计划执行时间'); return false }
-  if (planForm.scheduleMode === 'scheduled' && !Number.isFinite(scheduledTimestamp(planForm.scheduledAt))) { ElMessage.warning('计划执行时间格式不正确，请重新选择'); return false }
+function validateDraftForSave() {
+  if (planForm.scheduleMode === 'scheduled' && (!planForm.scheduledAt || !Number.isFinite(scheduledTimestamp(planForm.scheduledAt)))) { ElMessage.warning('请选择有效的计划执行时间'); return false }
   if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 15) { ElMessage.warning('请配置 1～15 个数字人执行项'); return false }
+  return true
+}
+function validateDraftForSubmission() {
+  if (!validateDraftForSave() || !validateScheduleForSubmission()) return false
   const missing = planForm.performerConfigs.findIndex(config => !performerReady(config))
   if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和声音`); return false }
   const first = planForm.performerConfigs[0]
@@ -715,12 +718,12 @@ function buildDraftPayload() {
   }
 }
 async function saveDraftConfiguration(notify = true) {
-  if (!detail.plan || !validateDraft()) return false
+  if (!detail.plan || !validateDraftForSave()) return false
   detail.saving = true
   try { await updateVideoBatchPlan(detail.plan.id, buildDraftPayload()); if (notify) ElMessage.success('草稿配置已保存'); await refreshDetail(); await loadPlanList(); return true } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
 }
 async function saveAndStartPlan() {
-  if (!detail.plan || !validateScheduleForSubmission()) return
+  if (!detail.plan || !validateDraftForSubmission()) return
   detail.starting = true
   try {
     const saved = await saveDraftConfiguration(false)
