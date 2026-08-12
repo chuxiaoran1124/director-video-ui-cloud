@@ -66,7 +66,7 @@
         <el-table-column label="创建时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.createTime) }}</span></template></el-table-column>
         <el-table-column label="任务开始时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.startTime) }}</span></template></el-table-column>
         <el-table-column label="完成时间" min-width="115" align="center"><template #default="{ row }"><span class="time-cell">{{ formatTime(row.endTime) }}</span></template></el-table-column>
-        <el-table-column label="操作" min-width="105" align="center">
+        <el-table-column label="操作" min-width="190" align="center">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' ? '继续配置' : '任务详情' }}</el-button>
@@ -113,7 +113,7 @@
 
         <section class="create-section">
           <div class="section-heading-row">
-            <div><strong>脚本内容 <span class="required">*</span></strong><p>手工输入不需要标题；创建后会自动进入历史脚本。</p></div>
+            <div><strong>脚本内容 <span class="required">*</span></strong></div>
             <div class="script-actions">
               <el-button plain @click="openScriptSelector('library')">脚本库</el-button>
               <el-button plain @click="openScriptSelector('history')">历史记录</el-button>
@@ -157,15 +157,57 @@
             <template v-if="detail.plan.statusKey === 'draft'">
               <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
               <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
+              <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
             </template>
             <el-button v-else-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
           </div>
         </div>
 
         <div class="plan-summary">
-          <div><span>脚本</span><p>{{ detail.plan.script?.content }}</p></div>
-          <div><span>增强能力</span><div class="summary-tags"><el-tag v-for="type in planForm.processTypes" :key="type" size="small" effect="plain">{{ processTypeLabel(type) }}</el-tag><em v-if="!planForm.processTypes.length">无</em></div></div>
-          <div><span>时间</span><p>创建 {{ formatTime(detail.plan.createTime) }} · 开始 {{ formatTime(detail.plan.startTime) }} · 完成 {{ formatTime(detail.plan.endTime) }}</p></div>
+          <div class="summary-card script-summary">
+            <span class="summary-title">脚本</span>
+            <p>{{ detail.plan.script?.content }}</p>
+          </div>
+          <div class="summary-card plan-settings-summary">
+            <div class="summary-setting-block">
+              <span class="summary-title">增强能力</span>
+              <el-checkbox-group v-if="detail.plan.statusKey === 'draft'" v-model="planForm.processTypes" class="summary-feature-checkboxes">
+                <el-checkbox label="subtitle" border>字幕</el-checkbox>
+                <el-checkbox label="corner_mark" border>角标</el-checkbox>
+                <el-checkbox label="banner_overlay" border>横幅</el-checkbox>
+              </el-checkbox-group>
+              <div v-else class="summary-tags"><el-tag v-for="type in detail.plan.processTypes" :key="type" size="small" effect="plain">{{ processTypeLabel(type) }}</el-tag><em v-if="!detail.plan.processTypes.length">无</em></div>
+            </div>
+            <div class="summary-setting-block">
+              <span class="summary-title">执行方式</span>
+              <template v-if="detail.plan.statusKey === 'draft'">
+                <el-radio-group v-model="planForm.scheduleMode" class="summary-schedule-mode">
+                  <el-radio-button label="immediate">立即执行</el-radio-button>
+                  <el-radio-button label="scheduled">指定时间</el-radio-button>
+                  <el-radio-button label="overnight">夜间预排</el-radio-button>
+                </el-radio-group>
+                <el-date-picker
+                  v-if="planForm.scheduleMode === 'scheduled'"
+                  v-model="planForm.scheduledAt"
+                  type="datetime"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="选择计划执行时间"
+                  :disabled-date="disablePastDate"
+                />
+              </template>
+              <p v-else>{{ scheduleModeLabel(detail.plan.scheduleMode) }}<template v-if="detail.plan.scheduleMode === 'scheduled'"> · {{ formatTime(detail.plan.scheduledAt) }}</template></p>
+            </div>
+          </div>
+          <div class="summary-card time-summary">
+            <span class="summary-title">任务时间</span>
+            <div class="time-summary-grid">
+              <div><small>创建时间</small><strong>{{ formatTime(detail.plan.createTime) }}</strong></div>
+              <div><small>计划执行</small><strong>{{ detail.plan.scheduleMode === 'scheduled' ? formatTime(detail.plan.scheduledAt) : scheduleModeLabel(detail.plan.scheduleMode) }}</strong></div>
+              <div><small>任务开始</small><strong>{{ formatTime(detail.plan.startTime) }}</strong></div>
+              <div><small>任务完成</small><strong>{{ formatTime(detail.plan.endTime) }}</strong></div>
+            </div>
+          </div>
         </div>
 
         <template v-if="detail.plan.statusKey === 'draft'">
@@ -543,7 +585,20 @@ function processTypeLabel(type: string) { return ({ subtitle: '字幕', corner_m
 function formatTime(value?: string | number | null) { if (!value) return '-'; const raw = String(value); if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw)) return raw.replace('T', ' ').slice(0, 19); const date = new Date(raw); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-') }
 function truncate(value: string, length: number) { const text = String(value || '').replace(/\s+/g, ' ').trim(); return text.length > length ? `${text.slice(0, length)}…` : text || '-' }
 function disablePastDate(date: Date) { return date.getTime() < Date.now() - 60000 }
-function canCancelPlan(plan: BatchPlan) { return ['waiting', 'running'].includes(plan.statusKey) }
+function canCancelPlan(plan: BatchPlan) { return ['draft', 'waiting', 'running'].includes(plan.statusKey) }
+function scheduledTimestamp(value: string) { return value ? new Date(value.includes('T') ? value : value.replace(' ', 'T')).getTime() : Number.NaN }
+function scheduledAtPayload() {
+  if (planForm.scheduleMode !== 'scheduled' || !planForm.scheduledAt) return null
+  const timestamp = scheduledTimestamp(planForm.scheduledAt)
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null
+}
+function validateScheduleForSubmission() {
+  if (planForm.scheduleMode !== 'scheduled') return true
+  if (!planForm.scheduledAt) { ElMessage.warning('请选择计划执行时间'); return false }
+  const timestamp = scheduledTimestamp(planForm.scheduledAt)
+  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { ElMessage.warning('计划执行时间已过，请重新选择晚于当前时间的时间'); return false }
+  return true
+}
 
 function createPerformerConfig(inherit = false): PerformerConfig {
   const first = planForm.performerConfigs[0]
@@ -628,6 +683,8 @@ function updateActiveSubtitleConfig(value: any) {
 }
 
 function validateDraft() {
+  if (planForm.scheduleMode === 'scheduled' && !planForm.scheduledAt) { ElMessage.warning('请选择计划执行时间'); return false }
+  if (planForm.scheduleMode === 'scheduled' && !Number.isFinite(scheduledTimestamp(planForm.scheduledAt))) { ElMessage.warning('计划执行时间格式不正确，请重新选择'); return false }
   if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 15) { ElMessage.warning('请配置 1～15 个数字人执行项'); return false }
   const missing = planForm.performerConfigs.findIndex(config => !performerReady(config))
   if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和声音`); return false }
@@ -649,7 +706,13 @@ function buildDraftPayload() {
       ? { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
       : { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
-  return { performerConfigs: configs, videoOptions: deepClone(first.videoOptions), postProcessConfig: { processTypes: [...planForm.processTypes] } }
+  return {
+    performerConfigs: configs,
+    videoOptions: deepClone(first.videoOptions),
+    postProcessConfig: { processTypes: [...planForm.processTypes] },
+    scheduleMode: planForm.scheduleMode,
+    scheduledAt: scheduledAtPayload()
+  }
 }
 async function saveDraftConfiguration(notify = true) {
   if (!detail.plan || !validateDraft()) return false
@@ -657,12 +720,13 @@ async function saveDraftConfiguration(notify = true) {
   try { await updateVideoBatchPlan(detail.plan.id, buildDraftPayload()); if (notify) ElMessage.success('草稿配置已保存'); await refreshDetail(); await loadPlanList(); return true } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
 }
 async function saveAndStartPlan() {
-  if (!detail.plan) return
+  if (!detail.plan || !validateScheduleForSubmission()) return
   detail.starting = true
   try {
     const saved = await saveDraftConfiguration(false)
     if (!saved) return
     await ElMessageBox.confirm(`将提交 ${planForm.performerConfigs.length} 个视频任务，是否继续？`, '提交执行', { type: 'warning', confirmButtonText: '提交', cancelButtonText: '返回配置' })
+    if (!validateScheduleForSubmission()) return
     await startVideoBatchPlan(detail.plan.id); ElMessage.success('计划已提交执行'); await refreshDetail(); await loadPlanList()
   } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '提交执行失败') } finally { detail.starting = false }
 }
@@ -671,7 +735,7 @@ async function loadPlanList() { listLoading.value = true; try { const response =
 async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; voiceAudio?.pause() }
-async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm('取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
+async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm(row.statusKey === 'draft' ? '取消后，该草稿将不能继续配置或提交。' : '取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
 async function deletePlan(row: BatchPlan) { try { await ElMessageBox.confirm('删除未提交计划后不可恢复。', '删除计划', { type: 'warning' }); await deleteVideoBatchPlan(row.id); ElMessage.success('计划已删除'); await loadPlanList() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '删除失败') } }
 async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(row.id); ElMessage.success('失败任务已重新进入队列'); await refreshDetail() } catch (error: any) { ElMessage.error(error?.message || '重试失败') } }
 
@@ -720,7 +784,8 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .script-cell { color:#69788e; }
 .time-cell { display:inline-block; color:#596a80; font-size:12px; line-height:1.45; }
 .progress-cell { display:grid; gap:6px; min-width:90px; }
-.row-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; }
+.row-actions { display:flex; align-items:center; justify-content:center; flex-wrap:nowrap; gap:12px; white-space:nowrap; }
+.row-actions :deep(.el-button) { margin-left:0; }
 .pagination-bar { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:16px; color:#7b8aa1; }
 .create-form { max-height:72vh; overflow:auto; padding-right:8px; }
 .form-grid { display:grid; gap:16px; }
@@ -737,10 +802,21 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .detail-page { padding:0 8px 24px; }
 .detail-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid #edf1f6; }
 .detail-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
-.plan-summary { display:grid; grid-template-columns:2fr 1fr 1.3fr; gap:14px; margin:16px 0; }
-.plan-summary>div { min-width:0; padding:14px 16px; background:#f7f9fc; border-radius:10px; }
-.plan-summary span { color:#8290a4; font-size:12px; }
-.plan-summary p { margin:6px 0 0; line-height:1.6; max-height:52px; overflow:auto; }
+.plan-summary { display:grid; grid-template-columns:minmax(0,1fr) minmax(420px,1.35fr); gap:14px; margin:16px 0; }
+.summary-card { min-width:0; padding:16px 18px; background:#f7f9fc; border:1px solid #edf1f6; border-radius:12px; }
+.summary-title { display:block; color:#8290a4; font-size:12px; font-weight:600; }
+.plan-summary p { margin:8px 0 0; line-height:1.7; max-height:78px; overflow:auto; }
+.plan-settings-summary { display:grid; grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr); align-items:start; gap:22px; }
+.summary-setting-block { min-width:0; display:grid; gap:10px; }
+.summary-feature-checkboxes { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.summary-feature-checkboxes :deep(.el-checkbox) { margin-right:0; }
+.summary-schedule-mode { display:flex; flex-wrap:wrap; }
+.summary-setting-block :deep(.el-date-editor) { width:100%; }
+.time-summary { grid-column:1/-1; }
+.time-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:10px; }
+.time-summary-grid>div { min-width:0; padding:12px 14px; border:1px solid #e5eaf2; border-radius:9px; background:#fff; display:grid; gap:6px; }
+.time-summary-grid small { color:#8a98ac; font-size:12px; }
+.time-summary-grid strong { color:#35465d; font-size:13px; font-weight:500; line-height:1.5; overflow-wrap:anywhere; }
 .summary-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }.summary-tags em{color:#9ba8ba;font-style:normal;}
 .draft-workspace { display:grid; grid-template-columns:minmax(210px,18%) minmax(0,82%); gap:16px; min-height:650px; }
 .performer-sidebar, .performer-editor { border:1px solid #e3e9f2; border-radius:12px; background:#fff; }
@@ -776,6 +852,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .cover-preview { width:min(100%,310px); aspect-ratio:9/16; margin:0 auto; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:42px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:12px 0 0;}
 .selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
-@media (max-width:1280px){.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,38%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-summary{grid-template-columns:1fr 1fr}.plan-summary>div:first-child{grid-column:1/-1}}
-@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three{grid-template-columns:1fr}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1280px){.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,38%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-summary{grid-template-columns:1fr}.time-summary{grid-column:auto}}
+@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>
