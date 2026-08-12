@@ -1102,7 +1102,6 @@ async function editPlan(row: BatchPlan) {
 function buildPlanPayload() {
   const processTypes = [...new Set(planForm.processTypes)]
   const scriptId = planForm.scriptSource === 'library' ? planForm.scriptId : planForm.scriptSource === 'history' ? planForm.historyId : null
-  const bindingIds = planForm.performerConfigs.filter(item => item.selectionMode === 'binding' && item.bindingId !== null).map(item => item.bindingId as string | number)
   return {
     planName: planForm.planName.trim(),
     script: {
@@ -1115,8 +1114,6 @@ function buildPlanPayload() {
       ? { selectionMode: 'binding' as const, bindingId: item.bindingId }
       : { selectionMode: 'custom' as const, digitalHumanId: item.digitalHumanId, voiceId: item.voiceId }),
     videoOptions: { ...planForm.videoOptions },
-    scriptId,
-    bindingIds: [...new Set(bindingIds)],
     scheduleMode: planForm.scheduleMode,
     scheduledAt: planForm.scheduleMode === 'scheduled' && planForm.scheduledAt ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
     postProcessConfig: {
