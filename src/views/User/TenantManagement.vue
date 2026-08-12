@@ -739,7 +739,7 @@ const saveSchedulerPriorityConfig = async() => {
         tenantDetail.value = response.data.data
         syncSchedulerPriorityState(response.data.data)
         syncSchedulerQuotaState(response.data.data)
-        ElMessage.success(`该团队已切换为${response.data.data?.schedulerConfig?.priorityModeLabel || '当前'}模式`)
+        ElMessage.success(`该团队已切换为${response.data.data?.schedulerConfig?.priorityModeLabel || '当前模式'}`)
     } catch (error: any) {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
