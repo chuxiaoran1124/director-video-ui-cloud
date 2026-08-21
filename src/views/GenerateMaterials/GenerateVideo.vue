@@ -17,8 +17,8 @@
       <!-- 任务列表 -->
       <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <!-- 搜索和批量操作 -->
-        <div class="mb-6 flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3 flex-1">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <el-input 
               v-model="searchKeyword" 
               placeholder="搜索视频标题或ID..." 
@@ -39,6 +39,24 @@
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
+            <el-select
+              v-if="canFilterCreator"
+              v-model="creatorUserId"
+              class="!w-52"
+              placeholder="全部成员"
+              filterable
+              clearable
+              :loading="creatorOptionsLoading"
+              filter-placeholder="搜索用户名"
+            >
+              <el-option label="全部成员" value="" />
+              <el-option
+                v-for="user in creatorOptions"
+                :key="user.userId"
+                :label="getCreatorOptionLabel(user)"
+                :value="user.userId"
+              />
+            </el-select>
           </div>
           <div class="flex items-center gap-2">
             <div class="queue-hint">
@@ -1045,6 +1063,7 @@ import { getTenantDetail } from '/@/api/tenant'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
 import { createVideoTask, createAudioVideoTask, getVideoTaskList, getVideoTaskWaiting, deleteVideoTask, retryVideoTask, getVoiceList, getVoicePaginateList, getDigitalHumanList, getDigitalHumanPaginateList, getVideoTaskDetail, getBindingList, getScriptPaginateList, getScriptHistoryList, createScript, createScriptHistory, getCornerMarkList, toTopCornerMark, getSubtitlePreviewFrame, getRecentCornerMarks, recordRecentCornerMark, downloadFileByProxy } from '/@/api/material'
+import { getUserList, IUserListItem } from '/@/api/user'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
@@ -1064,6 +1083,14 @@ const videoTableRef = ref<any>(null)
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
 const searchLabel = ref('')
+const creatorUserId = ref<number | ''>('')
+const creatorOptions = ref<IUserListItem[]>([])
+const creatorOptionsLoading = ref(false)
+const canFilterCreator = computed(() => Boolean(
+  layoutStore.getUserInfo.isPlatformSuperAdmin
+  || layoutStore.getUserInfo.permissionFlags?.canManageUsers
+))
+const currentTenantContextId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
 const selectedVideos = ref<any[]>([])
 const selectedVideoIds = ref<Array<string | number>>([])
 const videoTaskPage = ref(1)
@@ -1793,7 +1820,37 @@ const buildVideoTaskSearch = () => {
   const search: any = {}
   if (keyword) search.title = keyword
   if (label) search.label = label
+  if (canFilterCreator.value && creatorUserId.value !== '' && creatorUserId.value !== null && creatorUserId.value !== undefined) {
+    search.creatorUserId = creatorUserId.value
+  }
   return Object.keys(search).length > 0 ? search : undefined
+}
+
+const getCreatorOptionLabel = (user: IUserListItem) => {
+  const username = String(user.username || '').trim()
+  const displayName = String(user.name || '').trim()
+  return displayName && displayName !== username ? `${displayName}（${username}）` : username
+}
+
+const loadCreatorOptions = async () => {
+  if (!canFilterCreator.value) return
+  creatorOptionsLoading.value = true
+  try {
+    // 不传 tenantId，使用当前登录上下文对应的团队范围，避免跨团队查询。
+    const response = await getUserList({
+      page: 1,
+      pageSize: 200,
+      search: {}
+    })
+    if (response.data?.code === 200) {
+      creatorOptions.value = response.data.data?.data || []
+    }
+  } catch (error) {
+    console.error('Failed to load task creator options:', error)
+    creatorOptions.value = []
+  } finally {
+    creatorOptionsLoading.value = false
+  }
 }
 
 // 加载视频任务列表
@@ -2117,6 +2174,7 @@ onMounted(() => {
   loadTenantRuntimeConfig()
   loadVideoTasks()
   loadVideoWaitingInfo()
+  loadCreatorOptions()
   loadDigitalHumanList()
   loadVoiceList()
   loadBindingList()
@@ -2186,6 +2244,26 @@ watch(showCreate, (val) => {
 
 watch(currentTenantId, () => {
   loadTenantRuntimeConfig()
+})
+
+watch(creatorUserId, () => {
+  videoTaskPage.value = 1
+  loadVideoTasks()
+})
+
+watch([canFilterCreator, currentTenantContextId], ([enabled, tenantId], [previousEnabled, previousTenantId]) => {
+  if (enabled && (!previousEnabled || tenantId !== previousTenantId)) {
+    creatorUserId.value = ''
+    creatorOptions.value = []
+    loadCreatorOptions()
+    videoTaskPage.value = 1
+    loadVideoTasks()
+  } else if (!enabled && previousEnabled) {
+    creatorUserId.value = ''
+    creatorOptions.value = []
+    videoTaskPage.value = 1
+    loadVideoTasks()
+  }
 })
 
 watch(enableAdvancedPostProcess, (enabled) => {

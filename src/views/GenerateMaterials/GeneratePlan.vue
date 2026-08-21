@@ -13,16 +13,35 @@
     </section>
 
     <section class="filter-card">
-      <el-input
-        v-model="searchKeyword"
-        class="search-input"
-        clearable
-        placeholder="搜索计划名称"
-        @keyup.enter="loadPlanList()"
-        @clear="loadPlanList()"
-      >
-        <template #prefix><el-icon><Search /></el-icon></template>
-      </el-input>
+      <div class="filter-fields">
+        <el-input
+          v-model="searchKeyword"
+          class="search-input"
+          clearable
+          placeholder="搜索计划名称"
+          @keyup.enter="handlePlanFilterChange"
+          @clear="handlePlanFilterChange"
+        >
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select
+          v-if="canFilterTaskCreator"
+          v-model="selectedCreatorUserId"
+          class="creator-filter"
+          clearable
+          filterable
+          placeholder="全部成员"
+          :loading="creatorOptionsLoading"
+          @change="handlePlanFilterChange"
+        >
+          <el-option
+            v-for="member in creatorOptions"
+            :key="member.userId"
+            :label="member.name ? `${member.name}（${member.username}）` : member.username"
+            :value="member.userId"
+          />
+        </el-select>
+      </div>
       <el-button :loading="listLoading" @click="loadPlanList()">
         <el-icon><Refresh /></el-icon>
         刷新
@@ -144,22 +163,13 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detail.visible" title="批量数字人生成详情" size="96%" destroy-on-close @closed="closeDetail">
+    <el-drawer v-model="detail.visible" class="batch-detail-drawer" title="批量数字人生成详情" size="96%" destroy-on-close @closed="closeDetail">
       <div v-if="detail.plan" class="detail-page">
         <div class="detail-title-row">
           <div>
             <div class="eyebrow">批量计划 #{{ detail.plan.id }}</div>
             <h2>{{ detail.plan.name }}</h2>
             <p>{{ scheduleModeLabel(detail.plan.scheduleMode) }} · {{ statusLabel(detail.plan.statusKey) }}</p>
-          </div>
-          <div class="detail-actions">
-            <el-button :loading="detail.loading" @click="refreshDetail"><el-icon><Refresh /></el-icon>刷新</el-button>
-            <template v-if="detail.plan.statusKey === 'draft'">
-              <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
-              <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
-              <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
-            </template>
-            <el-button v-else-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
           </div>
         </div>
 
@@ -241,8 +251,11 @@
 
               <div class="editor-layout">
                 <section class="editor-form-panel">
-                  <div class="config-block">
-                    <div class="block-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
+                  <el-collapse v-model="activeConfigSections" class="config-collapse">
+                    <el-collapse-item name="identity">
+                      <template #title>
+                        <div class="collapse-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
+                      </template>
                     <el-radio-group v-model="activePerformer.selectionMode" @change="resetPerformerSelection(activePerformer)">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
@@ -265,10 +278,12 @@
                       <span>{{ performerSummary(activePerformer) }}</span>
                       <el-button v-if="performerVoiceUrl(activePerformer)" link type="primary" @click="playVoice(performerVoiceUrl(activePerformer), performerSummary(activePerformer))"><el-icon><Headset /></el-icon>试听</el-button>
                     </div>
-                  </div>
+                    </el-collapse-item>
 
-                  <div v-if="planForm.processTypes.length" class="config-block">
-                    <div class="block-title enhancement-block-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
+                    <el-collapse-item v-if="planForm.processTypes.length" name="enhancement">
+                      <template #title>
+                        <div class="collapse-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
+                      </template>
                     <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row">
                       <span class="enhancement-label">角标 <em>*</em></span>
                       <div class="enhancement-control">
@@ -290,12 +305,15 @@
                     <div v-if="planForm.processTypes.includes('subtitle')" class="subtitle-note">
                       字幕样式在右侧预览区调整，配置会随当前执行项保存。
                     </div>
-                  </div>
+                    </el-collapse-item>
 
-                  <div class="config-block script-readonly-block">
-                    <div class="block-title"><strong>本项脚本</strong><span>由父计划统一填入</span></div>
-                    <el-input :model-value="planForm.scriptContent" type="textarea" :rows="5" readonly />
-                  </div>
+                    <el-collapse-item name="script">
+                      <template #title>
+                        <div class="collapse-title"><strong>本项脚本</strong><span>由父计划统一填入</span></div>
+                      </template>
+                      <el-input :model-value="planForm.scriptContent" type="textarea" :rows="3" readonly />
+                    </el-collapse-item>
+                  </el-collapse>
                 </section>
 
                 <aside class="preview-panel">
@@ -343,6 +361,17 @@
         </section>
       </div>
       <el-skeleton v-else :rows="8" animated />
+      <template #footer>
+        <div v-if="detail.plan" class="detail-footer-actions">
+          <el-button :loading="detail.loading" @click="refreshDetail"><el-icon><Refresh /></el-icon>刷新</el-button>
+          <template v-if="detail.plan.statusKey === 'draft'">
+            <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
+            <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
+            <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
+          </template>
+          <el-button v-else-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
+        </div>
+      </template>
     </el-drawer>
 
     <el-dialog v-model="scriptSelector.visible" title="选择脚本" width="76%" append-to-body>
@@ -397,6 +426,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Headset, Picture, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
+import { getUserList, type IUserListItem } from '/@/api/user'
+import { useLayoutStore } from '/@/store/modules/layout'
 import {
   cancelVideoBatchPlan,
   createVideoBatchPlan,
@@ -450,12 +481,17 @@ const DEFAULT_SUBTITLE_CONFIG = {
   bold: 1, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
 }
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
+const layoutStore = useLayoutStore()
 const listLoading = ref(false)
 const planList = ref<BatchPlan[]>([])
 const planPage = ref(1)
 const planPageSize = ref(20)
 const planTotal = ref(0)
 const searchKeyword = ref('')
+const selectedCreatorUserId = ref<number | null>(null)
+const creatorOptions = ref<IUserListItem[]>([])
+const creatorOptionsLoading = ref(false)
+const activeConfigSections = ref<string[]>(['identity', 'enhancement', 'script'])
 const createFormRef = ref<any>()
 const activePerformerIndex = ref(0)
 const activePreviewFrame = ref('')
@@ -466,6 +502,11 @@ let voiceAudio: HTMLAudioElement | null = null
 let previewLoadSequence = 0
 let listRefreshTimer: number | null = null
 let listRequestRunning = false
+
+const canFilterTaskCreator = computed(() => Boolean(
+  layoutStore.getUserInfo.isPlatformSuperAdmin
+  || layoutStore.getUserInfo.permissionFlags?.canManageUsers
+))
 
 const planForm = reactive({
   id: null as string | number | null,
@@ -750,12 +791,37 @@ async function saveAndStartPlan() {
   } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '提交执行失败') } finally { detail.starting = false }
 }
 
+async function loadCreatorOptions() {
+  if (!canFilterTaskCreator.value || creatorOptionsLoading.value) return
+  creatorOptionsLoading.value = true
+  try {
+    const response = await getUserList({ page: 1, pageSize: 200, search: { status: 'active' } })
+    const { items } = getPageData(response)
+    creatorOptions.value = items
+      .filter((item: any) => item?.userId != null && item?.username)
+      .sort((left: any, right: any) => String(left.name || left.username).localeCompare(String(right.name || right.username), 'zh-CN'))
+  } catch (error: any) {
+    creatorOptions.value = []
+    ElMessage.error(error?.message || '成员列表加载失败')
+  } finally {
+    creatorOptionsLoading.value = false
+  }
+}
+
+function handlePlanFilterChange() {
+  planPage.value = 1
+  loadPlanList()
+}
+
 async function loadPlanList(options: { silent?: boolean } = {}) {
   if (listRequestRunning) return
   listRequestRunning = true
   if (!options.silent) listLoading.value = true
   try {
-    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, searchKeyword.value.trim() ? { planName: searchKeyword.value.trim() } : {})
+    const search: Record<string, any> = {}
+    if (searchKeyword.value.trim()) search.planName = searchKeyword.value.trim()
+    if (canFilterTaskCreator.value && selectedCreatorUserId.value != null) search.creatorUserId = selectedCreatorUserId.value
+    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search)
     const page = getPageData(response)
     planList.value = page.items.map(normalizePlan)
     planTotal.value = page.total
@@ -801,8 +867,16 @@ watch(() => activeEffectivePostProcessConfig.value.bannerOverlayId, () => refres
 watch(() => planForm.processTypes, (types) => { planForm.performerConfigs.forEach(config => { config.postProcessConfig.processTypes = [...types]; config.postProcessConfig.subtitleSelector = types.includes('subtitle') ? 1 : 0 }) }, { deep: true })
 onMounted(() => {
   loadPlanList()
+  loadCreatorOptions()
   listRefreshTimer = window.setInterval(refreshPlanListWhenVisible, 5000)
   document.addEventListener('visibilitychange', refreshPlanListWhenVisible)
+})
+watch(() => layoutStore.getUserInfo.tenantId, () => {
+  selectedCreatorUserId.value = null
+  creatorOptions.value = []
+  loadCreatorOptions()
+  planPage.value = 1
+  loadPlanList()
 })
 onUnmounted(() => {
   if (listRefreshTimer !== null) window.clearInterval(listRefreshTimer)
@@ -819,7 +893,9 @@ onUnmounted(() => {
 h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2vw,29px); }
 .page-hero p, .detail-title-row p { margin:7px 0 0; color:#8c9ab0; font-size:13px; }
 .filter-card { margin-top:16px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.filter-fields { min-width:0; flex:1; display:flex; align-items:center; gap:12px; }
 .search-input { width:min(100%, 360px); }
+.creator-filter { width:min(100%, 260px); }
 .search-input :deep(.el-input__wrapper) { align-items:center; }
 .search-input :deep(.el-input__prefix), .search-input :deep(.el-input__prefix-inner) { height:100%; display:flex; align-items:center; justify-content:center; }
 .search-input :deep(.el-input__prefix-inner .el-icon) { margin:0; line-height:1; align-self:center; }
@@ -844,59 +920,69 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .script-form-item { margin:0; }
 .selected-script-source { margin-top:10px; color:#67916d; font-size:12px; }
 .feature-checkboxes { display:flex; flex-wrap:wrap; gap:10px; }
-.detail-page { padding:0 8px 24px; }
-.detail-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:1px solid #edf1f6; }
-.detail-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
-.plan-summary { display:grid; grid-template-columns:minmax(0,1fr) minmax(420px,1.35fr); gap:14px; margin:16px 0; }
-.summary-card { min-width:0; padding:16px 18px; background:#f7f9fc; border:1px solid #edf1f6; border-radius:12px; }
+.detail-page { padding:0 4px 6px; }
+.detail-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding-bottom:9px; border-bottom:1px solid #edf1f6; }
+.detail-title-row h2 { font-size:23px; margin-top:3px; }
+.detail-title-row p { margin-top:3px; }
+.plan-summary { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(410px,1.35fr) minmax(430px,1.3fr); gap:9px; margin:9px 0 11px; }
+.summary-card { min-width:0; padding:10px 12px; background:#f7f9fc; border:1px solid #edf1f6; border-radius:10px; }
 .summary-title { display:block; color:#8290a4; font-size:12px; font-weight:600; }
-.plan-summary p { margin:8px 0 0; line-height:1.7; max-height:78px; overflow:auto; }
-.plan-settings-summary { display:grid; grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr); align-items:start; gap:22px; }
-.summary-setting-block { min-width:0; display:grid; gap:10px; }
+.plan-summary p { margin:5px 0 0; line-height:1.5; max-height:48px; overflow:auto; }
+.plan-settings-summary { display:grid; grid-template-columns:minmax(190px,.8fr) minmax(250px,1.2fr); align-items:start; gap:14px; }
+.summary-setting-block { min-width:0; display:grid; gap:6px; }
 .summary-feature-checkboxes { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .summary-feature-checkboxes :deep(.el-checkbox) { margin-right:0; }
 .summary-schedule-mode { display:flex; flex-wrap:wrap; }
 .summary-setting-block :deep(.el-date-editor) { width:100%; }
-.time-summary { grid-column:1/-1; }
-.time-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:10px; }
-.time-summary-grid>div { min-width:0; padding:12px 14px; border:1px solid #e5eaf2; border-radius:9px; background:#fff; display:grid; gap:6px; }
+.time-summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:6px; }
+.time-summary-grid>div { min-width:0; padding:6px 8px; border:1px solid #e5eaf2; border-radius:7px; background:#fff; display:grid; gap:2px; }
 .time-summary-grid small { color:#8a98ac; font-size:12px; }
 .time-summary-grid strong { color:#35465d; font-size:13px; font-weight:500; line-height:1.5; overflow-wrap:anywhere; }
 .summary-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }.summary-tags em{color:#9ba8ba;font-style:normal;}
-.draft-workspace { display:grid; grid-template-columns:minmax(210px,18%) minmax(0,82%); gap:16px; min-height:650px; }
+.draft-workspace { display:grid; grid-template-columns:minmax(220px,16%) minmax(0,84%); gap:10px; min-height:0; }
 .performer-sidebar, .performer-editor { border:1px solid #e3e9f2; border-radius:12px; background:#fff; }
-.performer-sidebar { padding:12px; align-self:start; max-height:calc(100vh - 250px); overflow:auto; }
-.sidebar-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 2px 12px; }
+.performer-sidebar { padding:9px; align-self:stretch; max-height:calc(100vh - 286px); overflow:auto; }
+.sidebar-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 2px 8px; }
 .sidebar-heading>div { display:grid; gap:2px; }.sidebar-heading span{font-size:12px;color:#8492a6;}
-.performer-nav-item { width:100%; display:grid; grid-template-columns:42px minmax(0,1fr) 18px; align-items:center; gap:10px; padding:10px; margin-bottom:8px; border:1px solid #e4eaf3; border-radius:10px; background:#fff; text-align:left; cursor:pointer; }
+.performer-nav-item { width:100%; display:grid; grid-template-columns:34px minmax(0,1fr) 16px; align-items:center; gap:8px; padding:7px 8px; margin-bottom:6px; border:1px solid #e4eaf3; border-radius:9px; background:#fff; text-align:left; cursor:pointer; }
 .performer-nav-item.active { border-color:#409eff; background:#f0f7ff; box-shadow:0 0 0 2px rgba(64,158,255,.08); }
-.performer-nav-item img, .nav-placeholder { width:42px; height:52px; border-radius:7px; object-fit:cover; background:#edf1f6; display:flex; align-items:center; justify-content:center; color:#aab5c4; }
+.performer-nav-item img, .nav-placeholder { width:34px; height:42px; border-radius:6px; object-fit:cover; background:#edf1f6; display:flex; align-items:center; justify-content:center; color:#aab5c4; }
 .nav-main { min-width:0; display:grid; gap:4px; }.nav-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7f8da1;}.ready-icon{color:#26a269;}.remove-active{width:100%;}
-.performer-editor { min-width:0; padding:18px; }
-.editor-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:16px; border-bottom:1px solid #edf1f6; }
+.performer-editor { min-width:0; padding:11px 12px; }
+.editor-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:9px; border-bottom:1px solid #edf1f6; }
 .editor-heading>div { display:flex; align-items:center; gap:12px; }.editor-heading h3{margin:0;}.editor-heading p{margin:4px 0 0;color:#8b98aa;font-size:12px;}
-.step-badge { width:36px; height:36px; border-radius:50%; background:#409eff; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
-.editor-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,34%); gap:18px; margin-top:18px; align-items:start; }
-.editor-form-panel { min-width:0; display:grid; gap:14px; }
-.config-block, .preview-panel { padding:16px; border:1px solid #e5ebf3; border-radius:11px; background:#fbfcfe; }
+.step-badge { width:30px; height:30px; border-radius:50%; background:#409eff; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.editor-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(285px,31%); gap:10px; margin-top:10px; align-items:start; }
+.editor-form-panel { min-width:0; }
+.preview-panel { padding:11px; border:1px solid #e5ebf3; border-radius:10px; background:#fff; }
+.config-collapse { border:1px solid #e5ebf3; border-radius:10px; overflow:hidden; background:#fbfcfe; }
+.config-collapse :deep(.el-collapse-item__header) { min-height:42px; height:auto; padding:0 12px; background:#fbfcfe; }
+.config-collapse :deep(.el-collapse-item__wrap) { background:#fff; }
+.config-collapse :deep(.el-collapse-item__content) { padding:10px 12px 12px; }
+.collapse-title { min-width:0; flex:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding-right:8px; }
+.collapse-title span { color:#8a98ac; font-size:12px; font-weight:400; }
 .block-title, .preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }.single-picker{grid-template-columns:1fr;}
-.selection-preview-strip { display:flex; align-items:center; gap:10px; margin-top:12px; padding:9px 10px; border-radius:9px; background:#f0f7ff; }
+.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:9px; }.single-picker{grid-template-columns:1fr;}
+.selection-preview-strip { display:flex; align-items:center; gap:8px; margin-top:8px; padding:6px 8px; border-radius:8px; background:#f0f7ff; }
 .selection-preview-strip img { width:38px; height:48px; object-fit:cover; border-radius:6px; }.selection-preview-strip span{min-width:0;flex:1;}
 .form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }
 .enhancement-block-title { display:grid; justify-content:start; gap:4px; }
 .enhancement-block-title span { margin:0; line-height:1.6; }
-.enhancement-row { display:grid; gap:8px; margin-top:16px; }
-.enhancement-row + .enhancement-row { padding-top:16px; border-top:1px dashed #dfe6ef; }
+.enhancement-row { display:grid; grid-template-columns:72px minmax(0,1fr); align-items:start; gap:10px; margin-top:6px; }
+.enhancement-row + .enhancement-row { padding-top:8px; border-top:1px dashed #dfe6ef; }
 .enhancement-label { color:#44546a; font-size:13px; font-weight:600; line-height:1.5; }
 .enhancement-control { display:grid; gap:7px; width:100%; }
 .enhancement-control .el-select { width:100%; }
 .asset-empty-warning { display:block; color:#8a98ac; font-size:12px; line-height:1.6; }
-.subtitle-note { margin-top:16px; padding-top:14px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.7; }
-.preview-panel { position:sticky; top:0; background:#fff; }.preview-heading{min-width:0;flex-wrap:nowrap;}.preview-heading strong{white-space:nowrap;font-size:15px;}.preview-heading span{flex:0 0 auto;color:#6f8096;font-size:12px;line-height:24px;padding:0 9px;border-radius:999px;background:#f0f4f9;white-space:nowrap;}
-.cover-preview { width:min(100%,310px); aspect-ratio:9/16; margin:0 auto; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:42px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:12px 0 0;}
+.subtitle-note { margin-top:8px; padding-top:8px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.5; }
+.preview-panel { position:sticky; top:0; }.preview-heading{min-width:0;flex-wrap:nowrap;margin-bottom:8px;}.preview-heading strong{white-space:nowrap;font-size:15px;}.preview-heading span{flex:0 0 auto;color:#6f8096;font-size:12px;line-height:22px;padding:0 8px;border-radius:999px;background:#f0f4f9;white-space:nowrap;}
+.cover-preview { width:min(100%,270px); aspect-ratio:9/16; margin:0 auto; border-radius:9px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; }.cover-preview.landscape{aspect-ratio:16/9;width:100%;}.cover-preview img{width:100%;height:100%;object-fit:cover;}.cover-preview>div{display:grid;place-items:center;gap:10px;color:#9aa7b8;}.cover-preview .el-icon{font-size:36px;}.preview-help{text-align:center;color:#98a5b6;font-size:11px;margin:7px 0 0;}
+.detail-footer-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; }
+:global(.batch-detail-drawer .el-drawer__header) { margin-bottom:0; padding:13px 18px 10px; }
+:global(.batch-detail-drawer .el-drawer__body) { padding:8px 16px; }
+:global(.batch-detail-drawer .el-drawer__footer) { padding:10px 18px; border-top:1px solid #e8edf4; box-shadow:0 -4px 14px rgba(31,45,67,.06); }
 .selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
-@media (max-width:1280px){.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,38%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-summary{grid-template-columns:1fr}.time-summary{grid-column:auto}}
+@media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>

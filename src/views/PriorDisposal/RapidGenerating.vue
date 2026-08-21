@@ -39,6 +39,24 @@
             <el-option label="已成功" value="success" />
             <el-option label="已失败" value="failed" />
           </el-select>
+          <el-select
+            v-if="canFilterCreator"
+            v-model="creatorUserId"
+            class="!w-52"
+            placeholder="全部成员"
+            filterable
+            clearable
+            :loading="creatorOptionsLoading"
+            filter-placeholder="搜索用户名"
+          >
+            <el-option label="全部成员" value="" />
+            <el-option
+              v-for="user in creatorOptions"
+              :key="user.userId"
+              :label="getCreatorOptionLabel(user)"
+              :value="user.userId"
+            />
+          </el-select>
         </div>
         <div class="flex items-center gap-3">
           <div class="queue-hint">
@@ -481,6 +499,7 @@ import JSZip from 'jszip'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
 import { createFastTask, getFastTaskList, deleteFastTask, retryFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
+import { getUserList, IUserListItem } from '/@/api/user'
 import { fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 
 // --- 鐘舵€佹帶鍒?---
@@ -497,6 +516,14 @@ let listPollTimer: ReturnType<typeof setInterval> | null = null
 const layoutStore = useLayoutStore()
 const taskStore = useTaskStore()
 const isPlatformSuperAdmin = computed(() => layoutStore.getUserInfo.isPlatformSuperAdmin)
+const canFilterCreator = computed(() => Boolean(
+  layoutStore.getUserInfo.isPlatformSuperAdmin
+  || layoutStore.getUserInfo.permissionFlags?.canManageUsers
+))
+const creatorUserId = ref<number | ''>('')
+const creatorOptions = ref<IUserListItem[]>([])
+const creatorOptionsLoading = ref(false)
+const currentTenantContextId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
 const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
 const previewVideoRef = ref<HTMLVideoElement | null>(null)
@@ -612,11 +639,39 @@ const waitingBeforeInfo = reactive({
 const taskList = ref<any[]>([])
 let fastTaskSearchTimer: ReturnType<typeof setTimeout> | null = null
 
+const getCreatorOptionLabel = (user: IUserListItem) => {
+  const username = String(user.username || '').trim()
+  const displayName = String(user.name || '').trim()
+  return displayName && displayName !== username ? `${displayName}（${username}）` : username
+}
+
+const loadCreatorOptions = async () => {
+  if (!canFilterCreator.value) return
+  creatorOptionsLoading.value = true
+  try {
+    // 不传 tenantId，使用当前登录上下文对应的团队范围，避免跨团队查询。
+    const response = await getUserList({
+      page: 1,
+      pageSize: 200,
+      search: {}
+    })
+    if (response.data?.code === 200) {
+      creatorOptions.value = response.data.data?.data || []
+    }
+  } catch (error) {
+    console.error('Failed to load task creator options:', error)
+    creatorOptions.value = []
+  } finally {
+    creatorOptionsLoading.value = false
+  }
+}
+
 // --- Lifecycle ---
 onMounted(() => {
   loadTaskList()
   loadWaitingBefore()
   startListPolling()
+  loadCreatorOptions()
   
   // 鐩戝惉鍒嗛〉鏀瑰彉锛岄噸鏂板姞杞芥暟鎹?
   watch([currentPage, pageSize], () => {
@@ -630,6 +685,9 @@ const loadTaskList = async () => {
     const search: Record<string, any> = {}
     if (searchQuery.value.trim()) {
       search.digitalHumanName = searchQuery.value.trim()
+    }
+    if (canFilterCreator.value && creatorUserId.value !== '' && creatorUserId.value !== null && creatorUserId.value !== undefined) {
+      search.creatorUserId = creatorUserId.value
     }
     const res = await getFastTaskList(
       currentPage.value,
@@ -803,6 +861,26 @@ watch(searchQuery, () => {
     currentPage.value = 1
     loadTaskList()
   }, 250)
+})
+
+watch(creatorUserId, () => {
+  currentPage.value = 1
+  loadTaskList()
+})
+
+watch([canFilterCreator, currentTenantContextId], ([enabled, tenantId], [previousEnabled, previousTenantId]) => {
+  if (enabled && (!previousEnabled || tenantId !== previousTenantId)) {
+    creatorUserId.value = ''
+    creatorOptions.value = []
+    loadCreatorOptions()
+    currentPage.value = 1
+    loadTaskList()
+  } else if (!enabled && previousEnabled) {
+    creatorUserId.value = ''
+    creatorOptions.value = []
+    currentPage.value = 1
+    loadTaskList()
+  }
 })
 
 const resetNameValidationState = () => {
