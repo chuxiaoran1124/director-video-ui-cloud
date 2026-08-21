@@ -244,7 +244,7 @@
                             <section class='capability-card capability-card--editable'>
                                 <header>
                                     <h4>任务处理偏好</h4>
-                                    <span>统一管理单条视频、快速任务和数字人克隆三个功能的处理顺序。</span>
+                                    <span>统一管理训练、数字人生成和批量数字人生成三个功能的处理顺序。</span>
                                 </header>
                                 <div class='priority-panel'>
                                     <el-radio-group
@@ -278,7 +278,7 @@
                                                 <el-option v-for='level in [1, 2, 3]' :key='level' :label='`P${level}${level === 1 ? "（最高）" : ""}`' :value='level' />
                                             </el-select>
                                         </div>
-                                        <p>先比较功能优先级；同优先级时严格按可执行任务的创建时间先后处理。</p>
+                                        <p>先比较功能优先级；同优先级时按顶层任务创建时间 FIFO，并由调度组轮转。</p>
                                     </div>
                                     <div class='priority-panel__footer'>
                                         <el-button
@@ -497,9 +497,9 @@ const audioDriveEnabled = ref(false)
 const digitalHumanScope = ref<'self' | 'tenant'>('self')
 const schedulerPriorityMode = ref<'balanced' | 'free'>('balanced')
 const schedulerFunctionPriorities = reactive<Record<string, number>>({
-    video_realtime: 1,
-    decompose_quick: 1,
-    avatar_clone_not_voice: 1
+    training: 1,
+    digital_human_generation: 1,
+    batch_digital_human_generation: 1
 })
 const schedulerNightDispatchOnly = ref(false)
 const schedulerComplexWorkers = ref(1)
@@ -517,18 +517,18 @@ const schedulerPriorityOptions = [
     {
         value: 'balanced',
         label: '均衡模式',
-        description: '三个功能不区分优先级，严格按可执行任务的创建时间先后处理。'
+        description: '三个功能不区分优先级，严格按顶层可执行任务的时间顺序 FIFO 处理。'
     },
     {
         value: 'free',
         label: '自由模式',
-        description: '分别设置三个功能的优先级；同优先级仍严格按任务创建时间处理。'
+        description: '先按三个功能的优先级处理；同优先级按顶层任务创建时间 FIFO，并由调度组轮转。'
     }
 ]
 const schedulerFunctionOptions = [
-    { value: 'video_realtime', label: '单条视频', description: '包含批量数字人生成的实际视频子任务' },
-    { value: 'decompose_quick', label: '快速任务', description: '有配音快速训练的顶层任务' },
-    { value: 'avatar_clone_not_voice', label: '数字人克隆', description: '仅数字人训练的顶层任务' }
+    { value: 'training', label: '训练', description: '数字人训练任务' },
+    { value: 'digital_human_generation', label: '数字人生成', description: '单条数字人生成任务' },
+    { value: 'batch_digital_human_generation', label: '批量数字人生成', description: '批量计划下的实际数字人生成子任务' }
 ]
 
 const createForm = reactive<ICreateTenantPayload>({
@@ -565,7 +565,7 @@ const currentPriorityOption = computed(() => (
 const currentPriorityDescription = computed(() => currentPriorityOption.value.description)
 const currentPriorityOrderText = computed(() => {
     if (schedulerPriorityMode.value === 'balanced') {
-        return '三个功能严格按任务创建时间 FIFO'
+        return '训练、数字人生成、批量数字人生成严格按顶层可执行任务时间 FIFO'
     }
     const grouped = new Map<number, string[]>()
     schedulerFunctionOptions.forEach((item) => {
