@@ -689,6 +689,9 @@ const loadTaskList = async () => {
     if (canFilterCreator.value && creatorUserId.value !== '' && creatorUserId.value !== null && creatorUserId.value !== undefined) {
       search.creatorUserId = creatorUserId.value
     }
+    if (filterStatus.value) {
+      search.taskStatus = filterStatus.value
+    }
     const res = await getFastTaskList(
       currentPage.value,
       pageSize.value,
@@ -758,12 +761,11 @@ const loadWaitingBefore = async (taskId?: number | string) => {
   }
 }
 
-// 杩囨护鍚庣殑浠诲姟鍒楄〃锛堝墠绔繃婊ょ敤锛?
+// 名称和状态均由服务端筛选，确保分页总数与当前列表条件一致。
 const filteredTaskList = computed(() => {
   return taskList.value.filter(item => {
     const matchSearch = !searchQuery.value || item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    const matchStatus = !filterStatus.value || item.status === filterStatus.value
-    return matchSearch && matchStatus
+    return matchSearch
   })
 })
 
@@ -861,6 +863,11 @@ watch(searchQuery, () => {
     currentPage.value = 1
     loadTaskList()
   }, 250)
+})
+
+watch(filterStatus, () => {
+  currentPage.value = 1
+  loadTaskList()
 })
 
 watch(creatorUserId, () => {
