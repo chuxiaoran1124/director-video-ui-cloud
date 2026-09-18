@@ -21,6 +21,29 @@ export function getTaskQueueEfficiency(params: TaskQueueEfficiencyQuery, config:
   })
 }
 
+export interface VideoGenerationCircuitEvent {
+  tenantId: number
+  tenantCode: string
+  tenantName: string
+  status: 'open' | 'closed'
+  startedAt: string
+  endedAt?: string | null
+  consecutiveTimeouts: number
+  threshold: number
+  activeTaskCount?: number | null
+}
+
+/** 查询平台管理员专属的数字人生成通道保护通知。 */
+export function getVideoGenerationCircuitEvents(hours = 24) {
+  return request({
+    url: '/api/system/video-generation-circuit/events/',
+    method: 'get',
+    params: { hours },
+    hideLoading: true,
+    silentError: true
+  })
+}
+
 export function getAllRoute(): Promise<AxiosResponse<IResponse<any[]>>> {
   return request({
     url: '/api/system/get-all-route/',

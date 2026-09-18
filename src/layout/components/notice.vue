@@ -8,8 +8,8 @@
                 <el-tabs type='border-card' class='notice-tabs z-10'>
                     <el-tab-pane label='通知' class='notice-tabs-pane'>
                         <el-scrollbar class='scrollbar-wrapper'>
-                            <div v-if='tasks.length > 0'>
-                                <div v-for='(item, index) in tasks' :key='index' 
+                            <div v-if='displayNotices.length > 0'>
+                                <div v-for='(item, index) in displayNotices' :key='item.noticeKey || index'
                                      class='py-3 px-4 border-b hover:bg-blue-50 cursor-pointer transition-colors relative'
                                      @click='handleNoticeClick(item)'>
                                     <div class='flex items-start gap-3'>
@@ -25,6 +25,8 @@
                                                 <p class='text-sm font-bold text-gray-800 truncate pr-2'>{{ item.title || getTaskLabel(item.taskType) }}</p>
                                                 <el-tag v-if='item.status === "running"' size='small' type='warning' effect='dark' class='!scale-75 origin-right shrink-0'>执行中</el-tag>
                                                 <el-tag v-else-if='item.status === "success"' size='small' type='success' effect='dark' class='!scale-75 origin-right shrink-0'>已完成</el-tag>
+                                                <el-tag v-else-if='item.status === "open"' size='small' type='danger' effect='dark' class='!scale-75 origin-right shrink-0'>保护中</el-tag>
+                                                <el-tag v-else-if='item.status === "closed"' size='small' type='success' effect='dark' class='!scale-75 origin-right shrink-0'>已恢复</el-tag>
                                             </div>
                                             <p class='text-xs text-gray-500 mt-1 line-clamp-1'>{{ item.subTitle }}</p>
                                             
@@ -50,7 +52,7 @@
                                 <span>暂无新通知</span>
                             </div>
                         </el-scrollbar>
-                        <div class='p-2 text-center border-t' v-if='tasks.length > 0'>
+                        <div class='p-2 text-center border-t' v-if='displayNotices.length > 0'>
                             <el-button type='text' size='mini' @click='clearAll'>全部清空</el-button>
                         </div>
                     </el-tab-pane>
@@ -64,19 +66,27 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, onUnmounted, computed } from 'vue'
+import { defineComponent, onMounted, onUnmounted, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElNotification } from 'element-plus'
 import { useTaskStore, IGlobalTask } from '/@/store/modules/task'
+import { useLayoutStore } from '/@/store/modules/layout'
+import { getVideoGenerationCircuitEvents, VideoGenerationCircuitEvent } from '/@/api/system'
 
 export default defineComponent({
     name: 'Notice',
     setup() {
         const router = useRouter()
         const taskStore = useTaskStore()
+        const layoutStore = useLayoutStore()
+        const circuitNotices = ref<any[]>([])
+        const CIRCUIT_NOTICE_SEEN_KEY = 'videoGenerationCircuitNoticeSeen'
+        const seenCircuitKeys = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem(CIRCUIT_NOTICE_SEEN_KEY) || '[]')))
+        const announcedCircuitKeys = new Set<string>()
         
         const tasks = computed(() => taskStore.tasks)
-        const unreadCount = computed(() => taskStore.unreadCount)
+        const displayNotices = computed(() => [...circuitNotices.value, ...taskStore.tasks])
+        const unreadCount = computed(() => taskStore.unreadCount + circuitNotices.value.filter(item => !item.read).length)
 
         let timer: any = null
 
@@ -105,12 +115,68 @@ export default defineComponent({
                 icon: 'el-icon-user',
                 bg: '!bg-orange-500',
                 routeName: 'GenerateDigitalHuman'
+            },
+            'VIDEO_CIRCUIT': {
+                label: '数字人生成通道保护',
+                icon: 'el-icon-warning',
+                bg: '!bg-red-500',
+                routeName: ''
             }
         } as const
 
         const getIcon = (type: keyof typeof TASK_CONFIG) => TASK_CONFIG[type]?.icon || 'el-icon-bell'
         const getIconBg = (type: keyof typeof TASK_CONFIG) => TASK_CONFIG[type]?.bg || '!bg-gray-400'
         const getTaskLabel = (type: keyof typeof TASK_CONFIG) => TASK_CONFIG[type]?.label || '系统任务'
+
+        const formatTime = (value?: string | null) => value
+            ? new Date(value).toLocaleString('zh-CN', { hour12: false })
+            : '-'
+
+        const buildCircuitNotice = (event: VideoGenerationCircuitEvent) => {
+            const noticeKey = `video-circuit:${event.tenantId}:${event.startedAt}:${event.endedAt || 'open'}`
+            const isOpen = event.status === 'open'
+            return {
+                noticeKey,
+                taskType: 'VIDEO_CIRCUIT',
+                status: event.status,
+                title: isOpen ? `${event.tenantName}：数字人生成通道保护已触发` : `${event.tenantName}：数字人生成通道已恢复`,
+                subTitle: isOpen
+                    ? `开始：${formatTime(event.startedAt)}；在途任务 ${event.activeTaskCount ?? 0} 个，排空后自动恢复`
+                    : `开始：${formatTime(event.startedAt)}；结束：${formatTime(event.endedAt)}`,
+                time: formatTime(event.endedAt || event.startedAt),
+                read: seenCircuitKeys.value.has(noticeKey),
+                rawEvent: event
+            }
+        }
+
+        const persistCircuitSeen = () => {
+            localStorage.setItem(CIRCUIT_NOTICE_SEEN_KEY, JSON.stringify(Array.from(seenCircuitKeys.value).slice(-100)))
+        }
+
+        const fetchCircuitNotices = async() => {
+            if (!layoutStore.getUserInfo.isPlatformSuperAdmin) {
+                circuitNotices.value = []
+                return
+            }
+            try {
+                const response: any = await getVideoGenerationCircuitEvents(24)
+                const nextItems = (response?.data?.data?.items || []).map(buildCircuitNotice)
+                nextItems.forEach((item: any) => {
+                    if (!seenCircuitKeys.value.has(item.noticeKey) && !announcedCircuitKeys.has(item.noticeKey)) {
+                        ElNotification({
+                            title: item.status === 'open' ? '数字人生成通道保护已触发' : '数字人生成通道已恢复',
+                            message: item.subTitle,
+                            type: item.status === 'open' ? 'warning' : 'success',
+                            position: 'top-right'
+                        })
+                        announcedCircuitKeys.add(item.noticeKey)
+                    }
+                })
+                circuitNotices.value = nextItems
+            } catch (_error) {
+                // 通知轮询失败不影响业务页面，也不向普通用户暴露内部状态。
+            }
+        }
 
         const fetchNotices = () => {
              // 模拟：检查是否有刚运行完成的任务（如果是后端，这里就是调用轮询接口）
@@ -129,9 +195,14 @@ export default defineComponent({
              })
         }
 
-        const handleNoticeClick = (item: IGlobalTask) => {
+        const handleNoticeClick = (item: IGlobalTask | any) => {
             item.read = true
             item.notified = true
+            if (item.taskType === 'VIDEO_CIRCUIT') {
+                seenCircuitKeys.value.add(item.noticeKey)
+                persistCircuitSeen()
+                return
+            }
             const config = TASK_CONFIG[item.taskType]
             if (config && config.routeName) {
                 router.push({ name: config.routeName })
@@ -140,10 +211,20 @@ export default defineComponent({
 
         const clearAll = () => {
             taskStore.clearTasks()
+            circuitNotices.value.forEach(item => {
+                item.read = true
+                seenCircuitKeys.value.add(item.noticeKey)
+            })
+            persistCircuitSeen()
         }
 
         onMounted(() => {
-            timer = setInterval(fetchNotices, 3000)
+            fetchNotices()
+            fetchCircuitNotices()
+            timer = setInterval(() => {
+                fetchNotices()
+                fetchCircuitNotices()
+            }, 30000)
         })
 
         onUnmounted(() => {
@@ -153,6 +234,7 @@ export default defineComponent({
         return {
             unreadCount,
             tasks,
+            displayNotices,
             handleNoticeClick,
             getIcon,
             getIconBg,
