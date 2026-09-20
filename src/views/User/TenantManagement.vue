@@ -336,32 +336,33 @@
                                         <span>复杂任务线程</span>
                                         <el-input-number
                                             v-model='schedulerComplexWorkers'
-                                            :min='1'
+                                            :min='0'
                                             :max='100'
                                             :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
                                         />
-                                        <small>决定有多少条复杂任务可以同时进入执行态。</small>
+                                        <small>决定有多少条复杂任务可以同时进入执行态；填 0 表示暂停该类型。</small>
                                     </div>
                                     <div class='quota-field'>
                                         <span>视频线程</span>
                                         <el-input-number
                                             v-model='schedulerVideoSlots'
-                                            :min='1'
+                                            :min='0'
                                             :max='100'
                                             :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
                                         />
-                                        <small>限制真正进入第三方视频服务的并发数量。</small>
+                                        <small>限制真正进入第三方视频服务的并发数量；填 0 表示暂停该类型。</small>
                                     </div>
                                     <div class='quota-field'>
                                         <span>音频线程</span>
                                         <el-input-number
                                             v-model='schedulerAudioWorkers'
-                                            :min='1'
+                                            :min='0'
                                             :max='100'
                                             :disabled='!layoutStore.getUserInfo.isPlatformSuperAdmin || savingSchedulerQuotaConfig'
                                         />
-                                        <small>控制快速任务里的音频克隆并发。</small>
+                                        <small>控制快速任务里的音频克隆并发；填 0 表示暂停该类型。</small>
                                     </div>
+                                    <p class='quota-panel__hint'>处理额度填 0 会立即暂停对应类型的新任务调度；恢复为正数后，等待中的任务会继续排队处理。</p>
                                     <div class='priority-panel__footer'>
                                         <el-button
                                             v-if='layoutStore.getUserInfo.isPlatformSuperAdmin'
@@ -370,7 +371,7 @@
                                             :loading='savingSchedulerQuotaConfig'
                                             @click='saveSchedulerQuotaConfig'
                                         >
-                                            保存额度
+                                            保存额度（0=暂停）
                                         </el-button>
                                         <span v-else class='toggle-panel__hint'>仅平台管理员可调整团队的处理额度。</span>
                                     </div>
@@ -594,9 +595,9 @@ const formatStorageProviderLabel = (provider: string) => getStorageProviderDispl
 const buildTenantInitial = (tenantName: string) => tenantName.trim().slice(0, 1).toUpperCase()
 const syncSchedulerQuotaState = (detail?: ITenantDetailResponse | null) => {
     schedulerNightDispatchOnly.value = Boolean(detail?.schedulerConfig?.nightDispatchOnly)
-    schedulerComplexWorkers.value = Number(detail?.schedulerConfig?.maxConcurrency || 1)
-    schedulerVideoSlots.value = Number(detail?.schedulerConfig?.maxVideoTaskConcurrency || 1)
-    schedulerAudioWorkers.value = Number(detail?.schedulerConfig?.maxFastTaskConcurrency || 1)
+    schedulerComplexWorkers.value = Number(detail?.schedulerConfig?.maxConcurrency ?? 1)
+    schedulerVideoSlots.value = Number(detail?.schedulerConfig?.maxVideoTaskConcurrency ?? 1)
+    schedulerAudioWorkers.value = Number(detail?.schedulerConfig?.maxFastTaskConcurrency ?? 1)
 }
 
 const resetCreateForm = () => {
@@ -785,7 +786,16 @@ const saveSchedulerQuotaConfig = async() => {
         })
         tenantDetail.value = response.data.data
         syncSchedulerQuotaState(response.data.data)
-        ElMessage.success('该团队的处理额度已更新')
+        const pausedTypes = [
+            schedulerComplexWorkers.value === 0 ? '复杂任务' : '',
+            schedulerVideoSlots.value === 0 ? '视频线程' : '',
+            schedulerAudioWorkers.value === 0 ? '音频线程' : ''
+        ].filter(Boolean)
+        ElMessage.success(
+            pausedTypes.length
+                ? `处理额度已更新，${pausedTypes.join('、')}已暂停；恢复为正数后继续`
+                : '处理额度已更新，所有类型均按当前正数额度继续调度'
+        )
     } catch (error: any) {
         ElMessage.error(error?.message || '保存失败，请稍后重试')
     } finally {
@@ -963,6 +973,17 @@ onMounted(loadTenants)
 .quota-panel {
     display: grid;
     gap: 14px;
+}
+
+.quota-panel__hint {
+    margin: 0;
+    padding: 10px 12px;
+    color: #7f5b1c;
+    font-size: 12px;
+    line-height: 1.6;
+    border: 1px solid #f3dfad;
+    border-radius: 8px;
+    background: #fff9e9;
 }
 
 .quota-field {
