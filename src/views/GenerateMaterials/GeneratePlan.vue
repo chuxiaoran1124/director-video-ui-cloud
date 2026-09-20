@@ -259,10 +259,19 @@
                     <el-radio-group v-model="activePerformer.selectionMode" @change="resetPerformerSelection(activePerformer)">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
+                      <el-radio-button v-if="activePerformerIndex > 0" label="first_voice">声音跟随第1项</el-radio-button>
                     </el-radio-group>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
+                      </el-input>
+                    </div>
+                    <div v-else-if="activePerformer.selectionMode === 'first_voice'" class="picker-row">
+                      <el-input :model-value="selectedHuman(activePerformer)?.name || ''" readonly placeholder="点击选择数字人" @click="openAssetPicker('human')">
+                        <template #prepend>选择形象</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('human')" /></template>
+                      </el-input>
+                      <el-input :model-value="firstPerformerVoice()?.name || ''" readonly :placeholder="firstPerformerVoice() ? '' : '请先为第1项选择声音'">
+                        <template #prepend>跟随声音</template>
                       </el-input>
                     </div>
                     <div v-else class="picker-row">
@@ -454,10 +463,11 @@ type AssetPickerType = 'binding' | 'human' | 'voice'
 
 interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
 interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string }
-interface BindingOption { id: string | number; name: string; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
+type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice'
+interface BindingOption { id: string | number; name: string; digitalHumanId?: string | number | null; voiceId?: string | number | null; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
   key: string
-  selectionMode: 'binding' | 'custom'
+  selectionMode: PerformerSelectionMode
   bindingId: string | number | null
   digitalHumanId: string | number | null
   voiceId: string | number | null
@@ -466,7 +476,7 @@ interface PerformerConfig {
   postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
 interface BatchChild {
-  id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: 'binding' | 'custom'; digitalHumanId?: string | number | null; voiceId?: string | number | null
+  id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: PerformerSelectionMode; digitalHumanId?: string | number | null; voiceId?: string | number | null
   bindingName: string; performerName?: string; digitalHumanName: string; voiceName: string; statusKey: StatusKey; createTime?: string; startTime?: string; endTime?: string
   errorMessage?: string; videoUrl?: string; coverUrl?: string; videoTaskId?: string | number; retryable?: boolean; postProcessConfig?: Record<string, any>; videoOptions?: Record<string, any>
 }
@@ -653,11 +663,32 @@ function createPerformerConfig(inherit = false): PerformerConfig {
 }
 function selectedBinding(config: PerformerConfig) { return bindingOptions.value.find(item => String(item.id) === String(config.bindingId)) }
 function selectedHuman(config: PerformerConfig) { return digitalHumanOptions.value.find(item => String(item.id) === String(config.digitalHumanId)) }
-function selectedVoice(config: PerformerConfig) { return voiceOptions.value.find(item => String(item.id) === String(config.voiceId)) }
+function firstPerformerVoice(): AssetOption | null {
+  const first = planForm.performerConfigs[0]
+  if (!first) return null
+  if (first.selectionMode === 'binding') {
+    const binding = selectedBinding(first)
+    return binding?.voiceId == null ? null : { id: binding.voiceId, name: binding.voiceName || '第1项声音', url: binding.voiceUrl || '' }
+  }
+  return voiceOptions.value.find(item => String(item.id) === String(first.voiceId)) || null
+}
+function selectedVoice(config: PerformerConfig) {
+  if (config.selectionMode === 'first_voice') return firstPerformerVoice()
+  return voiceOptions.value.find(item => String(item.id) === String(config.voiceId))
+}
 function performerCover(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.coverUrl || '' : selectedHuman(config)?.coverUrl || '' }
 function performerVoiceUrl(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.voiceUrl || '' : selectedVoice(config)?.url || '' }
-function performerSummary(config: PerformerConfig) { const binding = selectedBinding(config); return config.selectionMode === 'binding' ? binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系' : `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}` }
-function performerReady(config: PerformerConfig) { return config.selectionMode === 'binding' ? Boolean(config.bindingId) : Boolean(config.digitalHumanId && config.voiceId) }
+function performerSummary(config: PerformerConfig) {
+  const binding = selectedBinding(config)
+  if (config.selectionMode === 'binding') return binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系'
+  const summary = `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}`
+  return config.selectionMode === 'first_voice' ? `${summary}（跟随第1项）` : summary
+}
+function performerReady(config: PerformerConfig) {
+  if (config.selectionMode === 'binding') return Boolean(config.bindingId)
+  if (config.selectionMode === 'first_voice') return Boolean(config.digitalHumanId && firstPerformerVoice()?.id)
+  return Boolean(config.digitalHumanId && config.voiceId)
+}
 function normalizeBatchSubtitleConfig(rawConfig: any) {
   const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {}
   const isLegacyBatchDefault = Number(config.font_size) === 10
@@ -756,9 +787,9 @@ function buildDraftPayload() {
     const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
     const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
     effectivePost.processTypes = [...planForm.processTypes]
-    return config.selectionMode === 'binding'
-      ? { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
-      : { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+    if (config.selectionMode === 'binding') return { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+    if (config.selectionMode === 'first_voice') return { selectionMode: 'first_voice', digitalHumanId: config.digitalHumanId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+    return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
   const payload: Record<string, any> = {
     videoOptions: deepClone(first.videoOptions),
@@ -841,7 +872,7 @@ async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(ro
 
 async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
 async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
-async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
+async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
 async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
 async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
 async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }

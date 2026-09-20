@@ -11,7 +11,7 @@ export interface BatchDigitalHumanPlanPayload {
         content: string
     }
     performerConfigs: Array<{
-        selectionMode: 'binding' | 'custom'
+        selectionMode: 'binding' | 'custom' | 'first_voice'
         bindingId?: number | string | null
         digitalHumanId?: number | string | null
         voiceId?: number | string | null
