@@ -224,8 +224,8 @@
           <div class="draft-workspace">
             <aside class="performer-sidebar">
               <div class="sidebar-heading">
-                <div><strong>数字人执行项</strong><span>{{ planForm.performerConfigs.length }}/15</span></div>
-                <el-button size="small" type="primary" plain :disabled="planForm.performerConfigs.length >= 15" @click="addPerformer"><el-icon><Plus /></el-icon>添加</el-button>
+                <div><strong>数字人执行项</strong><span>{{ planForm.performerConfigs.length }}/50</span></div>
+                <el-button size="small" type="primary" plain :disabled="planForm.performerConfigs.length >= 50" @click="addPerformer"><el-icon><Plus /></el-icon>添加</el-button>
               </div>
               <button
                 v-for="(config, index) in planForm.performerConfigs"
@@ -749,7 +749,7 @@ function fillPlanForm(plan: BatchPlan) {
   if (!planForm.performerConfigs.length) planForm.performerConfigs = [createPerformerConfig(false)]
   activePerformerIndex.value = 0
 }
-function addPerformer() { if (planForm.performerConfigs.length >= 15) return; planForm.performerConfigs.push(createPerformerConfig(true)); activePerformerIndex.value = planForm.performerConfigs.length - 1 }
+function addPerformer() { if (planForm.performerConfigs.length >= 50) return; planForm.performerConfigs.push(createPerformerConfig(true)); activePerformerIndex.value = planForm.performerConfigs.length - 1 }
 function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
 function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
 function handleInheritanceChange(value: string | number | boolean) { if (value && activePerformer.value && planForm.performerConfigs[0]) { activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions); activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig) } }
@@ -765,7 +765,7 @@ function updateActiveSubtitleConfig(value: any) {
 
 function validateDraftForSave() {
   if (planForm.scheduleMode === 'scheduled' && (!planForm.scheduledAt || !Number.isFinite(scheduledTimestamp(planForm.scheduledAt)))) { ElMessage.warning('请选择有效的计划执行时间'); return false }
-  if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 15) { ElMessage.warning('请配置 1～15 个数字人执行项'); return false }
+  if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 50) { ElMessage.warning('请配置 1～50 个数字人执行项'); return false }
   return true
 }
 function validateDraftForSubmission() {

@@ -25,7 +25,7 @@ export interface BatchDigitalHumanPlanPayload {
     bindingIds?: Array<number | string>
 }
 
-/** 创建云上批量数字人生成计划：1 份脚本对应 1～15 个数字人执行项。 */
+/** 创建云上批量数字人生成计划：1 份脚本对应 1～50 个数字人执行项。 */
 export function createVideoBatchPlan(data: BatchDigitalHumanPlanPayload | Record<string, any>) {
     return request({
         url: '/api/material/video-batch/create/',
