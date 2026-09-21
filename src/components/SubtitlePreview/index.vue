@@ -239,6 +239,7 @@ const props = defineProps<{
   frameBase64: string
   scriptText?: string
   cornerMarkUrl?: string
+  cornerMarkScale?: number
   bannerOverlayBase64?: string
   processTypes?: string[]
   enableSubtitle?: boolean

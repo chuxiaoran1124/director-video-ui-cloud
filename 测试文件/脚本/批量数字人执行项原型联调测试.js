@@ -105,6 +105,7 @@ async function main() {
     const createDialog = page.getByRole('dialog', { name: '新建批量数字人生成计划' })
     await createDialog.locator('input').first().fill(planName)
     await createDialog.locator('textarea').fill('执行项交互验收脚本')
+    await createDialog.locator('.el-checkbox').filter({ hasText: '角标' }).click()
     await createDialog.getByRole('button', { name: '创建任务并配置数字人' }).click()
     await page.getByText(`批量计划 #`, { exact: false }).waitFor({ state: 'visible', timeout: 30000 })
     steps.push('创建草稿计划并打开详情')
@@ -128,6 +129,32 @@ async function main() {
     if (!(await countText.innerText()).includes('2/50')) throw new Error('多选确认后没有覆盖为 2/50')
     if (!(await page.locator('.first-voice-summary').innerText()).includes('后 1 项声音跟随第1项')) throw new Error('没有显示后续项跟随第1项提示')
     steps.push('首项多选两个数字人后覆盖队列，并显示后 1 项声音跟随第1项')
+
+    const cornerScaleSlider = page.locator('[data-testid="corner-mark-scale-slider"]')
+    const cornerScaleValue = page.locator('[data-testid="corner-mark-scale-value"]')
+    const cornerMarkLock = page.locator('[data-testid="corner-mark-lock"]')
+    await cornerScaleSlider.waitFor({ state: 'visible', timeout: 30000 })
+    const initialCornerScale = await cornerScaleValue.innerText()
+    const sliderButton = cornerScaleSlider.locator('.el-slider__button')
+    await sliderButton.focus()
+    await sliderButton.press('ArrowRight')
+    const changedCornerScale = await cornerScaleValue.innerText()
+    if (changedCornerScale === initialCornerScale) throw new Error('角标大小滑块没有改变执行项配置')
+    await cornerMarkLock.click()
+    if ((await cornerMarkLock.innerText()).trim() !== '已锁定') throw new Error('角标大小没有进入锁定状态')
+    const sliderDisabled = await cornerScaleSlider.evaluate((element) => element.classList.contains('is-disabled') || element.getAttribute('aria-disabled') === 'true')
+    if (!sliderDisabled) throw new Error('角标大小锁定后滑块仍可编辑')
+    await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+    await page.waitForTimeout(600)
+    steps.push(`角标大小从 ${initialCornerScale} 调整为 ${changedCornerScale}，锁定后保存草稿`)
+
+    await closeDetail(page)
+    const savedRow = page.locator('.table-card .el-table__row').filter({ hasText: planName }).first()
+    await savedRow.getByRole('button', { name: '继续配置', exact: true }).click()
+    await cornerScaleSlider.waitFor({ state: 'visible', timeout: 30000 })
+    if ((await cornerScaleValue.innerText()) !== changedCornerScale) throw new Error('重新打开计划后角标大小没有恢复')
+    if ((await cornerMarkLock.innerText()).trim() !== '已锁定') throw new Error('重新打开计划后角标锁定状态没有恢复')
+    steps.push('关闭并重新打开计划后，角标大小和锁定状态均被恢复')
 
     await page.locator('.performer-nav-item').nth(1).click()
     if (!(await page.getByText('跟随声音', { exact: true }).count())) throw new Error('后续执行项没有显示跟随声音')
@@ -176,7 +203,7 @@ async function main() {
     `- 失败：${report.summary.failed}`, '',
     '## 覆盖操作', '',
     ...steps.map(step => `- ${step}`), '',
-    error ? `## 失败原因\n\n${error}` : '## 结论\n\n添加空白执行项、清空、多选覆盖、声音跟随只读、单独选择无勾选框等操作均通过。'
+    error ? `## 失败原因\n\n${error}` : '## 结论\n\n添加空白执行项、清空、多选覆盖、声音跟随只读、单独选择无勾选框，以及角标大小保存后重新打开恢复等操作均通过。'
   ].join('\n'), 'utf8')
   if (status === 'failed') process.exitCode = 1
 }
