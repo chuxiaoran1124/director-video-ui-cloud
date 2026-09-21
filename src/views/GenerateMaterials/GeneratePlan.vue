@@ -225,7 +225,10 @@
             <aside class="performer-sidebar">
               <div class="sidebar-heading">
                 <div><strong>数字人执行项</strong><span>{{ planForm.performerConfigs.length }}/50</span></div>
-                <el-button size="small" type="primary" plain :disabled="planForm.performerConfigs.length >= 50" @click="addPerformer"><el-icon><Plus /></el-icon>添加</el-button>
+                <div class="sidebar-actions">
+                  <el-button size="small" type="primary" plain :disabled="planForm.performerConfigs.length >= 50" @click="addPerformer"><el-icon><Plus /></el-icon>添加</el-button>
+                  <el-button size="small" plain :disabled="!planForm.performerConfigs.length" @click="clearAllPerformers">清空</el-button>
+                </div>
               </div>
               <button
                 v-for="(config, index) in planForm.performerConfigs"
@@ -256,21 +259,30 @@
                       <template #title>
                         <div class="collapse-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
                       </template>
-                    <el-radio-group v-model="activePerformer.selectionMode" @change="resetPerformerSelection(activePerformer)">
+                    <el-radio-group v-model="activePerformer.selectionMode" @change="handleSelectionModeChange">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
-                      <el-radio-button v-if="activePerformerIndex > 0" label="first_voice">声音跟随第1项</el-radio-button>
+                      <el-radio-button label="first_voice">声音跟随第1项</el-radio-button>
                     </el-radio-group>
+                    <div v-if="firstVoiceFollowerCount > 0" class="first-voice-summary">
+                      <el-icon><Headset /></el-icon>
+                      <span>后 {{ firstVoiceFollowerCount }} 项声音跟随第1项</span>
+                    </div>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
                       </el-input>
                     </div>
                     <div v-else-if="activePerformer.selectionMode === 'first_voice'" class="picker-row">
-                      <el-input :model-value="selectedHuman(activePerformer)?.name || ''" readonly placeholder="点击选择数字人" @click="openAssetPicker('human')">
+                      <el-input :model-value="activePerformerIndex === 0 ? firstVoiceHumanLabel() : selectedHuman(activePerformer)?.name || ''" readonly :placeholder="activePerformerIndex === 0 ? '可多选数字人，确认后覆盖执行项队列' : '点击选择数字人'" @click="openAssetPicker('human')">
                         <template #prepend>选择形象</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('human')" /></template>
                       </el-input>
-                      <el-input :model-value="firstPerformerVoice()?.name || ''" readonly :placeholder="firstPerformerVoice() ? '' : '请先为第1项选择声音'">
+                      <template v-if="activePerformerIndex === 0">
+                        <el-input :model-value="selectedVoice(activePerformer)?.name || ''" readonly placeholder="点击选择第1项声音" @click="openAssetPicker('voice')">
+                          <template #prepend>第1项声音</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('voice')" /></template>
+                        </el-input>
+                      </template>
+                      <el-input v-else :model-value="firstPerformerVoice()?.name || ''" readonly :placeholder="firstPerformerVoice() ? '' : '请先为第1项选择声音'">
                         <template #prepend>跟随声音</template>
                       </el-input>
                     </div>
@@ -405,15 +417,16 @@
       </el-table>
     </el-dialog>
 
-    <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body>
+    <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body @closed="resetAssetPickerState">
       <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
       <div v-if="assetPicker.type !== 'voice'" class="asset-grid">
-        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" type="button" @click="selectAsset(item)">
+        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
           <img v-if="assetCover(item)" :src="assetCover(item)" alt="" />
           <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
+          <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
           <strong>{{ assetTitle(item) }}</strong>
           <small>{{ assetSubtitle(item) }}</small>
-          <el-button type="primary" size="small">选入</el-button>
+          <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
         </button>
       </div>
       <el-table v-else :data="filteredAssetOptions" height="440" border :header-cell-style="tableHeaderStyle">
@@ -422,6 +435,9 @@
         <el-table-column label="试听" min-width="120" align="center"><template #default="{ row }"><el-button v-if="row.url" link type="primary" @click="playVoice(row.url, row.name)"><el-icon><Headset /></el-icon>试听</el-button></template></el-table-column>
         <el-table-column label="操作" width="100" align="center"><template #default="{ row }"><el-button type="primary" @click="selectAsset(row)">选入</el-button></template></el-table-column>
       </el-table>
+      <template v-if="assetPicker.multi" #footer>
+        <div class="asset-picker-footer"><span>已选 {{ selectedHumanIds.length }} 个形象；确认后会覆盖当前执行项队列，后续声音跟随第1项。</span><div><el-button @click="assetPicker.visible = false">取消</el-button><el-button type="primary" @click="confirmMultiHumanSelection">确认选择</el-button></div></div>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="preview.visible" :title="preview.title" width="72%" append-to-body @closed="stopPreview">
@@ -526,7 +542,8 @@ const planForm = reactive({
 const createDialog = reactive({ visible: false, submitting: false })
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
-const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '' })
+const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', multi: false })
+const selectedHumanIds = ref<string[]>([])
 const preview = reactive({ visible: false, loading: false, url: '', title: '', downloadingId: null as string | number | null })
 const scriptOptions = ref<ScriptOption[]>([])
 const historyOptions = ref<ScriptOption[]>([])
@@ -566,6 +583,11 @@ const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((t
   return false
 }))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
+const firstVoiceFollowerCount = computed(() => {
+  const first = planForm.performerConfigs[0]
+  if (!first || first.selectionMode !== 'first_voice') return 0
+  return planForm.performerConfigs.slice(1).filter(config => config.selectionMode === 'first_voice').length
+})
 const filteredScriptOptions = computed(() => {
   const source = scriptSelector.mode === 'library' ? scriptOptions.value : historyOptions.value
   const keyword = scriptSelector.search.trim().toLowerCase()
@@ -653,10 +675,10 @@ function validateScheduleForSubmission() {
   return true
 }
 
-function createPerformerConfig(inherit = false): PerformerConfig {
+function createPerformerConfig(inherit = false, selectionMode: PerformerSelectionMode = 'binding'): PerformerConfig {
   const first = planForm.performerConfigs[0]
   return {
-    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode: 'binding', bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
+    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode, bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
     videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0 },
     postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
@@ -673,7 +695,7 @@ function firstPerformerVoice(): AssetOption | null {
   return voiceOptions.value.find(item => String(item.id) === String(first.voiceId)) || null
 }
 function selectedVoice(config: PerformerConfig) {
-  if (config.selectionMode === 'first_voice') return firstPerformerVoice()
+  if (config.selectionMode === 'first_voice' && config !== planForm.performerConfigs[0]) return firstPerformerVoice()
   return voiceOptions.value.find(item => String(item.id) === String(config.voiceId))
 }
 function performerCover(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.coverUrl || '' : selectedHuman(config)?.coverUrl || '' }
@@ -682,12 +704,20 @@ function performerSummary(config: PerformerConfig) {
   const binding = selectedBinding(config)
   if (config.selectionMode === 'binding') return binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系'
   const summary = `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}`
-  return config.selectionMode === 'first_voice' ? `${summary}（跟随第1项）` : summary
+  if (config.selectionMode === 'first_voice' && config !== planForm.performerConfigs[0]) return `${summary}（跟随第1项）`
+  return config.selectionMode === 'first_voice' ? `${summary} · 首项声音` : summary
 }
 function performerReady(config: PerformerConfig) {
   if (config.selectionMode === 'binding') return Boolean(config.bindingId)
+  if (config.selectionMode === 'first_voice' && config === planForm.performerConfigs[0]) return Boolean(config.digitalHumanId && config.voiceId)
   if (config.selectionMode === 'first_voice') return Boolean(config.digitalHumanId && firstPerformerVoice()?.id)
   return Boolean(config.digitalHumanId && config.voiceId)
+}
+function firstVoiceHumanLabel() {
+  const count = planForm.performerConfigs
+    .filter((config, index) => index === 0 || config.selectionMode === 'first_voice')
+    .filter(config => config.digitalHumanId != null).length
+  return count ? `已选择 ${count} 个数字人` : ''
 }
 function normalizeBatchSubtitleConfig(rawConfig: any) {
   const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {}
@@ -746,12 +776,38 @@ function fillPlanForm(plan: BatchPlan) {
     config.inheritFromFirst = JSON.stringify(config.videoOptions) === JSON.stringify(first.videoOptions)
       && JSON.stringify(config.postProcessConfig) === JSON.stringify(first.postProcessConfig)
   })
+  if (planForm.performerConfigs.slice(1).some(config => config.selectionMode === 'first_voice') && first) first.selectionMode = 'first_voice'
   if (!planForm.performerConfigs.length) planForm.performerConfigs = [createPerformerConfig(false)]
   activePerformerIndex.value = 0
 }
-function addPerformer() { if (planForm.performerConfigs.length >= 50) return; planForm.performerConfigs.push(createPerformerConfig(true)); activePerformerIndex.value = planForm.performerConfigs.length - 1 }
+function addPerformer() {
+  if (planForm.performerConfigs.length >= 50) return
+  const followFirstVoice = planForm.performerConfigs[0]?.selectionMode === 'first_voice'
+  planForm.performerConfigs.push(createPerformerConfig(followFirstVoice, followFirstVoice ? 'first_voice' : 'custom'))
+  activePerformerIndex.value = planForm.performerConfigs.length - 1
+}
 function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
 function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
+function handleSelectionModeChange(value: PerformerSelectionMode) {
+  const config = activePerformer.value
+  if (!config) return
+  resetPerformerSelection(config)
+  if (activePerformerIndex.value === 0 && value === 'first_voice') {
+    planForm.performerConfigs.splice(1)
+    config.inheritFromFirst = false
+  } else if (activePerformerIndex.value === 0 && value !== 'first_voice') {
+    const retained = planForm.performerConfigs.slice(1).filter(item => item.selectionMode !== 'first_voice')
+    planForm.performerConfigs.splice(1, planForm.performerConfigs.length - 1, ...retained)
+  }
+}
+function clearAllPerformers() {
+  if (!planForm.performerConfigs.length) return
+  planForm.performerConfigs.splice(0)
+  activePerformerIndex.value = 0
+  activePreviewFrame.value = ''
+  activeBannerBase64.value = ''
+  ElMessage.success('已清空数字人执行项')
+}
 function handleInheritanceChange(value: string | number | boolean) { if (value && activePerformer.value && planForm.performerConfigs[0]) { activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions); activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig) } }
 function updateActiveSubtitleConfig(value: any) {
   if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return
@@ -765,10 +821,11 @@ function updateActiveSubtitleConfig(value: any) {
 
 function validateDraftForSave() {
   if (planForm.scheduleMode === 'scheduled' && (!planForm.scheduledAt || !Number.isFinite(scheduledTimestamp(planForm.scheduledAt)))) { ElMessage.warning('请选择有效的计划执行时间'); return false }
-  if (!planForm.performerConfigs.length || planForm.performerConfigs.length > 50) { ElMessage.warning('请配置 1～50 个数字人执行项'); return false }
+  if (planForm.performerConfigs.length > 50) { ElMessage.warning('数字人执行项最多 50 个'); return false }
   return true
 }
 function validateDraftForSubmission() {
+  if (!planForm.performerConfigs.length) { ElMessage.warning('请至少添加一个数字人执行项'); return false }
   if (!validateDraftForSave() || !validateScheduleForSubmission()) return false
   const missing = planForm.performerConfigs.findIndex(config => !performerReady(config))
   if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和声音`); return false }
@@ -782,17 +839,18 @@ function validateDraftForSubmission() {
 }
 function buildDraftPayload() {
   const first = planForm.performerConfigs[0]
-  const allPerformersReady = planForm.performerConfigs.every(performerReady)
+  const allPerformersReady = Boolean(first) && planForm.performerConfigs.every(performerReady)
   const configs = planForm.performerConfigs.map((config, index) => {
     const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
     const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
     effectivePost.processTypes = [...planForm.processTypes]
     if (config.selectionMode === 'binding') return { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
+    if (index === 0 && config.selectionMode === 'first_voice') return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
     if (config.selectionMode === 'first_voice') return { selectionMode: 'first_voice', digitalHumanId: config.digitalHumanId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
     return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
   const payload: Record<string, any> = {
-    videoOptions: deepClone(first.videoOptions),
+    videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0 }),
     postProcessConfig: { processTypes: [...planForm.processTypes] },
     scheduleMode: planForm.scheduleMode,
     scheduledAt: scheduledAtPayload()
@@ -879,8 +937,53 @@ async function loadCorners(force = false) { if (resourcesLoaded.corners && !forc
 async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
-function openAssetPicker(type: AssetPickerType) { assetPicker.type = type; assetPicker.search = ''; assetPicker.visible = true; if (type === 'binding') loadBindings(); else if (type === 'human') loadHumans(); else loadVoices() }
-function selectAsset(item: any) { if (!activePerformer.value) return; if (assetPicker.type === 'binding') activePerformer.value.bindingId = item.id; else if (assetPicker.type === 'human') activePerformer.value.digitalHumanId = item.id; else activePerformer.value.voiceId = item.id; assetPicker.visible = false; refreshActivePreview() }
+function openAssetPicker(type: AssetPickerType) {
+  assetPicker.type = type
+  assetPicker.search = ''
+  assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
+  selectedHumanIds.value = assetPicker.multi
+    ? planForm.performerConfigs
+      .filter((config, index) => index === 0 || config.selectionMode === 'first_voice')
+      .map(config => String(config.digitalHumanId))
+      .filter(id => id !== 'null')
+    : []
+  assetPicker.visible = true
+  if (type === 'binding') loadBindings(); else if (type === 'human') loadHumans(); else loadVoices()
+}
+function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = [] }
+function selectAsset(item: any) {
+  if (!activePerformer.value) return
+  if (assetPicker.multi && assetPicker.type === 'human') {
+    const id = String(item.id)
+    selectedHumanIds.value = selectedHumanIds.value.includes(id) ? selectedHumanIds.value.filter(value => value !== id) : [...selectedHumanIds.value, id]
+    return
+  }
+  if (assetPicker.type === 'binding') activePerformer.value.bindingId = item.id
+  else if (assetPicker.type === 'human') activePerformer.value.digitalHumanId = item.id
+  else activePerformer.value.voiceId = item.id
+  assetPicker.visible = false
+  refreshActivePreview()
+}
+function confirmMultiHumanSelection() {
+  if (!selectedHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
+  const first = planForm.performerConfigs[0] || createPerformerConfig(false, 'first_voice')
+  const nextConfigs: PerformerConfig[] = []
+  first.selectionMode = 'first_voice'
+  first.bindingId = null
+  first.digitalHumanId = selectedHumanIds.value[0]
+  first.inheritFromFirst = false
+  nextConfigs.push(first)
+  selectedHumanIds.value.slice(1).forEach((id) => {
+    const config = createPerformerConfig(true, 'first_voice')
+    config.digitalHumanId = id
+    nextConfigs.push(config)
+  })
+  planForm.performerConfigs.splice(0, planForm.performerConfigs.length, ...nextConfigs)
+  activePerformerIndex.value = 0
+  assetPicker.visible = false
+  ElMessage.success(`已覆盖为 ${nextConfigs.length} 个执行项，后续声音跟随第1项`)
+  refreshActivePreview()
+}
 function playVoice(url: string, name: string) { if (!url) return; voiceAudio?.pause(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
 async function blobToDataUrl(blob: Blob) { return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(blob) }) }
 async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
@@ -974,7 +1077,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .performer-sidebar, .performer-editor { border:1px solid #e3e9f2; border-radius:12px; background:#fff; }
 .performer-sidebar { padding:9px; align-self:stretch; max-height:calc(100vh - 286px); overflow:auto; }
 .sidebar-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 2px 8px; }
-.sidebar-heading>div { display:grid; gap:2px; }.sidebar-heading span{font-size:12px;color:#8492a6;}
+.sidebar-heading>div:first-child { display:grid; gap:2px; }.sidebar-heading span{font-size:12px;color:#8492a6;}.sidebar-actions{display:flex;align-items:center;gap:5px;}
 .performer-nav-item { width:100%; display:grid; grid-template-columns:34px minmax(0,1fr) 16px; align-items:center; gap:8px; padding:7px 8px; margin-bottom:6px; border:1px solid #e4eaf3; border-radius:9px; background:#fff; text-align:left; cursor:pointer; }
 .performer-nav-item.active { border-color:#409eff; background:#f0f7ff; box-shadow:0 0 0 2px rgba(64,158,255,.08); }
 .performer-nav-item img, .nav-placeholder { width:34px; height:42px; border-radius:6px; object-fit:cover; background:#edf1f6; display:flex; align-items:center; justify-content:center; color:#aab5c4; }
@@ -993,7 +1096,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .collapse-title { min-width:0; flex:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding-right:8px; }
 .collapse-title span { color:#8a98ac; font-size:12px; font-weight:400; }
 .block-title, .preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:9px; }.single-picker{grid-template-columns:1fr;}
+.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:9px; }.single-picker{grid-template-columns:1fr;}.first-voice-summary{display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:6px 10px;border-radius:7px;background:#eff8ff;color:#5d7592;font-size:12px;}
 .selection-preview-strip { display:flex; align-items:center; gap:8px; margin-top:8px; padding:6px 8px; border-radius:8px; background:#f0f7ff; }
 .selection-preview-strip img { width:38px; height:48px; object-fit:cover; border-radius:6px; }.selection-preview-strip span{min-width:0;flex:1;}
 .form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }
@@ -1012,7 +1115,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 :global(.batch-detail-drawer .el-drawer__header) { margin-bottom:0; padding:13px 18px 10px; }
 :global(.batch-detail-drawer .el-drawer__body) { padding:8px 16px; }
 :global(.batch-detail-drawer .el-drawer__footer) { padding:10px 18px; border-top:1px solid #e8edf4; box-shadow:0 -4px 14px rgba(31,45,67,.06); }
-.selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}
+.selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{position:relative;min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card-selected{border-color:#0f8f86;background:#f1fbfa;box-shadow:0 0 0 2px rgba(15,143,134,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}.asset-selection-check{position:absolute;top:16px;left:16px;width:20px;height:20px;display:grid;place-items:center;border:1px solid #c4d0de;border-radius:4px;background:#fff;color:#fff;}.asset-selection-check.checked{border-color:#0f8f86;background:#0f8f86;}.asset-picker-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#6f8096;font-size:12px;}.asset-picker-footer>div{display:flex;gap:8px;flex:0 0 auto;}
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
 @media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
