@@ -50,8 +50,14 @@ async function openBatchPlanPage(page) {
 
 async function closeDetail(page) {
   const closeButton = page.locator('.batch-detail-drawer .el-drawer__close-btn')
-  if (await closeButton.isVisible().catch(() => false)) await closeButton.click()
-  await page.waitForTimeout(300)
+  const drawerBody = page.locator('.batch-detail-drawer .el-drawer__body')
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.evaluate((element) => element.click())
+  }
+  await drawerBody.waitFor({ state: 'hidden', timeout: 8000 }).catch(async () => {
+    await page.keyboard.press('Escape')
+    await drawerBody.waitFor({ state: 'hidden', timeout: 8000 })
+  })
 }
 
 async function deleteDraftPlan(page, planName) {
@@ -81,6 +87,11 @@ async function selectFirstVoice(page) {
   await rootVoiceInput.click()
   const voiceDialog = page.locator('.el-dialog').filter({ hasText: '选择配音声音' }).last()
   await voiceDialog.getByRole('button', { name: '选入', exact: true }).first().click()
+  await voiceDialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(async () => {
+    await page.keyboard.press('Escape')
+    await voiceDialog.waitFor({ state: 'hidden', timeout: 5000 })
+  })
+  await page.waitForTimeout(300)
 }
 
 async function main() {
@@ -135,9 +146,11 @@ async function main() {
     const cornerMarkLock = page.locator('[data-testid="corner-mark-lock"]')
     await cornerScaleSlider.waitFor({ state: 'visible', timeout: 30000 })
     const initialCornerScale = await cornerScaleValue.innerText()
-    const sliderButton = cornerScaleSlider.locator('.el-slider__button')
-    await sliderButton.focus()
-    await sliderButton.press('ArrowRight')
+    const sliderRunway = cornerScaleSlider.locator('.el-slider__runway')
+    const sliderBox = await sliderRunway.boundingBox()
+    if (!sliderBox) throw new Error('角标大小滑块没有可操作的轨道')
+    await sliderRunway.click({ position: { x: Math.floor(sliderBox.width * 0.7), y: Math.max(1, Math.floor(sliderBox.height / 2)) } })
+    await page.waitForTimeout(100)
     const changedCornerScale = await cornerScaleValue.innerText()
     if (changedCornerScale === initialCornerScale) throw new Error('角标大小滑块没有改变执行项配置')
     await cornerMarkLock.click()
@@ -145,10 +158,13 @@ async function main() {
     const sliderDisabled = await cornerScaleSlider.evaluate((element) => element.classList.contains('is-disabled') || element.getAttribute('aria-disabled') === 'true')
     if (!sliderDisabled) throw new Error('角标大小锁定后滑块仍可编辑')
     await page.getByRole('button', { name: '保存草稿', exact: true }).click()
-    await page.waitForTimeout(600)
+    await page.getByText(/草稿配置已保存|计划设置已保存/).first().waitFor({ state: 'visible', timeout: 10000 })
+    await page.locator('.batch-detail-drawer .el-button.is-loading').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {})
+    await page.waitForTimeout(1000)
     steps.push(`角标大小从 ${initialCornerScale} 调整为 ${changedCornerScale}，锁定后保存草稿`)
 
-    await closeDetail(page)
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 })
+    await page.getByRole('button', { name: '新建批量计划' }).waitFor({ state: 'visible', timeout: 30000 })
     const savedRow = page.locator('.table-card .el-table__row').filter({ hasText: planName }).first()
     await savedRow.getByRole('button', { name: '继续配置', exact: true }).click()
     await cornerScaleSlider.waitFor({ state: 'visible', timeout: 30000 })
