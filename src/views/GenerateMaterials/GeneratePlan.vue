@@ -299,6 +299,32 @@
                       <span>{{ performerSummary(activePerformer) }}</span>
                       <el-button v-if="performerVoiceUrl(activePerformer)" link type="primary" @click="playVoice(performerVoiceUrl(activePerformer), performerSummary(activePerformer))"><el-icon><Headset /></el-icon>试听</el-button>
                     </div>
+                    <div v-if="performerReady(activePerformer)" class="human-scale-control-row">
+                      <span class="human-scale-label">数字人出镜大小</span>
+                      <div class="human-scale-control">
+                        <el-slider
+                          data-testid="human-scale-slider"
+                          v-model="activeHumanScale"
+                          :min="0.5"
+                          :max="1.5"
+                          :step="0.05"
+                          :disabled="activeHumanScaleLocked"
+                          :show-tooltip="false"
+                        />
+                        <span data-testid="human-scale-value" class="human-scale-value">{{ Math.round(activeHumanScale * 100) }}%</span>
+                        <el-button
+                          data-testid="human-scale-lock"
+                          size="small"
+                          plain
+                          :type="activeHumanScaleLocked ? 'success' : 'primary'"
+                          @click="toggleHumanScaleLock"
+                        >
+                          <el-icon><Lock v-if="activeHumanScaleLocked" /><Unlock v-else /></el-icon>
+                          {{ activeHumanScaleLocked ? '已锁定' : '锁定' }}
+                        </el-button>
+                      </div>
+                      <small class="asset-empty-warning">只调整当前执行项的数字人出镜大小；声音跟随第1项时，后续执行项仍可单独调整。</small>
+                    </div>
                     </el-collapse-item>
 
                     <el-collapse-item v-if="planForm.processTypes.length" name="enhancement">
@@ -312,35 +338,6 @@
                           <el-option v-for="item in cornerMarkOptions" :key="item.id" :label="item.name" :value="item.id" />
                         </el-select>
                         <small v-if="!cornerMarkOptions.length" class="asset-empty-warning">当前团队暂无可用角标，请先在素材管理中创建。</small>
-                      </div>
-                    </div>
-                    <div v-if="planForm.processTypes.includes('corner_mark')" class="enhancement-row corner-mark-size-row">
-                      <span class="enhancement-label">角标大小</span>
-                      <div class="enhancement-control">
-                        <div class="corner-mark-size-control">
-                          <el-slider
-                            data-testid="corner-mark-scale-slider"
-                            v-model="activeCornerMarkScale"
-                            :min="0.25"
-                            :max="2"
-                            :step="0.05"
-                            :disabled="activeCornerMarkLocked || (activePerformerIndex > 0 && activePerformer.inheritFromFirst)"
-                            :show-tooltip="false"
-                          />
-                          <span data-testid="corner-mark-scale-value" class="corner-mark-scale-value">{{ Math.round(activeCornerMarkScale * 100) }}%</span>
-                          <el-button
-                            data-testid="corner-mark-lock"
-                            size="small"
-                            plain
-                            :type="activeCornerMarkLocked ? 'success' : 'primary'"
-                            :disabled="activePerformerIndex > 0 && activePerformer.inheritFromFirst"
-                            @click="toggleCornerMarkLock"
-                          >
-                            <el-icon><Lock v-if="activeCornerMarkLocked" /><Unlock v-else /></el-icon>
-                            {{ activeCornerMarkLocked ? '已锁定' : '锁定' }}
-                          </el-button>
-                        </div>
-                        <small class="asset-empty-warning">保存后下次打开仍使用当前大小；锁定后需先解锁才能调整。</small>
                       </div>
                     </div>
                     <div v-if="planForm.processTypes.includes('banner_overlay')" class="enhancement-row">
@@ -374,7 +371,6 @@
                     :frame-base64="activePreviewFrame"
                     :script-text="planForm.scriptContent"
                     :corner-mark-url="activeCornerMarkUrl"
-                    :corner-mark-scale="activeCornerMarkScale"
                     :banner-overlay-base64="activeBannerBase64"
                     :process-types="activePreviewProcessTypes"
                     :enable-subtitle="planForm.processTypes.includes('subtitle')"
@@ -518,8 +514,8 @@ interface PerformerConfig {
   digitalHumanId: string | number | null
   voiceId: string | number | null
   inheritFromFirst: boolean
-  videoOptions: { language: string; videoType: 0 | 1 }
-  postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; cornerMarkScale: number; cornerMarkLocked: boolean; bannerOverlayId: string | number | null }
+  videoOptions: { language: string; videoType: 0 | 1; digitalHumanScale: number; digitalHumanScaleLocked: boolean }
+  postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
 interface BatchChild {
   id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: PerformerSelectionMode; digitalHumanId?: string | number | null; voiceId?: string | number | null
@@ -536,7 +532,7 @@ const DEFAULT_SUBTITLE_CONFIG = {
   font_name: '竹言体', font_size: 18, margin_v: 74, primary_colour: '#fee002', outline_colour: '#000000', outline: 1,
   bold: 1, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
 }
-const DEFAULT_CORNER_MARK_SCALE = 1
+const DEFAULT_DIGITAL_HUMAN_SCALE = 1
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
 const layoutStore = useLayoutStore()
 const listLoading = ref(false)
@@ -603,18 +599,18 @@ const activeEffectivePostProcessConfig = computed(() => {
   const first = planForm.performerConfigs[0]
   if (activePerformerIndex.value > 0 && active?.inheritFromFirst && first) return first.postProcessConfig
   return active?.postProcessConfig || {
-    processTypes: [], subtitleSelector: 0, subtitleConfig: DEFAULT_SUBTITLE_CONFIG, cornerMarkId: null, cornerMarkScale: DEFAULT_CORNER_MARK_SCALE, cornerMarkLocked: false, bannerOverlayId: null
+    processTypes: [], subtitleSelector: 0, subtitleConfig: DEFAULT_SUBTITLE_CONFIG, cornerMarkId: null, bannerOverlayId: null
   }
 })
-const activeCornerMarkScale = computed<number>({
-  get: () => normalizeCornerMarkScale(activeEffectivePostProcessConfig.value.cornerMarkScale),
+const activeHumanScale = computed<number>({
+  get: () => normalizeDigitalHumanScale(activePerformer.value?.videoOptions?.digitalHumanScale),
   set: (value) => {
     const config = activePerformer.value
-    if (!config || (activePerformerIndex.value > 0 && config.inheritFromFirst) || activeCornerMarkLocked.value) return
-    config.postProcessConfig.cornerMarkScale = normalizeCornerMarkScale(value)
+    if (!config || activeHumanScaleLocked.value) return
+    config.videoOptions.digitalHumanScale = normalizeDigitalHumanScale(value)
   }
 })
-const activeCornerMarkLocked = computed(() => Boolean(activeEffectivePostProcessConfig.value.cornerMarkLocked))
+const activeHumanScaleLocked = computed(() => Boolean(activePerformer.value?.videoOptions?.digitalHumanScaleLocked))
 const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.cornerMarkId))?.url || '')
 const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((type) => {
   if (type === 'subtitle') return true
@@ -642,12 +638,12 @@ const filteredAssetOptions = computed<any[]>(() => {
 })
 
 function deepClone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
-function normalizeCornerMarkScale(value: any) {
+function normalizeDigitalHumanScale(value: any) {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_CORNER_MARK_SCALE
-  return Math.min(2, Math.max(0.25, parsed))
+  if (!Number.isFinite(parsed)) return DEFAULT_DIGITAL_HUMAN_SCALE
+  return Math.min(1.5, Math.max(0.5, parsed))
 }
-function normalizeCornerMarkLocked(value: any) {
+function normalizeDigitalHumanScaleLocked(value: any) {
   return value === true || value === 1 || value === '1' || value === 'true'
 }
 function getResponseData(response: any): any { return response?.data?.data ?? response?.data ?? {} }
@@ -725,10 +721,15 @@ function validateScheduleForSubmission() {
 
 function createPerformerConfig(inherit = false, selectionMode: PerformerSelectionMode = 'binding'): PerformerConfig {
   const first = planForm.performerConfigs[0]
+  const videoOptions = first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false }
+  if (first && inherit) {
+    videoOptions.digitalHumanScale = DEFAULT_DIGITAL_HUMAN_SCALE
+    videoOptions.digitalHumanScaleLocked = false
+  }
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode, bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
-    videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0 },
-    postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, cornerMarkScale: DEFAULT_CORNER_MARK_SCALE, cornerMarkLocked: false, bannerOverlayId: null }
+    videoOptions,
+    postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
 }
 function selectedBinding(config: PerformerConfig) { return bindingOptions.value.find(item => String(item.id) === String(config.bindingId)) }
@@ -798,7 +799,7 @@ async function createDraftPlan() {
     const response = await createVideoBatchPlan({
       planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: planForm.scriptContent.trim() }, performerConfigs: [],
       scheduleMode: planForm.scheduleMode, scheduledAt: planForm.scheduleMode === 'scheduled' ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
-      videoOptions: { language: 'zh', videoType: 0 },
+      videoOptions: { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false },
       postProcessConfig: { processTypes: [...planForm.processTypes] }
     })
     const id = responseId(response)
@@ -815,13 +816,13 @@ function fillPlanForm(plan: BatchPlan) {
   planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
   planForm.performerConfigs = plan.children.map((child) => ({
     key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
-    inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
-    postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, cornerMarkScale: normalizeCornerMarkScale(child.postProcessConfig?.cornerMarkScale ?? child.postProcessConfig?.corner_mark_scale), cornerMarkLocked: normalizeCornerMarkLocked(child.postProcessConfig?.cornerMarkLocked ?? child.postProcessConfig?.corner_mark_locked), bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
+    inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0, digitalHumanScale: normalizeDigitalHumanScale(child.videoOptions?.digital_human_scale ?? child.videoOptions?.digitalHumanScale ?? child.videoOptions?.human_scale ?? child.videoOptions?.humanScale), digitalHumanScaleLocked: normalizeDigitalHumanScaleLocked(child.videoOptions?.digital_human_scale_locked ?? child.videoOptions?.digitalHumanScaleLocked ?? child.videoOptions?.human_scale_locked ?? child.videoOptions?.humanScaleLocked) },
+    postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
   const first = planForm.performerConfigs[0]
   planForm.performerConfigs.forEach((config, index) => {
     if (index === 0 || !first) return
-    config.inheritFromFirst = JSON.stringify(config.videoOptions) === JSON.stringify(first.videoOptions)
+    config.inheritFromFirst = JSON.stringify(inheritedVideoOptions(config.videoOptions)) === JSON.stringify(inheritedVideoOptions(first.videoOptions))
       && JSON.stringify(config.postProcessConfig) === JSON.stringify(first.postProcessConfig)
   })
   if (planForm.performerConfigs.slice(1).some(config => config.selectionMode === 'first_voice') && first) first.selectionMode = 'first_voice'
@@ -856,11 +857,26 @@ function clearAllPerformers() {
   activeBannerBase64.value = ''
   ElMessage.success('已清空数字人执行项')
 }
-function handleInheritanceChange(value: string | number | boolean) { if (value && activePerformer.value && planForm.performerConfigs[0]) { activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions); activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig) } }
-function toggleCornerMarkLock() {
+function inheritedVideoOptions(options: PerformerConfig['videoOptions']) {
+  const copy = deepClone(options)
+  delete (copy as any).digitalHumanScale
+  delete (copy as any).digitalHumanScaleLocked
+  return copy
+}
+function handleInheritanceChange(value: string | number | boolean) {
+  if (value && activePerformer.value && planForm.performerConfigs[0]) {
+    const currentScale = activePerformer.value.videoOptions.digitalHumanScale
+    const currentLocked = activePerformer.value.videoOptions.digitalHumanScaleLocked
+    activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions)
+    activePerformer.value.videoOptions.digitalHumanScale = normalizeDigitalHumanScale(currentScale)
+    activePerformer.value.videoOptions.digitalHumanScaleLocked = normalizeDigitalHumanScaleLocked(currentLocked)
+    activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig)
+  }
+}
+function toggleHumanScaleLock() {
   const config = activePerformer.value
-  if (!config || (activePerformerIndex.value > 0 && config.inheritFromFirst)) return
-  config.postProcessConfig.cornerMarkLocked = !normalizeCornerMarkLocked(config.postProcessConfig.cornerMarkLocked)
+  if (!config) return
+  config.videoOptions.digitalHumanScaleLocked = !normalizeDigitalHumanScaleLocked(config.videoOptions.digitalHumanScaleLocked)
 }
 function updateActiveSubtitleConfig(value: any) {
   if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return
@@ -895,6 +911,10 @@ function buildDraftPayload() {
   const allPerformersReady = Boolean(first) && planForm.performerConfigs.every(performerReady)
   const configs = planForm.performerConfigs.map((config, index) => {
     const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
+    if (index > 0 && config.inheritFromFirst) {
+      effectiveVideo.digitalHumanScale = normalizeDigitalHumanScale(config.videoOptions.digitalHumanScale)
+      effectiveVideo.digitalHumanScaleLocked = normalizeDigitalHumanScaleLocked(config.videoOptions.digitalHumanScaleLocked)
+    }
     const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
     effectivePost.processTypes = [...planForm.processTypes]
     if (config.selectionMode === 'binding') return { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
@@ -903,7 +923,7 @@ function buildDraftPayload() {
     return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
   const payload: Record<string, any> = {
-    videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0 }),
+    videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false }),
     postProcessConfig: { processTypes: [...planForm.processTypes] },
     scheduleMode: planForm.scheduleMode,
     scheduledAt: scheduledAtPayload()
@@ -1160,10 +1180,13 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .enhancement-label { color:#44546a; font-size:13px; font-weight:600; line-height:1.5; }
 .enhancement-control { display:grid; gap:7px; width:100%; }
 .enhancement-control .el-select { width:100%; }
-.corner-mark-size-control { display:flex; align-items:center; gap:10px; width:100%; }
-.corner-mark-size-control :deep(.el-slider) { flex:1; min-width:120px; }
-.corner-mark-scale-value { flex:0 0 42px; color:#536174; font-size:12px; text-align:right; }
-.corner-mark-size-control .el-button { flex:0 0 auto; min-width:74px; }
+.human-scale-control-row { display:grid; grid-template-columns:112px minmax(0,1fr); align-items:center; gap:8px 10px; margin-top:10px; padding:9px 10px; border:1px solid #e1eaf3; border-radius:8px; background:#fbfdff; }
+.human-scale-label { color:#44546a; font-size:13px; font-weight:600; }
+.human-scale-control { display:flex; align-items:center; gap:10px; min-width:0; }
+.human-scale-control :deep(.el-slider) { flex:1; min-width:120px; }
+.human-scale-value { flex:0 0 44px; color:#536174; font-size:12px; text-align:right; }
+.human-scale-control .el-button { flex:0 0 auto; min-width:74px; }
+.human-scale-control-row > .asset-empty-warning { grid-column:2; margin-top:-2px; }
 .asset-empty-warning { display:block; color:#8a98ac; font-size:12px; line-height:1.6; }
 .subtitle-note { margin-top:8px; padding-top:8px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.5; }
 .preview-panel { position:sticky; top:0; }.preview-heading{min-width:0;flex-wrap:nowrap;margin-bottom:8px;}.preview-heading strong{white-space:nowrap;font-size:15px;}.preview-heading span{flex:0 0 auto;color:#6f8096;font-size:12px;line-height:22px;padding:0 8px;border-radius:999px;background:#f0f4f9;white-space:nowrap;}
