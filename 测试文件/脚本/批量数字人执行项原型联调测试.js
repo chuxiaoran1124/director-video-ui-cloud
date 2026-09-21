@@ -29,15 +29,22 @@ function timestampText(date = new Date()) { return date.toISOString().replace('T
 
 async function login(page) {
   await page.goto(buildAppUrl('/login?from=%2F'), { waitUntil: 'networkidle', timeout: 30000 })
-  await page.locator('input[placeholder="请输入用户名"]').fill(TEST_USERNAME)
-  await page.locator('input[placeholder="请输入密码"]').fill(TEST_PASSWORD)
+  const usernameInput = page.locator('input[placeholder="请输入用户名"]')
+  const passwordInput = page.locator('input[placeholder="请输入密码"]')
+  await usernameInput.click()
+  await usernameInput.fill(TEST_USERNAME)
+  await passwordInput.click()
+  await passwordInput.fill(TEST_PASSWORD)
   await page.getByRole('button', { name: '登录系统' }).click()
   await page.waitForURL((url) => !url.hash.startsWith('#/login'), { timeout: 30000 })
   await page.waitForLoadState('networkidle')
 }
 
 async function openBatchPlanPage(page) {
-  await page.goto(buildAppUrl('/GenerateMaterials/GeneratePlan'), { waitUntil: 'networkidle', timeout: 30000 })
+  const batchMenuItem = page.locator('.el-menu-item').filter({ hasText: '批量数字人生成' }).first()
+  await batchMenuItem.waitFor({ state: 'visible', timeout: 30000 })
+  await batchMenuItem.click()
+  await page.waitForTimeout(800)
   await page.getByRole('button', { name: '新建批量计划' }).waitFor({ state: 'visible', timeout: 30000 })
 }
 
