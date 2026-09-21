@@ -299,32 +299,6 @@
                       <span>{{ performerSummary(activePerformer) }}</span>
                       <el-button v-if="performerVoiceUrl(activePerformer)" link type="primary" @click="playVoice(performerVoiceUrl(activePerformer), performerSummary(activePerformer))"><el-icon><Headset /></el-icon>试听</el-button>
                     </div>
-                    <div v-if="performerReady(activePerformer)" class="human-scale-control-row">
-                      <span class="human-scale-label">数字人出镜大小</span>
-                      <div class="human-scale-control">
-                        <el-slider
-                          data-testid="human-scale-slider"
-                          v-model="activeHumanScale"
-                          :min="0.5"
-                          :max="1.5"
-                          :step="0.05"
-                          :disabled="activeHumanScaleLocked"
-                          :show-tooltip="false"
-                        />
-                        <span data-testid="human-scale-value" class="human-scale-value">{{ Math.round(activeHumanScale * 100) }}%</span>
-                        <el-button
-                          data-testid="human-scale-lock"
-                          size="small"
-                          plain
-                          :type="activeHumanScaleLocked ? 'success' : 'primary'"
-                          @click="toggleHumanScaleLock"
-                        >
-                          <el-icon><Lock v-if="activeHumanScaleLocked" /><Unlock v-else /></el-icon>
-                          {{ activeHumanScaleLocked ? '已锁定' : '锁定' }}
-                        </el-button>
-                      </div>
-                      <small class="asset-empty-warning">只调整当前执行项的数字人出镜大小；声音跟随第1项时，后续执行项仍可单独调整。</small>
-                    </div>
                     </el-collapse-item>
 
                     <el-collapse-item v-if="planForm.processTypes.length" name="enhancement">
@@ -444,12 +418,35 @@
     </el-dialog>
 
     <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body @closed="resetAssetPickerState">
-      <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
+      <div class="asset-picker-toolbar">
+        <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
+        <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
+          <span>图片展示大小{{ humanPickerScaleTargetName ? `：${humanPickerScaleTargetName}` : '' }}</span>
+          <el-slider
+            data-testid="human-picker-scale-slider"
+            v-model="humanPickerScale"
+            :min="0.75"
+            :max="1.5"
+            :step="0.05"
+            :disabled="humanPickerScaleLocked || !humanPickerScaleTargetId"
+            :show-tooltip="false"
+            @change="saveHumanPickerPreference"
+          />
+          <span data-testid="human-picker-scale-value" class="asset-display-size-value">{{ Math.round(humanPickerScale * 100) }}%</span>
+          <el-button data-testid="human-picker-scale-lock" size="small" plain :disabled="!humanPickerScaleTargetId || humanPickerPreferenceSaving" :type="humanPickerScaleLocked ? 'success' : 'primary'" @click="toggleHumanPickerScaleLock">
+            <el-icon><Lock v-if="humanPickerScaleLocked" /><Unlock v-else /></el-icon>
+            {{ humanPickerScaleLocked ? '已锁定' : '锁定' }}
+          </el-button>
+        </div>
+      </div>
       <div v-if="assetPicker.type !== 'voice'" class="asset-grid">
-        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
-          <img v-if="assetCover(item)" :src="assetCover(item)" alt="" />
-          <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
+        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)), 'asset-card-scale-target': assetPicker.type === 'human' && humanPickerScaleTargetId === String(item.id) }" type="button" @click="selectAsset(item)">
+          <div class="asset-card-visual">
+            <img v-if="assetCover(item)" :src="assetCover(item)" :style="assetImageStyle(item)" alt="" />
+            <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
+          </div>
           <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
+          <span v-if="assetPicker.type === 'human'" class="asset-card-scale-badge">{{ Math.round(assetDisplayScale(item) * 100) }}%</span>
           <strong>{{ assetTitle(item) }}</strong>
           <small>{{ assetSubtitle(item) }}</small>
           <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
@@ -495,6 +492,7 @@ import {
   getVoiceList,
   retryVideoBatchChild,
   startVideoBatchPlan,
+  updateDigitalHumanDisplayPreference,
   updateVideoBatchPlan
 } from '/@/api/material'
 
@@ -504,7 +502,7 @@ type StatusKey = 'draft' | 'waiting' | 'running' | 'completed' | 'partial_failed
 type AssetPickerType = 'binding' | 'human' | 'voice'
 
 interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
-interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string }
+interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string; displayScale?: number; displayScaleLocked?: boolean }
 type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice'
 interface BindingOption { id: string | number; name: string; digitalHumanId?: string | number | null; voiceId?: string | number | null; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
@@ -514,7 +512,7 @@ interface PerformerConfig {
   digitalHumanId: string | number | null
   voiceId: string | number | null
   inheritFromFirst: boolean
-  videoOptions: { language: string; videoType: 0 | 1; digitalHumanScale: number; digitalHumanScaleLocked: boolean }
+  videoOptions: { language: string; videoType: 0 | 1 }
   postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
 interface BatchChild {
@@ -532,7 +530,7 @@ const DEFAULT_SUBTITLE_CONFIG = {
   font_name: '竹言体', font_size: 18, margin_v: 74, primary_colour: '#fee002', outline_colour: '#000000', outline: 1,
   bold: 1, bg_mode: 'none', bg_height: 60, blur_strength: 15, bg_colour: 'rgba(0,0,0,0.5)', blur_subtitles: false
 }
-const DEFAULT_DIGITAL_HUMAN_SCALE = 1
+const DEFAULT_HUMAN_PICKER_SCALE = 1
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
 const layoutStore = useLayoutStore()
 const listLoading = ref(false)
@@ -571,6 +569,8 @@ const detail = reactive({ visible: false, loading: false, saving: false, startin
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
 const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
+const humanPickerScaleTargetId = ref<string | null>(null)
+const humanPickerPreferenceSaving = ref(false)
 const preview = reactive({ visible: false, loading: false, url: '', title: '', downloadingId: null as string | number | null })
 const scriptOptions = ref<ScriptOption[]>([])
 const historyOptions = ref<ScriptOption[]>([])
@@ -602,15 +602,6 @@ const activeEffectivePostProcessConfig = computed(() => {
     processTypes: [], subtitleSelector: 0, subtitleConfig: DEFAULT_SUBTITLE_CONFIG, cornerMarkId: null, bannerOverlayId: null
   }
 })
-const activeHumanScale = computed<number>({
-  get: () => normalizeDigitalHumanScale(activePerformer.value?.videoOptions?.digitalHumanScale),
-  set: (value) => {
-    const config = activePerformer.value
-    if (!config || activeHumanScaleLocked.value) return
-    config.videoOptions.digitalHumanScale = normalizeDigitalHumanScale(value)
-  }
-})
-const activeHumanScaleLocked = computed(() => Boolean(activePerformer.value?.videoOptions?.digitalHumanScaleLocked))
 const activeCornerMarkUrl = computed(() => cornerMarkOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.cornerMarkId))?.url || '')
 const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((type) => {
   if (type === 'subtitle') return true
@@ -619,6 +610,17 @@ const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((t
   return false
 }))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
+const humanPickerScaleTarget = computed(() => digitalHumanOptions.value.find(item => String(item.id) === humanPickerScaleTargetId.value) || null)
+const humanPickerScaleTargetName = computed(() => humanPickerScaleTarget.value?.name || '')
+const humanPickerScaleLocked = computed(() => normalizeHumanPickerScaleLocked(humanPickerScaleTarget.value?.displayScaleLocked))
+const humanPickerScale = computed<number>({
+  get: () => normalizeHumanPickerScale(humanPickerScaleTarget.value?.displayScale),
+  set: (value) => {
+    const target = humanPickerScaleTarget.value
+    if (!target || humanPickerScaleLocked.value) return
+    target.displayScale = normalizeHumanPickerScale(value)
+  }
+})
 const firstVoiceFollowerCount = computed(() => {
   const first = planForm.performerConfigs[0]
   if (!first || first.selectionMode !== 'first_voice') return 0
@@ -638,12 +640,12 @@ const filteredAssetOptions = computed<any[]>(() => {
 })
 
 function deepClone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
-function normalizeDigitalHumanScale(value: any) {
+function normalizeHumanPickerScale(value: any) {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_DIGITAL_HUMAN_SCALE
-  return Math.min(1.5, Math.max(0.5, parsed))
+  if (!Number.isFinite(parsed)) return DEFAULT_HUMAN_PICKER_SCALE
+  return Math.min(1.5, Math.max(0.75, parsed))
 }
-function normalizeDigitalHumanScaleLocked(value: any) {
+function normalizeHumanPickerScaleLocked(value: any) {
   return value === true || value === 1 || value === '1' || value === 'true'
 }
 function getResponseData(response: any): any { return response?.data?.data ?? response?.data ?? {} }
@@ -721,14 +723,9 @@ function validateScheduleForSubmission() {
 
 function createPerformerConfig(inherit = false, selectionMode: PerformerSelectionMode = 'binding'): PerformerConfig {
   const first = planForm.performerConfigs[0]
-  const videoOptions = first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false }
-  if (first && inherit) {
-    videoOptions.digitalHumanScale = DEFAULT_DIGITAL_HUMAN_SCALE
-    videoOptions.digitalHumanScaleLocked = false
-  }
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode, bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
-    videoOptions,
+    videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0 },
     postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
 }
@@ -799,7 +796,7 @@ async function createDraftPlan() {
     const response = await createVideoBatchPlan({
       planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: planForm.scriptContent.trim() }, performerConfigs: [],
       scheduleMode: planForm.scheduleMode, scheduledAt: planForm.scheduleMode === 'scheduled' ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
-      videoOptions: { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false },
+      videoOptions: { language: 'zh', videoType: 0 },
       postProcessConfig: { processTypes: [...planForm.processTypes] }
     })
     const id = responseId(response)
@@ -816,13 +813,13 @@ function fillPlanForm(plan: BatchPlan) {
   planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
   planForm.performerConfigs = plan.children.map((child) => ({
     key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
-    inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0, digitalHumanScale: normalizeDigitalHumanScale(child.videoOptions?.digital_human_scale ?? child.videoOptions?.digitalHumanScale ?? child.videoOptions?.human_scale ?? child.videoOptions?.humanScale), digitalHumanScaleLocked: normalizeDigitalHumanScaleLocked(child.videoOptions?.digital_human_scale_locked ?? child.videoOptions?.digitalHumanScaleLocked ?? child.videoOptions?.human_scale_locked ?? child.videoOptions?.humanScaleLocked) },
+    inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
     postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
   const first = planForm.performerConfigs[0]
   planForm.performerConfigs.forEach((config, index) => {
     if (index === 0 || !first) return
-    config.inheritFromFirst = JSON.stringify(inheritedVideoOptions(config.videoOptions)) === JSON.stringify(inheritedVideoOptions(first.videoOptions))
+    config.inheritFromFirst = JSON.stringify(config.videoOptions) === JSON.stringify(first.videoOptions)
       && JSON.stringify(config.postProcessConfig) === JSON.stringify(first.postProcessConfig)
   })
   if (planForm.performerConfigs.slice(1).some(config => config.selectionMode === 'first_voice') && first) first.selectionMode = 'first_voice'
@@ -857,26 +854,11 @@ function clearAllPerformers() {
   activeBannerBase64.value = ''
   ElMessage.success('已清空数字人执行项')
 }
-function inheritedVideoOptions(options: PerformerConfig['videoOptions']) {
-  const copy = deepClone(options)
-  delete (copy as any).digitalHumanScale
-  delete (copy as any).digitalHumanScaleLocked
-  return copy
-}
 function handleInheritanceChange(value: string | number | boolean) {
   if (value && activePerformer.value && planForm.performerConfigs[0]) {
-    const currentScale = activePerformer.value.videoOptions.digitalHumanScale
-    const currentLocked = activePerformer.value.videoOptions.digitalHumanScaleLocked
     activePerformer.value.videoOptions = deepClone(planForm.performerConfigs[0].videoOptions)
-    activePerformer.value.videoOptions.digitalHumanScale = normalizeDigitalHumanScale(currentScale)
-    activePerformer.value.videoOptions.digitalHumanScaleLocked = normalizeDigitalHumanScaleLocked(currentLocked)
     activePerformer.value.postProcessConfig = deepClone(planForm.performerConfigs[0].postProcessConfig)
   }
-}
-function toggleHumanScaleLock() {
-  const config = activePerformer.value
-  if (!config) return
-  config.videoOptions.digitalHumanScaleLocked = !normalizeDigitalHumanScaleLocked(config.videoOptions.digitalHumanScaleLocked)
 }
 function updateActiveSubtitleConfig(value: any) {
   if (!activePerformer.value || (activePerformerIndex.value > 0 && activePerformer.value.inheritFromFirst)) return
@@ -911,10 +893,6 @@ function buildDraftPayload() {
   const allPerformersReady = Boolean(first) && planForm.performerConfigs.every(performerReady)
   const configs = planForm.performerConfigs.map((config, index) => {
     const effectiveVideo = index > 0 && config.inheritFromFirst ? deepClone(first.videoOptions) : deepClone(config.videoOptions)
-    if (index > 0 && config.inheritFromFirst) {
-      effectiveVideo.digitalHumanScale = normalizeDigitalHumanScale(config.videoOptions.digitalHumanScale)
-      effectiveVideo.digitalHumanScaleLocked = normalizeDigitalHumanScaleLocked(config.videoOptions.digitalHumanScaleLocked)
-    }
     const effectivePost = index > 0 && config.inheritFromFirst ? deepClone(first.postProcessConfig) : deepClone(config.postProcessConfig)
     effectivePost.processTypes = [...planForm.processTypes]
     if (config.selectionMode === 'binding') return { selectionMode: 'binding', bindingId: config.bindingId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
@@ -923,7 +901,7 @@ function buildDraftPayload() {
     return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
   const payload: Record<string, any> = {
-    videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0, digitalHumanScale: DEFAULT_DIGITAL_HUMAN_SCALE, digitalHumanScaleLocked: false }),
+    videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0 }),
     postProcessConfig: { processTypes: [...planForm.processTypes] },
     scheduleMode: planForm.scheduleMode,
     scheduledAt: scheduledAtPayload()
@@ -1004,13 +982,13 @@ async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(ro
 async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
 async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
 async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
-async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
+async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '', displayScale: normalizeHumanPickerScale(item.displayScale ?? item.display_scale), displayScaleLocked: normalizeHumanPickerScaleLocked(item.displayScaleLocked ?? item.display_scale_locked) })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
 async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
 async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
 async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
-function openAssetPicker(type: AssetPickerType) {
+async function openAssetPicker(type: AssetPickerType) {
   assetPicker.type = type
   assetPicker.search = ''
   assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
@@ -1020,12 +998,21 @@ function openAssetPicker(type: AssetPickerType) {
       .map(config => String(config.digitalHumanId))
       .filter(id => id !== 'null')
     : []
+  humanPickerScaleTargetId.value = null
   assetPicker.visible = true
-  if (type === 'binding') loadBindings(); else if (type === 'human') loadHumans(); else loadVoices()
+  if (type === 'binding') await loadBindings()
+  else if (type === 'human') {
+    await loadHumans()
+    const currentHumanId = activePerformer.value?.digitalHumanId
+    humanPickerScaleTargetId.value = currentHumanId != null
+      ? String(currentHumanId)
+      : selectedHumanIds.value[0] || (digitalHumanOptions.value[0] ? String(digitalHumanOptions.value[0].id) : null)
+  } else await loadVoices()
 }
-function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = [] }
+function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerScaleTargetId.value = null; humanPickerPreferenceSaving.value = false }
 function selectAsset(item: any) {
   if (!activePerformer.value) return
+  if (assetPicker.type === 'human') humanPickerScaleTargetId.value = String(item.id)
   if (assetPicker.multi && assetPicker.type === 'human') {
     const id = String(item.id)
     selectedHumanIds.value = selectedHumanIds.value.includes(id) ? selectedHumanIds.value.filter(value => value !== id) : [...selectedHumanIds.value, id]
@@ -1036,6 +1023,34 @@ function selectAsset(item: any) {
   else activePerformer.value.voiceId = item.id
   assetPicker.visible = false
   refreshActivePreview()
+}
+function assetDisplayScale(item: AssetOption) { return normalizeHumanPickerScale(item.displayScale) }
+function assetImageStyle(item: AssetOption) {
+  return assetPicker.type === 'human' ? { transform: `scale(${assetDisplayScale(item)})` } : {}
+}
+async function saveHumanPickerPreference() {
+  const target = humanPickerScaleTarget.value
+  if (!target || humanPickerPreferenceSaving.value) return
+  humanPickerPreferenceSaving.value = true
+  try {
+    const response = await updateDigitalHumanDisplayPreference(target.id, {
+      displayScale: assetDisplayScale(target),
+      displayScaleLocked: normalizeHumanPickerScaleLocked(target.displayScaleLocked)
+    })
+    const data = getResponseData(response)
+    target.displayScale = normalizeHumanPickerScale(data?.displayScale ?? target.displayScale)
+    target.displayScaleLocked = normalizeHumanPickerScaleLocked(data?.displayScaleLocked ?? target.displayScaleLocked)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '数字人展示偏好保存失败')
+  } finally {
+    humanPickerPreferenceSaving.value = false
+  }
+}
+async function toggleHumanPickerScaleLock() {
+  const target = humanPickerScaleTarget.value
+  if (!target) return
+  target.displayScaleLocked = !normalizeHumanPickerScaleLocked(target.displayScaleLocked)
+  await saveHumanPickerPreference()
 }
 function confirmMultiHumanSelection() {
   if (!selectedHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
@@ -1180,13 +1195,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .enhancement-label { color:#44546a; font-size:13px; font-weight:600; line-height:1.5; }
 .enhancement-control { display:grid; gap:7px; width:100%; }
 .enhancement-control .el-select { width:100%; }
-.human-scale-control-row { display:grid; grid-template-columns:112px minmax(0,1fr); align-items:center; gap:8px 10px; margin-top:10px; padding:9px 10px; border:1px solid #e1eaf3; border-radius:8px; background:#fbfdff; }
-.human-scale-label { color:#44546a; font-size:13px; font-weight:600; }
-.human-scale-control { display:flex; align-items:center; gap:10px; min-width:0; }
-.human-scale-control :deep(.el-slider) { flex:1; min-width:120px; }
-.human-scale-value { flex:0 0 44px; color:#536174; font-size:12px; text-align:right; }
-.human-scale-control .el-button { flex:0 0 auto; min-width:74px; }
-.human-scale-control-row > .asset-empty-warning { grid-column:2; margin-top:-2px; }
 .asset-empty-warning { display:block; color:#8a98ac; font-size:12px; line-height:1.6; }
 .subtitle-note { margin-top:8px; padding-top:8px; border-top:1px dashed #dfe6ef; color:#6d7d92; font-size:12px; line-height:1.5; }
 .preview-panel { position:sticky; top:0; }.preview-heading{min-width:0;flex-wrap:nowrap;margin-bottom:8px;}.preview-heading strong{white-space:nowrap;font-size:15px;}.preview-heading span{flex:0 0 auto;color:#6f8096;font-size:12px;line-height:22px;padding:0 8px;border-radius:999px;background:#f0f4f9;white-space:nowrap;}
@@ -1195,8 +1203,30 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 :global(.batch-detail-drawer .el-drawer__header) { margin-bottom:0; padding:13px 18px 10px; }
 :global(.batch-detail-drawer .el-drawer__body) { padding:8px 16px; }
 :global(.batch-detail-drawer .el-drawer__footer) { padding:10px 18px; border-top:1px solid #e8edf4; box-shadow:0 -4px 14px rgba(31,45,67,.06); }
-.selector-search { width:min(100%,360px); margin-bottom:14px; }.asset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;max-height:60vh;overflow:auto;padding:4px;}.asset-card{position:relative;min-width:0;padding:10px;border:1px solid #e1e8f1;border-radius:10px;background:#fff;display:grid;gap:8px;text-align:left;cursor:pointer;}.asset-card:hover{border-color:#409eff;box-shadow:0 5px 16px rgba(64,158,255,.12);}.asset-card-selected{border-color:#0f8f86;background:#f1fbfa;box-shadow:0 0 0 2px rgba(15,143,134,.12);}.asset-card img,.asset-card-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#eef2f6;display:flex;align-items:center;justify-content:center;color:#a7b2c1;font-size:34px;}.asset-card strong,.asset-card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.asset-card small{color:#8390a3;}.asset-card .el-button{justify-self:start;}.asset-selection-check{position:absolute;top:16px;left:16px;width:20px;height:20px;display:grid;place-items:center;border:1px solid #c4d0de;border-radius:4px;background:#fff;color:#fff;}.asset-selection-check.checked{border-color:#0f8f86;background:#0f8f86;}.asset-picker-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#6f8096;font-size:12px;}.asset-picker-footer>div{display:flex;gap:8px;flex:0 0 auto;}
+.asset-picker-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.selector-search { width:min(100%,360px); margin-bottom:0; }
+.asset-display-size-control { display:flex; align-items:center; gap:10px; min-width:420px; padding:6px 8px; border:1px solid #e1e8f1; border-radius:8px; background:#fbfdff; color:#536174; font-size:12px; }
+.asset-display-size-control>span:first-child { flex:0 0 auto; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.asset-display-size-control :deep(.el-slider) { flex:1; min-width:130px; }
+.asset-display-size-value { flex:0 0 42px; color:#536174; text-align:right; }
+.asset-display-size-control .el-button { flex:0 0 auto; min-width:74px; }
+.asset-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; max-height:60vh; overflow:auto; padding:4px; }
+.asset-card { position:relative; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:grid; gap:8px; text-align:left; cursor:pointer; overflow:hidden; }
+.asset-card:hover { border-color:#409eff; box-shadow:0 5px 16px rgba(64,158,255,.12); }
+.asset-card-selected { border-color:#0f8f86; background:#f1fbfa; box-shadow:0 0 0 2px rgba(15,143,134,.12); }
+.asset-card-scale-target { border-color:#409eff; box-shadow:0 0 0 2px rgba(64,158,255,.16); }
+.asset-card-visual { width:100%; aspect-ratio:3/4; overflow:hidden; border-radius:8px; background:#eef2f6; display:flex; align-items:center; justify-content:center; }
+.asset-card-visual img { width:100%; height:100%; object-fit:cover; transform-origin:center; transition:transform .15s ease; }
+.asset-card-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#a7b2c1; font-size:34px; }
+.asset-card strong,.asset-card small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.asset-card small { color:#8390a3; }
+.asset-card .el-button { justify-self:start; }
+.asset-selection-check { position:absolute; top:16px; left:16px; width:20px; height:20px; display:grid; place-items:center; border:1px solid #c4d0de; border-radius:4px; background:#fff; color:#fff; }
+.asset-selection-check.checked { border-color:#0f8f86; background:#0f8f86; }
+.asset-card-scale-badge { position:absolute; top:16px; right:16px; padding:2px 6px; border-radius:999px; background:rgba(26,39,58,.72); color:#fff; font-size:11px; line-height:16px; }
+.asset-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#6f8096; font-size:12px; }
+.asset-picker-footer>div { display:flex; gap:8px; flex:0 0 auto; }
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
 @media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-picker-toolbar{flex-direction:column}.asset-display-size-control{width:100%;min-width:0}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>

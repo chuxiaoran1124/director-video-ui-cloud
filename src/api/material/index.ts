@@ -1747,6 +1747,17 @@ export function getBannerOverlayList(page: number = 1, pageSize: number = 50, se
     })
 }
 
+/**
+ * 保存当前租户下单个数字人的选择器图片展示偏好。
+ */
+export function updateDigitalHumanDisplayPreference(id: number | string, data: { displayScale: number; displayScaleLocked: boolean }) {
+    return request({
+        url: `/api/material/digital-human/${id}/display-preference/`,
+        method: 'post',
+        data
+    })
+}
+
 // ===== 字幕模板 (SubtitleTemplate) 相关接口 =====
 
 /** 获取当前用户所有字幕模�?*/
