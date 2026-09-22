@@ -91,7 +91,9 @@ async function selectFirstVoice(page) {
   await runway.click({ position: { x: Math.floor(box.width * 0.7), y: Math.max(1, Math.floor(box.height / 2)) } })
   await page.waitForTimeout(100)
   const changedScale = await scaleValue.innerText()
-  if (changedScale === initialScale) throw new Error('数字人图片展示大小滑块没有改变当前数字人的展示比例')
+  if (changedScale === initialScale) throw new Error('数字人图片展示大小滑块没有改变统一展示比例')
+  const transforms = await humanDialog.locator('.asset-card img').evaluateAll((elements) => elements.slice(0, 3).map((element) => getComputedStyle(element).transform))
+  if (transforms.length < 2 || new Set(transforms).size !== 1) throw new Error('数字人图片展示大小没有同步应用到全部卡片')
   await scaleLock.click()
   if ((await scaleLock.innerText()).trim() !== '已锁定') throw new Error('数字人图片展示大小没有进入锁定状态')
   const sliderDisabled = await scaleSlider.evaluate((element) => element.classList.contains('is-disabled') || element.getAttribute('aria-disabled') === 'true')
@@ -109,7 +111,7 @@ async function selectFirstVoice(page) {
     await voiceDialog.waitFor({ state: 'hidden', timeout: 5000 })
   })
   await page.waitForTimeout(300)
-  return { initialScale, changedScale }
+  return { initialScale, changedScale, transforms }
 }
 
 async function main() {
@@ -161,7 +163,7 @@ async function main() {
     await page.getByText(/草稿配置已保存|计划设置已保存/).first().waitFor({ state: 'visible', timeout: 10000 })
     await page.locator('.batch-detail-drawer .el-button.is-loading').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {})
     await page.waitForTimeout(1000)
-    steps.push(`选择器内第1个数字人的图片展示大小从 ${scaleState.initialScale} 调整为 ${scaleState.changedScale}，锁定后保存草稿`)
+    steps.push(`选择器内全部数字人的图片展示大小从 ${scaleState.initialScale} 统一调整为 ${scaleState.changedScale}，锁定后保存草稿`)
 
     await page.reload({ waitUntil: 'networkidle', timeout: 30000 })
     await page.getByRole('button', { name: '新建批量计划' }).waitFor({ state: 'visible', timeout: 30000 })
@@ -175,8 +177,10 @@ async function main() {
     await reopenedScaleValue.waitFor({ state: 'visible', timeout: 30000 })
     if ((await reopenedScaleValue.innerText()) !== scaleState.changedScale) throw new Error('关闭并重新打开后数字人图片展示大小没有恢复')
     if ((await reopenedScaleLock.innerText()).trim() !== '已锁定') throw new Error('关闭并重新打开后数字人锁定状态没有恢复')
+    const reopenedTransforms = await reopenedHumanDialog.locator('.asset-card img').evaluateAll((elements) => elements.slice(0, 3).map((element) => getComputedStyle(element).transform))
+    if (reopenedTransforms.length < 2 || new Set(reopenedTransforms).size !== 1) throw new Error('重新打开后数字人图片展示大小没有继续同步到全部卡片')
     await reopenedHumanDialog.getByRole('button', { name: '取消', exact: true }).click()
-    steps.push('关闭并重新打开选择器后，第1个数字人的图片展示大小和锁定状态均从后端恢复')
+    steps.push('关闭并重新打开选择器后，全部数字人的统一图片展示大小和锁定状态均从后端恢复')
 
     await page.locator('.performer-nav-item').nth(1).click()
     if (!(await page.getByText('跟随声音', { exact: true }).count())) throw new Error('后续执行项没有显示跟随声音')
@@ -226,7 +230,7 @@ async function main() {
     `- 失败：${report.summary.failed}`, '',
     '## 覆盖操作', '',
     ...steps.map(step => `- ${step}`), '',
-    error ? `## 失败原因\n\n${error}` : '## 结论\n\n添加空白执行项、清空、多选覆盖、声音跟随只读、单独选择无勾选框，以及每个数字人图片展示大小独立调整、锁定和关闭重开后从后端恢复等操作均通过。'
+    error ? `## 失败原因\n\n${error}` : '## 结论\n\n添加空白执行项、清空、多选覆盖、声音跟随只读、单独选择无勾选框，以及全部数字人图片展示大小统一调整、锁定和关闭重开后从后端恢复等操作均通过。'
   ].join('\n'), 'utf8')
   if (status === 'failed') process.exitCode = 1
 }

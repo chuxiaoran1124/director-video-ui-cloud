@@ -1737,6 +1737,14 @@ export function downloadFileByProxy(fileUrl: string, taskId?: string | number, a
     })
 }
 
+/** 获取当前租户和登录用户的数字人选择器统一展示偏好。 */
+export function getDigitalHumanPickerPreference() {
+    return request({
+        url: '/api/material/digital-human/display-preference/',
+        method: 'get'
+    })
+}
+
 /** 获取横幅素材列表，批量数字人计划复用单条生成的横幅选择体验。 */
 export function getBannerOverlayList(page: number = 1, pageSize: number = 50, search: Record<string, any> = {}) {
     return request({
@@ -1747,12 +1755,10 @@ export function getBannerOverlayList(page: number = 1, pageSize: number = 50, se
     })
 }
 
-/**
- * 保存当前租户下单个数字人的选择器图片展示偏好。
- */
-export function updateDigitalHumanDisplayPreference(id: number | string, data: { displayScale: number; displayScaleLocked: boolean }) {
+/** 保存当前租户和登录用户的数字人选择器统一展示偏好。 */
+export function updateDigitalHumanPickerPreference(data: { displayScale: number; displayScaleLocked: boolean }) {
     return request({
-        url: `/api/material/digital-human/${id}/display-preference/`,
+        url: '/api/material/digital-human/display-preference/',
         method: 'post',
         data
     })

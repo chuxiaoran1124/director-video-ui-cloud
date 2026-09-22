@@ -421,32 +421,31 @@
       <div class="asset-picker-toolbar">
         <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
         <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
-          <span>图片展示大小{{ humanPickerScaleTargetName ? `：${humanPickerScaleTargetName}` : '' }}</span>
+          <span>全部图片展示大小</span>
           <el-slider
             data-testid="human-picker-scale-slider"
             v-model="humanPickerScale"
             :min="0.75"
             :max="1.5"
             :step="0.05"
-            :disabled="humanPickerScaleLocked || !humanPickerScaleTargetId"
+            :disabled="humanPickerScaleLocked || humanPickerPreferenceSaving"
             :show-tooltip="false"
             @change="saveHumanPickerPreference"
           />
           <span data-testid="human-picker-scale-value" class="asset-display-size-value">{{ Math.round(humanPickerScale * 100) }}%</span>
-          <el-button data-testid="human-picker-scale-lock" size="small" plain :disabled="!humanPickerScaleTargetId || humanPickerPreferenceSaving" :type="humanPickerScaleLocked ? 'success' : 'primary'" @click="toggleHumanPickerScaleLock">
+          <el-button data-testid="human-picker-scale-lock" size="small" plain :disabled="humanPickerPreferenceSaving" :type="humanPickerScaleLocked ? 'success' : 'primary'" @click="toggleHumanPickerScaleLock">
             <el-icon><Lock v-if="humanPickerScaleLocked" /><Unlock v-else /></el-icon>
             {{ humanPickerScaleLocked ? '已锁定' : '锁定' }}
           </el-button>
         </div>
       </div>
       <div v-if="assetPicker.type !== 'voice'" class="asset-grid">
-        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)), 'asset-card-scale-target': assetPicker.type === 'human' && humanPickerScaleTargetId === String(item.id) }" type="button" @click="selectAsset(item)">
+        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
           <div class="asset-card-visual">
-            <img v-if="assetCover(item)" :src="assetCover(item)" :style="assetImageStyle(item)" alt="" />
+            <img v-if="assetCover(item)" :src="assetCover(item)" :style="assetImageStyle()" alt="" />
             <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
           </div>
           <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
-          <span v-if="assetPicker.type === 'human'" class="asset-card-scale-badge">{{ Math.round(assetDisplayScale(item) * 100) }}%</span>
           <strong>{{ assetTitle(item) }}</strong>
           <small>{{ assetSubtitle(item) }}</small>
           <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
@@ -485,6 +484,7 @@ import {
   getBindingList,
   getCornerMarkList,
   getDigitalHumanList,
+  getDigitalHumanPickerPreference,
   getScriptHistoryList,
   getScriptPaginateList,
   getVideoBatchPlanDetail,
@@ -492,7 +492,7 @@ import {
   getVoiceList,
   retryVideoBatchChild,
   startVideoBatchPlan,
-  updateDigitalHumanDisplayPreference,
+  updateDigitalHumanPickerPreference,
   updateVideoBatchPlan
 } from '/@/api/material'
 
@@ -502,7 +502,7 @@ type StatusKey = 'draft' | 'waiting' | 'running' | 'completed' | 'partial_failed
 type AssetPickerType = 'binding' | 'human' | 'voice'
 
 interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
-interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string; displayScale?: number; displayScaleLocked?: boolean }
+interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string }
 type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice'
 interface BindingOption { id: string | number; name: string; digitalHumanId?: string | number | null; voiceId?: string | number | null; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
@@ -569,7 +569,8 @@ const detail = reactive({ visible: false, loading: false, saving: false, startin
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
 const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
-const humanPickerScaleTargetId = ref<string | null>(null)
+const humanPickerScale = ref(1)
+const humanPickerScaleLocked = ref(false)
 const humanPickerPreferenceSaving = ref(false)
 const preview = reactive({ visible: false, loading: false, url: '', title: '', downloadingId: null as string | number | null })
 const scriptOptions = ref<ScriptOption[]>([])
@@ -610,17 +611,6 @@ const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((t
   return false
 }))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
-const humanPickerScaleTarget = computed(() => digitalHumanOptions.value.find(item => String(item.id) === humanPickerScaleTargetId.value) || null)
-const humanPickerScaleTargetName = computed(() => humanPickerScaleTarget.value?.name || '')
-const humanPickerScaleLocked = computed(() => normalizeHumanPickerScaleLocked(humanPickerScaleTarget.value?.displayScaleLocked))
-const humanPickerScale = computed<number>({
-  get: () => normalizeHumanPickerScale(humanPickerScaleTarget.value?.displayScale),
-  set: (value) => {
-    const target = humanPickerScaleTarget.value
-    if (!target || humanPickerScaleLocked.value) return
-    target.displayScale = normalizeHumanPickerScale(value)
-  }
-})
 const firstVoiceFollowerCount = computed(() => {
   const first = planForm.performerConfigs[0]
   if (!first || first.selectionMode !== 'first_voice') return 0
@@ -982,7 +972,7 @@ async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(ro
 async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
 async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
 async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
-async function loadHumans() { if (resourcesLoaded.humans) return; const response = await getDigitalHumanList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '', displayScale: normalizeHumanPickerScale(item.displayScale ?? item.display_scale), displayScaleLocked: normalizeHumanPickerScaleLocked(item.displayScaleLocked ?? item.display_scale_locked) })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
+async function loadHumans() { if (resourcesLoaded.humans) return; const [humanResponse, preferenceResponse] = await Promise.all([getDigitalHumanList(), getDigitalHumanPickerPreference()]); const data = getResponseData(humanResponse); const preference = getResponseData(preferenceResponse); const items = Array.isArray(data) ? data : data?.data || data?.items || []; humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale); humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked); digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
 async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
 async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
 async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
@@ -998,21 +988,15 @@ async function openAssetPicker(type: AssetPickerType) {
       .map(config => String(config.digitalHumanId))
       .filter(id => id !== 'null')
     : []
-  humanPickerScaleTargetId.value = null
   assetPicker.visible = true
   if (type === 'binding') await loadBindings()
   else if (type === 'human') {
     await loadHumans()
-    const currentHumanId = activePerformer.value?.digitalHumanId
-    humanPickerScaleTargetId.value = currentHumanId != null
-      ? String(currentHumanId)
-      : selectedHumanIds.value[0] || (digitalHumanOptions.value[0] ? String(digitalHumanOptions.value[0].id) : null)
   } else await loadVoices()
 }
-function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerScaleTargetId.value = null; humanPickerPreferenceSaving.value = false }
+function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false }
 function selectAsset(item: any) {
   if (!activePerformer.value) return
-  if (assetPicker.type === 'human') humanPickerScaleTargetId.value = String(item.id)
   if (assetPicker.multi && assetPicker.type === 'human') {
     const id = String(item.id)
     selectedHumanIds.value = selectedHumanIds.value.includes(id) ? selectedHumanIds.value.filter(value => value !== id) : [...selectedHumanIds.value, id]
@@ -1024,22 +1008,19 @@ function selectAsset(item: any) {
   assetPicker.visible = false
   refreshActivePreview()
 }
-function assetDisplayScale(item: AssetOption) { return normalizeHumanPickerScale(item.displayScale) }
-function assetImageStyle(item: AssetOption) {
-  return assetPicker.type === 'human' ? { transform: `scale(${assetDisplayScale(item)})` } : {}
+function assetImageStyle() {
+  return assetPicker.type === 'human' ? { transform: `scale(${humanPickerScale.value})` } : {}
 }
 async function saveHumanPickerPreference() {
-  const target = humanPickerScaleTarget.value
-  if (!target || humanPickerPreferenceSaving.value) return
   humanPickerPreferenceSaving.value = true
   try {
-    const response = await updateDigitalHumanDisplayPreference(target.id, {
-      displayScale: assetDisplayScale(target),
-      displayScaleLocked: normalizeHumanPickerScaleLocked(target.displayScaleLocked)
+    const response = await updateDigitalHumanPickerPreference({
+      displayScale: normalizeHumanPickerScale(humanPickerScale.value),
+      displayScaleLocked: normalizeHumanPickerScaleLocked(humanPickerScaleLocked.value)
     })
     const data = getResponseData(response)
-    target.displayScale = normalizeHumanPickerScale(data?.displayScale ?? target.displayScale)
-    target.displayScaleLocked = normalizeHumanPickerScaleLocked(data?.displayScaleLocked ?? target.displayScaleLocked)
+    humanPickerScale.value = normalizeHumanPickerScale(data?.displayScale ?? humanPickerScale.value)
+    humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(data?.displayScaleLocked ?? humanPickerScaleLocked.value)
   } catch (error: any) {
     ElMessage.error(error?.message || '数字人展示偏好保存失败')
   } finally {
@@ -1047,9 +1028,7 @@ async function saveHumanPickerPreference() {
   }
 }
 async function toggleHumanPickerScaleLock() {
-  const target = humanPickerScaleTarget.value
-  if (!target) return
-  target.displayScaleLocked = !normalizeHumanPickerScaleLocked(target.displayScaleLocked)
+  humanPickerScaleLocked.value = !humanPickerScaleLocked.value
   await saveHumanPickerPreference()
 }
 function confirmMultiHumanSelection() {
@@ -1214,7 +1193,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-card { position:relative; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:grid; gap:8px; text-align:left; cursor:pointer; overflow:hidden; }
 .asset-card:hover { border-color:#409eff; box-shadow:0 5px 16px rgba(64,158,255,.12); }
 .asset-card-selected { border-color:#0f8f86; background:#f1fbfa; box-shadow:0 0 0 2px rgba(15,143,134,.12); }
-.asset-card-scale-target { border-color:#409eff; box-shadow:0 0 0 2px rgba(64,158,255,.16); }
 .asset-card-visual { width:100%; aspect-ratio:3/4; overflow:hidden; border-radius:8px; background:#eef2f6; display:flex; align-items:center; justify-content:center; }
 .asset-card-visual img { width:100%; height:100%; object-fit:cover; transform-origin:center; transition:transform .15s ease; }
 .asset-card-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#a7b2c1; font-size:34px; }
@@ -1223,7 +1201,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-card .el-button { justify-self:start; }
 .asset-selection-check { position:absolute; top:16px; left:16px; width:20px; height:20px; display:grid; place-items:center; border:1px solid #c4d0de; border-radius:4px; background:#fff; color:#fff; }
 .asset-selection-check.checked { border-color:#0f8f86; background:#0f8f86; }
-.asset-card-scale-badge { position:absolute; top:16px; right:16px; padding:2px 6px; border-radius:999px; background:rgba(26,39,58,.72); color:#fff; font-size:11px; line-height:16px; }
 .asset-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#6f8096; font-size:12px; }
 .asset-picker-footer>div { display:flex; gap:8px; flex:0 0 auto; }
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
