@@ -421,7 +421,7 @@
       <div class="asset-picker-toolbar">
         <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
         <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
-          <span>全部图片展示大小</span>
+          <span>卡片展示大小</span>
           <el-slider
             data-testid="human-picker-scale-slider"
             v-model="humanPickerScale"
@@ -439,10 +439,11 @@
           </el-button>
         </div>
       </div>
-      <div v-if="assetPicker.type !== 'voice'" class="asset-grid">
+      <div v-if="assetPicker.type === 'human'" class="asset-display-size-hint">缩小时卡片会自动变小并重新排版，间距保持不变，后面的数字人会顺滑顶上来；当前每行 {{ humanPickerColumns }} 个。</div>
+      <TransitionGroup v-if="assetPicker.type !== 'voice'" name="asset-card-reflow" tag="div" class="asset-grid" :class="{ 'asset-grid-human': assetPicker.type === 'human' }" :style="assetPicker.type === 'human' ? humanPickerGridStyle : undefined">
         <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
           <div class="asset-card-visual">
-            <img v-if="assetCover(item)" :src="assetCover(item)" :style="assetImageStyle()" alt="" />
+            <img v-if="assetCover(item)" :src="assetCover(item)" alt="" />
             <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
           </div>
           <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
@@ -450,7 +451,7 @@
           <small>{{ assetSubtitle(item) }}</small>
           <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
         </button>
-      </div>
+      </TransitionGroup>
       <el-table v-else :data="filteredAssetOptions" height="440" border :header-cell-style="tableHeaderStyle">
         <el-table-column prop="name" label="声音名称" min-width="220" />
         <el-table-column prop="language" label="语言" min-width="120" />
@@ -628,6 +629,15 @@ const filteredAssetOptions = computed<any[]>(() => {
   if (!keyword) return source
   return source.filter((item: any) => `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''}`.toLowerCase().includes(keyword))
 })
+const humanPickerColumns = computed(() => {
+  const scale = normalizeHumanPickerScale(humanPickerScale.value)
+  if (scale <= 0.75) return 8
+  if (scale <= 0.85) return 7
+  if (scale <= 1) return 6
+  if (scale <= 1.15) return 5
+  return 4
+})
+const humanPickerGridStyle = computed(() => ({ '--human-picker-columns': humanPickerColumns.value } as Record<string, string | number>))
 
 function deepClone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
 function normalizeHumanPickerScale(value: any) {
@@ -972,7 +982,7 @@ async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(ro
 async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
 async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
 async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
-async function loadHumans() { if (resourcesLoaded.humans) return; const [humanResponse, preferenceResponse] = await Promise.all([getDigitalHumanList(), getDigitalHumanPickerPreference()]); const data = getResponseData(humanResponse); const preference = getResponseData(preferenceResponse); const items = Array.isArray(data) ? data : data?.data || data?.items || []; humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale); humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked); digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
+async function loadHumans(force = false) { if (resourcesLoaded.humans && !force) return; const [humanResponse, preferenceResponse] = await Promise.all([getDigitalHumanList(), getDigitalHumanPickerPreference()]); const data = getResponseData(humanResponse); const preference = getResponseData(preferenceResponse); const items = Array.isArray(data) ? data : data?.data || data?.items || []; humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale); humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked); digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
 async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
 async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
 async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
@@ -991,7 +1001,7 @@ async function openAssetPicker(type: AssetPickerType) {
   assetPicker.visible = true
   if (type === 'binding') await loadBindings()
   else if (type === 'human') {
-    await loadHumans()
+    await loadHumans(true)
   } else await loadVoices()
 }
 function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false }
@@ -1007,9 +1017,6 @@ function selectAsset(item: any) {
   else activePerformer.value.voiceId = item.id
   assetPicker.visible = false
   refreshActivePreview()
-}
-function assetImageStyle() {
-  return assetPicker.type === 'human' ? { transform: `scale(${humanPickerScale.value})` } : {}
 }
 async function saveHumanPickerPreference() {
   humanPickerPreferenceSaving.value = true
@@ -1189,12 +1196,17 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-display-size-control :deep(.el-slider) { flex:1; min-width:130px; }
 .asset-display-size-value { flex:0 0 42px; color:#536174; text-align:right; }
 .asset-display-size-control .el-button { flex:0 0 auto; min-width:74px; }
-.asset-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; max-height:60vh; overflow:auto; padding:4px; }
-.asset-card { position:relative; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:grid; gap:8px; text-align:left; cursor:pointer; overflow:hidden; }
+.asset-display-size-hint { margin:-4px 0 10px; padding:7px 10px; border-radius:6px; background:#f1fbfa; color:#4b6d73; font-size:12px; }
+.asset-grid { --human-picker-columns:6; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); column-gap:14px; row-gap:14px; align-items:start; justify-content:start; max-height:60vh; overflow:auto; padding:4px; transition:grid-template-columns .28s cubic-bezier(.2,.8,.2,1); }
+.asset-grid-human { grid-template-columns:repeat(var(--human-picker-columns),minmax(0,1fr)); }
+.asset-card { position:relative; width:100%; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:grid; gap:8px; text-align:left; cursor:pointer; overflow:hidden; transition:width .28s cubic-bezier(.2,.8,.2,1), border-color .18s ease, box-shadow .18s ease; }
+.asset-card-reflow-move { transition:transform .34s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1); }
+.asset-card-reflow-enter-active { animation:asset-card-fly-up .34s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes asset-card-fly-up { from { opacity:0; transform:translateY(18px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
 .asset-card:hover { border-color:#409eff; box-shadow:0 5px 16px rgba(64,158,255,.12); }
 .asset-card-selected { border-color:#0f8f86; background:#f1fbfa; box-shadow:0 0 0 2px rgba(15,143,134,.12); }
 .asset-card-visual { width:100%; aspect-ratio:3/4; overflow:hidden; border-radius:8px; background:#eef2f6; display:flex; align-items:center; justify-content:center; }
-.asset-card-visual img { width:100%; height:100%; object-fit:cover; transform-origin:center; transition:transform .15s ease; }
+.asset-card-visual img { width:100%; height:100%; object-fit:cover; }
 .asset-card-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#a7b2c1; font-size:34px; }
 .asset-card strong,.asset-card small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .asset-card small { color:#8390a3; }
@@ -1204,6 +1216,6 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#6f8096; font-size:12px; }
 .asset-picker-footer>div { display:flex; gap:8px; flex:0 0 auto; }
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
-@media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-picker-toolbar{flex-direction:column}.asset-display-size-control{width:100%;min-width:0}.asset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid:not(.asset-grid-human){grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-picker-toolbar{flex-direction:column}.asset-display-size-control{width:100%;min-width:0}.asset-grid:not(.asset-grid-human){grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>
