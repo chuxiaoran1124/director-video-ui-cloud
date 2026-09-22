@@ -440,10 +440,10 @@
         </div>
       </div>
       <div v-if="assetPicker.type === 'human'" class="asset-display-size-hint">缩小时卡片会自动变小并重新排版，间距保持不变，后面的数字人会顺滑顶上来；当前每行 {{ humanPickerColumns }} 个。</div>
-      <TransitionGroup v-if="assetPicker.type !== 'voice'" name="asset-card-reflow" tag="div" class="asset-grid" :class="{ 'asset-grid-human': assetPicker.type === 'human' }" :style="assetPicker.type === 'human' ? humanPickerGridStyle : undefined">
+      <TransitionGroup v-if="assetPicker.type !== 'voice' && filteredAssetOptions.length" name="asset-card-reflow" tag="div" class="asset-grid" :class="{ 'asset-grid-human': assetPicker.type === 'human' }" :style="assetPicker.type === 'human' ? humanPickerGridStyle : undefined">
         <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
           <div class="asset-card-visual">
-            <img v-if="assetCover(item)" :src="assetCover(item)" alt="" />
+            <img v-if="assetImageUsable(item)" :src="assetCover(item)" alt="" @error="handleAssetImageError(item)" />
             <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
           </div>
           <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
@@ -452,6 +452,7 @@
           <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
         </button>
       </TransitionGroup>
+      <el-empty v-else-if="assetPicker.type !== 'voice'" :description="assetPickerEmptyText" :image-size="72" />
       <el-table v-else :data="filteredAssetOptions" height="440" border :header-cell-style="tableHeaderStyle">
         <el-table-column prop="name" label="声音名称" min-width="220" />
         <el-table-column prop="language" label="语言" min-width="120" />
@@ -579,9 +580,11 @@ const historyOptions = ref<ScriptOption[]>([])
 const bindingOptions = ref<BindingOption[]>([])
 const digitalHumanOptions = ref<AssetOption[]>([])
 const voiceOptions = ref<AssetOption[]>([])
+const assetImageFailures = reactive<Record<string, boolean>>({})
 const cornerMarkOptions = ref<Array<{ id: string | number; name: string; url?: string }>>([])
 const bannerOverlayOptions = ref<Array<{ id: string | number; name: string; url?: string }>>([])
 const resourcesLoaded = reactive({ scripts: false, history: false, bindings: false, humans: false, voices: false, corners: false, banners: false })
+let tenantResourceGeneration = 0
 
 const createRules = {
   planName: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
@@ -612,6 +615,7 @@ const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((t
   return false
 }))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
+const assetPickerEmptyText = computed(() => ({ binding: '暂无可用绑定关系', human: '暂无可用数字人', voice: '暂无可用配音声音' }[assetPicker.type]))
 const firstVoiceFollowerCount = computed(() => {
   const first = planForm.performerConfigs[0]
   if (!first || first.selectionMode !== 'first_voice') return 0
@@ -773,6 +777,10 @@ function normalizeBatchSubtitleConfig(rawConfig: any) {
   return deepClone(isLegacyBatchDefault || !Object.keys(config).length ? DEFAULT_SUBTITLE_CONFIG : config)
 }
 function assetCover(item: any) { return item.coverUrl || '' }
+function assetImageKey(item: any) { return `${assetPicker.type}:${String(item.id)}` }
+function assetImageUsable(item: any) { return Boolean(assetCover(item)) && !assetImageFailures[assetImageKey(item)] }
+function handleAssetImageError(item: any) { assetImageFailures[assetImageKey(item)] = true }
+function clearAssetImageFailures() { Object.keys(assetImageFailures).forEach(key => delete assetImageFailures[key]) }
 function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
 function assetSubtitle(item: any) { return assetPicker.type === 'binding' ? `${item.digitalHumanName} + ${item.voiceName}` : item.language || '' }
 
@@ -974,18 +982,87 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
 }
 async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
-function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; voiceAudio?.pause() }
+function stopVoicePreview() {
+  const audio = voiceAudio
+  voiceAudio = null
+  if (!audio) return
+  audio.pause()
+  audio.currentTime = 0
+}
+function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; stopVoicePreview() }
 async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm(row.statusKey === 'draft' ? '取消后，该草稿将不能继续配置或提交。' : '取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
 async function deletePlan(row: BatchPlan) { try { await ElMessageBox.confirm('删除未提交计划后不可恢复。', '删除计划', { type: 'warning' }); await deleteVideoBatchPlan(row.id); ElMessage.success('计划已删除'); await loadPlanList() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '删除失败') } }
 async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(row.id); ElMessage.success('失败任务已重新进入队列'); await refreshDetail() } catch (error: any) { ElMessage.error(error?.message || '重试失败') } }
 
-async function loadScripts() { if (resourcesLoaded.scripts) return; const response = await getScriptPaginateList(1, 200); const { items } = getPageData(response); scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time })); resourcesLoaded.scripts = true }
-async function loadHistory() { if (resourcesLoaded.history) return; const response = await getScriptHistoryList(1, 200); const { items } = getPageData(response); historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time })); resourcesLoaded.history = true }
-async function loadBindings() { if (resourcesLoaded.bindings) return; const response = await getBindingList(1, 200); const { items } = getPageData(response); bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.bindings = true }
-async function loadHumans(force = false) { if (resourcesLoaded.humans && !force) return; const [humanResponse, preferenceResponse] = await Promise.all([getDigitalHumanList(), getDigitalHumanPickerPreference()]); const data = getResponseData(humanResponse); const preference = getResponseData(preferenceResponse); const items = Array.isArray(data) ? data : data?.data || data?.items || []; humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale); humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked); digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null); resourcesLoaded.humans = true }
-async function loadVoices() { if (resourcesLoaded.voices) return; const response = await getVoiceList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null); resourcesLoaded.voices = true }
-async function loadCorners(force = false) { if (resourcesLoaded.corners && !force) return; const response = await getCornerMarkList(); const data = getResponseData(response); const items = Array.isArray(data) ? data : data?.data || data?.items || []; cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null); resourcesLoaded.corners = true }
-async function loadBanners(force = false) { if (resourcesLoaded.banners && !force) return; const response = await getBannerOverlayList(1, 200); const { items } = getPageData(response); bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null); resourcesLoaded.banners = true }
+async function loadScripts() {
+  if (resourcesLoaded.scripts) return
+  const generation = tenantResourceGeneration
+  const response = await getScriptPaginateList(1, 200)
+  if (generation !== tenantResourceGeneration) return
+  const { items } = getPageData(response)
+  scriptOptions.value = items.map((item: any) => ({ id: item.scriptId ?? item.id, title: item.scriptTitle || item.title || '未命名脚本', content: item.scriptContent || item.content || '', tags: Array.isArray(item.scriptTags || item.tags) ? item.scriptTags || item.tags : String(item.scriptTags || item.tags || '').split('|').filter(Boolean), createTime: item.createTime || item.create_time }))
+  resourcesLoaded.scripts = true
+}
+async function loadHistory() {
+  if (resourcesLoaded.history) return
+  const generation = tenantResourceGeneration
+  const response = await getScriptHistoryList(1, 200)
+  if (generation !== tenantResourceGeneration) return
+  const { items } = getPageData(response)
+  historyOptions.value = items.map((item: any) => ({ id: item.taskId ?? item.id, title: '', content: item.taskContent || item.content || '', tags: [], createTime: item.usedTime || item.createTime || item.create_time }))
+  resourcesLoaded.history = true
+}
+async function loadBindings() {
+  if (resourcesLoaded.bindings) return
+  const generation = tenantResourceGeneration
+  const response = await getBindingList(1, 200)
+  if (generation !== tenantResourceGeneration) return
+  const { items } = getPageData(response)
+  bindingOptions.value = items.map((item: any) => ({ id: item.id ?? item.bindingId, name: item.title || item.name || `${item.digitalHumanName || '数字人'} + ${item.voiceName || '配音'}`, digitalHumanId: item.digitalHumanId ?? item.digital_human_id ?? null, voiceId: item.voiceId ?? item.voice_id ?? null, digitalHumanName: item.digitalHumanName || '', voiceName: item.voiceName || '', coverUrl: item.digitalHumanCoverUrl || item.coverUrl || '', voiceUrl: item.voiceUrl || '' })).filter((item: any) => item.id != null)
+  resourcesLoaded.bindings = true
+}
+async function loadHumans(force = false) {
+  if (resourcesLoaded.humans && !force) return
+  const generation = tenantResourceGeneration
+  const [humanResponse, preferenceResponse] = await Promise.all([getDigitalHumanList(), getDigitalHumanPickerPreference()])
+  if (generation !== tenantResourceGeneration) return
+  const data = getResponseData(humanResponse)
+  const preference = getResponseData(preferenceResponse)
+  const items = Array.isArray(data) ? data : data?.data || data?.items || []
+  humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale)
+  humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked)
+  digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null)
+  resourcesLoaded.humans = true
+}
+async function loadVoices() {
+  if (resourcesLoaded.voices) return
+  const generation = tenantResourceGeneration
+  const response = await getVoiceList()
+  if (generation !== tenantResourceGeneration) return
+  const data = getResponseData(response)
+  const items = Array.isArray(data) ? data : data?.data || data?.items || []
+  voiceOptions.value = items.map((item: any) => ({ id: item.id ?? item.voiceId, name: item.voiceName || item.name || '未命名声音', url: item.voiceUrl || item.url || '', language: item.language || '' })).filter((item: any) => item.id != null)
+  resourcesLoaded.voices = true
+}
+async function loadCorners(force = false) {
+  if (resourcesLoaded.corners && !force) return
+  const generation = tenantResourceGeneration
+  const response = await getCornerMarkList()
+  if (generation !== tenantResourceGeneration) return
+  const data = getResponseData(response)
+  const items = Array.isArray(data) ? data : data?.data || data?.items || []
+  cornerMarkOptions.value = items.map((item: any) => ({ id: item.id ?? item.cornerMarkId, name: item.name || item.title || '未命名角标', url: item.photoUrl || item.photo_url || item.imageUrl || item.image_url || item.url || '' })).filter((item: any) => item.id != null)
+  resourcesLoaded.corners = true
+}
+async function loadBanners(force = false) {
+  if (resourcesLoaded.banners && !force) return
+  const generation = tenantResourceGeneration
+  const response = await getBannerOverlayList(1, 200)
+  if (generation !== tenantResourceGeneration) return
+  const { items } = getPageData(response)
+  bannerOverlayOptions.value = items.map((item: any) => ({ id: item.id ?? item.bannerOverlayId, name: item.name || item.title || '未命名横幅', url: item.outputUrl || item.output_url || item.overlayUrl || item.overlay_url || item.imageUrl || item.image_url || '' })).filter((item: any) => item.id != null)
+  resourcesLoaded.banners = true
+}
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
 async function openAssetPicker(type: AssetPickerType) {
@@ -1004,7 +1081,24 @@ async function openAssetPicker(type: AssetPickerType) {
     await loadHumans(true)
   } else await loadVoices()
 }
-function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false }
+function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
+function resetTenantScopedResources() {
+  tenantResourceGeneration += 1
+  Object.assign(resourcesLoaded, { scripts: false, history: false, bindings: false, humans: false, voices: false, corners: false, banners: false })
+  scriptOptions.value = []
+  historyOptions.value = []
+  bindingOptions.value = []
+  digitalHumanOptions.value = []
+  voiceOptions.value = []
+  cornerMarkOptions.value = []
+  bannerOverlayOptions.value = []
+  humanPickerScale.value = 1
+  humanPickerScaleLocked.value = false
+  clearAssetImageFailures()
+  stopVoicePreview()
+  assetPicker.visible = false
+  resetAssetPickerState()
+}
 function selectAsset(item: any) {
   if (!activePerformer.value) return
   if (assetPicker.multi && assetPicker.type === 'human') {
@@ -1058,7 +1152,7 @@ function confirmMultiHumanSelection() {
   ElMessage.success(`已覆盖为 ${nextConfigs.length} 个执行项，后续声音跟随第1项`)
   refreshActivePreview()
 }
-function playVoice(url: string, name: string) { if (!url) return; voiceAudio?.pause(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
+function playVoice(url: string, name: string) { if (!url) return; stopVoicePreview(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
 async function blobToDataUrl(blob: Blob) { return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(blob) }) }
 async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
 async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
@@ -1080,6 +1174,12 @@ onMounted(() => {
   document.addEventListener('visibilitychange', refreshPlanListWhenVisible)
 })
 watch(() => layoutStore.getUserInfo.tenantId, () => {
+  resetTenantScopedResources()
+  resetPlanForm()
+  createDialog.visible = false
+  detail.visible = false
+  detail.plan = null
+  detail.children = []
   selectedCreatorUserId.value = null
   creatorOptions.value = []
   loadCreatorOptions()
@@ -1089,7 +1189,7 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
 onUnmounted(() => {
   if (listRefreshTimer !== null) window.clearInterval(listRefreshTimer)
   document.removeEventListener('visibilitychange', refreshPlanListWhenVisible)
-  stopPreview(); voiceAudio?.pause(); voiceAudio = null
+  stopPreview(); stopVoicePreview()
 })
 </script>
 
@@ -1191,6 +1291,9 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 :global(.batch-detail-drawer .el-drawer__footer) { padding:10px 18px; border-top:1px solid #e8edf4; box-shadow:0 -4px 14px rgba(31,45,67,.06); }
 .asset-picker-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
 .selector-search { width:min(100%,360px); margin-bottom:0; }
+.selector-search :deep(.el-input__wrapper) { align-items:center; }
+.selector-search :deep(.el-input__prefix), .selector-search :deep(.el-input__prefix-inner) { height:100%; display:flex; align-items:center; justify-content:center; }
+.selector-search :deep(.el-input__prefix-inner .el-icon) { margin:0; line-height:1; align-self:center; }
 .asset-display-size-control { display:flex; align-items:center; gap:10px; min-width:420px; padding:6px 8px; border:1px solid #e1e8f1; border-radius:8px; background:#fbfdff; color:#536174; font-size:12px; }
 .asset-display-size-control>span:first-child { flex:0 0 auto; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .asset-display-size-control :deep(.el-slider) { flex:1; min-width:130px; }
