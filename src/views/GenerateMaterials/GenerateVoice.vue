@@ -598,10 +598,16 @@ const audioPreview = reactive({
 
 // --- 逻辑处理 ---
 
-// 加载音频任务列表
-const loadAudioTasks = async () => {
+// 轮询只更新当前列表，过期响应不能覆盖较新的加载结果。
+let audioTasksRequestSequence = 0
+let activeAudioTasksRequest = 0
+const loadAudioTasks = async (silent = false) => {
+  if (silent && activeAudioTasksRequest) return
+  const requestId = ++audioTasksRequestSequence
+  activeAudioTasksRequest = requestId
   try {
-    const response = await getDubbingTaskList(1, 20)
+    const response = await getDubbingTaskList(1, 20, undefined, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeAudioTasksRequest) return
     console.log('API返回数据:', response)
     
     let tasks = []
@@ -629,7 +635,9 @@ const loadAudioTasks = async () => {
     
     console.log('加载的任务列表:', audioTaskList.value)
   } catch (error) {
-    console.error('加载音频任务列表失败:', error)
+    if (!silent && requestId === activeAudioTasksRequest) console.error('加载音频任务列表失败:', error)
+  } finally {
+    if (requestId === activeAudioTasksRequest) activeAudioTasksRequest = 0
   }
 }
 
@@ -637,7 +645,7 @@ const startAudioTaskAutoRefresh = () => {
   if (audioTaskRefreshTimer.value) return
   audioTaskRefreshTimer.value = setInterval(() => {
     if (!showCreate.value) {
-      loadAudioTasks()
+      loadAudioTasks(true)
     }
   }, 30000)
 }

@@ -554,7 +554,8 @@ let previewObjectUrl = ''
 let voiceAudio: HTMLAudioElement | null = null
 let previewLoadSequence = 0
 let listRefreshTimer: number | null = null
-let listRequestRunning = false
+let listRequestSequence = 0
+let activeListRequest = 0
 
 const canFilterTaskCreator = computed(() => Boolean(
   layoutStore.getUserInfo.isPlatformSuperAdmin
@@ -962,22 +963,26 @@ function handlePlanFilterChange() {
 }
 
 async function loadPlanList(options: { silent?: boolean } = {}) {
-  if (listRequestRunning) return
-  listRequestRunning = true
+  if (options.silent && activeListRequest) return
+  const requestId = ++listRequestSequence
+  activeListRequest = requestId
   if (!options.silent) listLoading.value = true
   try {
     const search: Record<string, any> = {}
     if (searchKeyword.value.trim()) search.planName = searchKeyword.value.trim()
     if (canFilterTaskCreator.value && selectedCreatorUserId.value != null) search.creatorUserId = selectedCreatorUserId.value
-    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search)
+    const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search, { hideLoading: true, silentError: options.silent })
+    if (requestId !== activeListRequest) return
     const page = getPageData(response)
     planList.value = page.items.map(normalizePlan)
     planTotal.value = page.total
   } catch (error: any) {
-    if (!options.silent) ElMessage.error(error?.message || '计划加载失败')
+    if (!options.silent && requestId === activeListRequest) ElMessage.error(error?.message || '计划加载失败')
   } finally {
-    listRequestRunning = false
-    if (!options.silent) listLoading.value = false
+    if (requestId === activeListRequest) {
+      activeListRequest = 0
+      if (!options.silent) listLoading.value = false
+    }
   }
 }
 async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
@@ -1187,6 +1192,7 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
   loadPlanList()
 })
 onUnmounted(() => {
+  activeListRequest = 0
   if (listRefreshTimer !== null) window.clearInterval(listRefreshTimer)
   document.removeEventListener('visibilitychange', refreshPlanListWhenVisible)
   stopPreview(); stopVoicePreview()

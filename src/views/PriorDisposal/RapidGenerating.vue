@@ -680,7 +680,12 @@ onMounted(() => {
 })
 
 // --- Methods ---
-const loadTaskList = async () => {
+let fastListRequestSequence = 0
+let activeFastListRequest = 0
+const loadTaskList = async (silent = false) => {
+  if (silent && activeFastListRequest) return
+  const requestId = ++fastListRequestSequence
+  activeFastListRequest = requestId
   try {
     const search: Record<string, any> = {}
     if (searchQuery.value.trim()) {
@@ -695,8 +700,10 @@ const loadTaskList = async () => {
     const res = await getFastTaskList(
       currentPage.value,
       pageSize.value,
-      Object.keys(search).length > 0 ? search : undefined
+      Object.keys(search).length > 0 ? search : undefined,
+      silent ? { hideLoading: true, silentError: true } : {}
     )
+    if (requestId !== activeFastListRequest) return
     if (res.data && res.data.code === 200) {
       const responseData = res.data.data
       const taskListData = responseData?.data || []
@@ -743,13 +750,21 @@ const loadTaskList = async () => {
       })
     }
   } catch (error) {
-    console.error('Failed to load fast tasks:', error)
+    if (!silent && requestId === activeFastListRequest) console.error('Failed to load fast tasks:', error)
+  } finally {
+    if (requestId === activeFastListRequest) activeFastListRequest = 0
   }
 }
 
-const loadWaitingBefore = async (taskId?: number | string) => {
+let waitingBeforeRequestSequence = 0
+let activeWaitingBeforeRequest = 0
+const loadWaitingBefore = async (taskId?: number | string, silent = false) => {
+  if (silent && activeWaitingBeforeRequest) return
+  const requestId = ++waitingBeforeRequestSequence
+  activeWaitingBeforeRequest = requestId
   try {
-    const res = await getFastTaskWaitingBefore(taskId)
+    const res = await getFastTaskWaitingBefore(taskId, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeWaitingBeforeRequest) return
     if (res.data?.code === 200 && res.data?.data) {
       const data = res.data.data
       waitingBeforeInfo.taskId = data.taskId || data.task_id || null
@@ -757,7 +772,9 @@ const loadWaitingBefore = async (taskId?: number | string) => {
       waitingBeforeInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
     }
   } catch (error) {
-    console.error('Failed to load fast task waiting info:', error)
+    if (!silent && requestId === activeWaitingBeforeRequest) console.error('Failed to load fast task waiting info:', error)
+  } finally {
+    if (requestId === activeWaitingBeforeRequest) activeWaitingBeforeRequest = 0
   }
 }
 
@@ -850,8 +867,8 @@ const startListPolling = () => {
   stopListPolling()
   listPollTimer = setInterval(() => {
     if (isCreating.value) return
-    loadTaskList()
-    loadWaitingBefore()
+    loadTaskList(true)
+    loadWaitingBefore(undefined, true)
   }, 3000)
 }
 
@@ -1424,6 +1441,7 @@ const startProcessing = async () => {
   }
 }
 
+let taskProgressRequestRunning = false
 const pollTaskProgress = async () => {
   if (!form.currentTaskId) return
   
@@ -1432,8 +1450,12 @@ const pollTaskProgress = async () => {
   
   // 鍒涘缓杞閫昏緫锛屾瘡2绉掓鏌ヤ竴娆?
   pollTimer = setInterval(async () => {
+    if (taskProgressRequestRunning || !form.currentTaskId) return
+    const taskId = form.currentTaskId
+    taskProgressRequestRunning = true
     try {
-      const res = await getFastTaskDetail(form.currentTaskId!)
+      const res = await getFastTaskDetail(taskId, { hideLoading: true, silentError: true })
+      if (form.currentTaskId !== taskId) return
       
       if (res.data && res.data.code === 200) {
         const taskData = res.data.data
@@ -1485,6 +1507,8 @@ const pollTaskProgress = async () => {
       }
     } catch (error) {
       console.error('Failed to poll task progress:', error)
+    } finally {
+      taskProgressRequestRunning = false
     }
   }, 2000)  // 姣?绉掕疆璇竴娆?
 }

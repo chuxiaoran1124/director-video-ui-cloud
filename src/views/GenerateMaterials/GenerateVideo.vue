@@ -1853,10 +1853,18 @@ const loadCreatorOptions = async () => {
   }
 }
 
-// 加载视频任务列表
-const loadVideoTasks = async () => {
+// 后台轮询不得覆盖较新的分页、筛选或手动刷新结果。
+let videoTasksRequestSequence = 0
+let activeVideoTasksRequest = 0
+let videoWaitingRequestSequence = 0
+let activeVideoWaitingRequest = 0
+const loadVideoTasks = async (silent = false) => {
+  if (silent && activeVideoTasksRequest) return
+  const requestId = ++videoTasksRequestSequence
+  activeVideoTasksRequest = requestId
   try {
-    const response = await getVideoTaskList(videoTaskPage.value, videoTaskPageSize.value, buildVideoTaskSearch())
+    const response = await getVideoTaskList(videoTaskPage.value, videoTaskPageSize.value, buildVideoTaskSearch(), silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeVideoTasksRequest) return
     console.log('API返回数据:', response)
     
     // 处理 API 返回的数据结构：response.data.data.data 是任务列表数组
@@ -1904,20 +1912,28 @@ const loadVideoTasks = async () => {
     
     console.log('加载的任务列表:', videoTaskList.value)
   } catch (error) {
-    console.error('加载视频任务列表失败:', error)
+    if (!silent && requestId === activeVideoTasksRequest) console.error('加载视频任务列表失败:', error)
+  } finally {
+    if (requestId === activeVideoTasksRequest) activeVideoTasksRequest = 0
   }
 }
 
-const loadVideoWaitingInfo = async () => {
+const loadVideoWaitingInfo = async (silent = false) => {
+  if (silent && activeVideoWaitingRequest) return
+  const requestId = ++videoWaitingRequestSequence
+  activeVideoWaitingRequest = requestId
   try {
-    const res = await getVideoTaskWaiting()
+    const res = await getVideoTaskWaiting(silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeVideoWaitingRequest) return
     if (res.data?.code === 200 && res.data?.data) {
       const data = res.data.data
       videoWaitingInfo.waitingTotal = Number(data.waitingTotal || data.waiting_total || 0)
       videoWaitingInfo.waitingBefore = Number(data.waitingBefore || data.waiting_before || 0)
     }
   } catch (error) {
-    console.error('加载视频等待任务数失败:', error)
+    if (!silent && requestId === activeVideoWaitingRequest) console.error('加载视频等待任务数失败:', error)
+  } finally {
+    if (requestId === activeVideoWaitingRequest) activeVideoWaitingRequest = 0
   }
 }
 
@@ -1925,8 +1941,8 @@ const startVideoTaskAutoRefresh = () => {
   if (videoTaskRefreshTimer.value) return
   videoTaskRefreshTimer.value = setInterval(() => {
     if (!showCreate.value) {
-      loadVideoTasks()
-      loadVideoWaitingInfo()
+      loadVideoTasks(true)
+      loadVideoWaitingInfo(true)
     }
   }, 5000)
 }

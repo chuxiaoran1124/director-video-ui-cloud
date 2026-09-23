@@ -736,11 +736,17 @@ onUnmounted(() => {
 })
 
 // --- Load ---
-const loadTaskList = async () => {
+let listRequestSequence = 0
+let activeListRequest = 0
+const loadTaskList = async (silent = false) => {
+  if (silent && activeListRequest) return
+  const requestId = ++listRequestSequence
+  activeListRequest = requestId
   try {
     const keyword = searchKeyword.value.trim()
     const search = keyword ? { title: keyword } : undefined
-    const res = await getCornerMarkTaskList(pagination.currentPage, pagination.pageSize, search)
+    const res = await getCornerMarkTaskList(pagination.currentPage, pagination.pageSize, search, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeListRequest) return
     const code = res.data?.code
     if (code === 0 || code === 200) {
       const data = res.data.data
@@ -759,7 +765,9 @@ const loadTaskList = async () => {
         }))
     }
   } catch (error) {
-    console.error('加载角标任务失败:', error)
+    if (!silent && requestId === activeListRequest) console.error('加载角标任务失败:', error)
+  } finally {
+    if (requestId === activeListRequest) activeListRequest = 0
   }
 }
 
@@ -770,7 +778,7 @@ const startPolling = () => {
     const hasPending = listViewMode.value === 'single'
       ? taskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2)
       : batchTaskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2)
-    if (hasPending) loadCurrentList()
+    if (hasPending) loadCurrentList(true)
   }, 5000)
 }
 
@@ -805,11 +813,15 @@ const handleFolderChange = (e: Event) => {
   }
 }
 
-const loadBatchTaskList = async () => {
+const loadBatchTaskList = async (silent = false) => {
+  if (silent && activeListRequest) return
+  const requestId = ++listRequestSequence
+  activeListRequest = requestId
   try {
     const keyword = searchKeyword.value.trim()
     const search = keyword ? { title: keyword } : undefined
-    const res = await getCornerMarkBatchTaskList(pagination.currentPage, pagination.pageSize, search)
+    const res = await getCornerMarkBatchTaskList(pagination.currentPage, pagination.pageSize, search, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeListRequest) return
     const code = res.data?.code
     if (code === 0 || code === 200) {
       const data = res.data.data
@@ -829,13 +841,15 @@ const loadBatchTaskList = async () => {
       }))
     }
   } catch (error) {
-    console.error('加载角标批量任务失败:', error)
+    if (!silent && requestId === activeListRequest) console.error('加载角标批量任务失败:', error)
+  } finally {
+    if (requestId === activeListRequest) activeListRequest = 0
   }
 }
 
-const loadCurrentList = () => {
-  if (listViewMode.value === 'single') return loadTaskList()
-  return loadBatchTaskList()
+const loadCurrentList = (silent = false) => {
+  if (listViewMode.value === 'single') return loadTaskList(silent)
+  return loadBatchTaskList(silent)
 }
 
 const formatFileSize = (size: number) => {

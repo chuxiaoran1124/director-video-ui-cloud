@@ -36,12 +36,13 @@ export function createVideoBatchPlan(data: BatchDigitalHumanPlanPayload | Record
 }
 
 /** 分页查询云上批量视频计划。 */
-export function getVideoBatchPlanList(page: number = 1, pageSize: number = 20, search: any = {}) {
+export function getVideoBatchPlanList(page: number = 1, pageSize: number = 20, search: any = {}, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/video-batch/paginate/',
         method: 'post',
         data: { page, pageSize, search },
-        headers: { 'Content-Type': 'application/json;charset=UTF-8' }
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+        ...options
     })
 }
 
@@ -509,11 +510,12 @@ export function getDigitalHumanTaskWaiting() {
 /**
  * 获取今天指定/当前快速克隆任务前面还有多少等待任务
  */
-export function getFastTaskWaitingBefore(taskId?: number | string) {
+export function getFastTaskWaitingBefore(taskId?: number | string, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/fast-task/waiting-before/',
         method: 'get',
-        params: taskId ? { taskId } : undefined
+        params: taskId ? { taskId } : undefined,
+        ...options
     })
 }
 
@@ -754,7 +756,7 @@ export function createFastTaskDirectBatch(data: any) {
  * @param search 搜索条件对象
  * @returns 返回任务列表及分页信�?
  */
-export function getFastTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getFastTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/fast-task/paginate/post/',
         method: 'post',
@@ -762,7 +764,8 @@ export function getFastTaskList(page: number = 1, pageSize: number = 20, search?
             page,
             pageSize,
             ...(search && { search })
-        }
+        },
+        ...options
     })
 }
 
@@ -811,10 +814,11 @@ export function retryFastTask(id: number | string) {
  * @param id 任务ID
  * @returns 返回任务详情
  */
-export function getFastTaskDetail(id: number | string) {
+export function getFastTaskDetail(id: number | string, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: `/api/material/fast-task/${id}/`,
-        method: 'get'
+        method: 'get',
+        ...options
     })
 }
 
@@ -858,7 +862,7 @@ export function createVideoTask(formData: FormData) {
  * @param search 搜索条件对象
  * @returns 返回任务列表及分页信�?
  */
-export function getVideoTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getVideoTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/video/task/paginate/post/',
         method: 'post',
@@ -866,17 +870,19 @@ export function getVideoTaskList(page: number = 1, pageSize: number = 20, search
             page,
             pageSize,
             ...(search && { search })
-        }
+        },
+        ...options
     })
 }
 
 /**
  * 获取今天视频单次生成还在等待的任务数
  */
-export function getVideoTaskWaiting() {
+export function getVideoTaskWaiting(options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/video/task/waiting/',
-        method: 'get'
+        method: 'get',
+        ...options
     })
 }
 
@@ -1207,7 +1213,7 @@ export function createDubbingTask(data: any) {
  * @param search 搜索条件对象
  * @returns 返回任务列表及分页信�?
  */
-export function getDubbingTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getDubbingTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/dubbing/paginate/post/',
         method: 'post',
@@ -1215,7 +1221,8 @@ export function getDubbingTaskList(page: number = 1, pageSize: number = 20, sear
             page,
             pageSize,
             ...(search && { search })
-        }
+        },
+        ...options
     })
 }
 
@@ -1455,11 +1462,12 @@ export function checkSubtitleRemoveTitle(title: string) {
  * @param search 搜索条件对象（taskStatus 等）
  * @returns 返回任务列表及分页信�?
  */
-export function getSubtitleRemoveTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getSubtitleRemoveTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/subtitle-remove/task/paginate/',
         method: 'post',
-        data: { page, pageSize, ...(search && { search }) }
+        data: { page, pageSize, ...(search && { search }) },
+        ...options
     })
 }
 
@@ -1643,22 +1651,24 @@ export function checkCornerMarkTaskTitle(title: string) {
 /**
  * 分页查询角标任务列表
  */
-export function getCornerMarkTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getCornerMarkTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/corner-mark-task/paginate/',
         method: 'post',
-        data: { page, pageSize, ...(search && { search }) }
+        data: { page, pageSize, ...(search && { search }) },
+        ...options
     })
 }
 
 /**
  * 分页查询角标批量任务列表
  */
-export function getCornerMarkBatchTaskList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getCornerMarkBatchTaskList(page: number = 1, pageSize: number = 20, search?: any, options: { hideLoading?: boolean; silentError?: boolean } = {}) {
     return request({
         url: '/api/material/corner-mark-task/batch/paginate/',
         method: 'post',
-        data: { page, pageSize, ...(search && { search }) }
+        data: { page, pageSize, ...(search && { search }) },
+        ...options
     })
 }
 

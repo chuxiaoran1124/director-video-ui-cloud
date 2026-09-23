@@ -160,6 +160,8 @@ const tosChartRef = ref<HTMLElement | null>(null)
 let outputChart: echarts.ECharts | null = null
 let tosChart: echarts.ECharts | null = null
 let refreshTimer: number | null = null
+let statisticsRequestSequence = 0
+let statisticsRequestRunning = false
 
 const tableHeaderStyle = { background: '#f7f9fc', color: '#536174', fontWeight: '600' }
 const activeQueueCodes = computed(() => selectedQueueCodes.value.length ? selectedQueueCodes.value : queueOptions.map(item => item.code))
@@ -337,12 +339,15 @@ function renderCharts() {
 }
 
 async function loadStatistics(silent = false) {
-  if (!isPlatformSuperAdmin.value || loading.value) return
+  if (!isPlatformSuperAdmin.value || (silent && statisticsRequestRunning)) return
   if (!dateRange.value[0] || !dateRange.value[1]) applyPreset(rangePreset.value, false)
   if (rangePreset.value === 'custom' && (!dateRange.value[0] || !dateRange.value[1])) return ElMessage.warning('请选择自定义时间范围')
-  loading.value = true
+  const requestId = ++statisticsRequestSequence
+  statisticsRequestRunning = true
+  if (!silent) loading.value = true
   try {
     const response = await getTaskQueueEfficiency({ startTime: toApiTime(dateRange.value[0]), endTime: toApiTime(dateRange.value[1]), ...(tenantId.value ? { tenantId: tenantId.value } : {}), ...(selectedQueueCodes.value.length ? { queueCodes: selectedQueueCodes.value } : {}), granularity: granularity.value, preset: rangePreset.value }, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== statisticsRequestSequence) return
     const data = responseData(response)
     timezone.value = data.timezone || 'Asia/Shanghai'
     generatedAt.value = data.generatedAt || data.generated_at || new Date().toISOString()
@@ -350,8 +355,11 @@ async function loadStatistics(silent = false) {
     summaryRows.value = buildSummary(bucketRows.value)
     renderCharts()
   } catch (error: any) {
-    if (!silent) ElMessage.error(error?.message || '任务效率统计加载失败')
-  } finally { loading.value = false }
+    if (!silent && requestId === statisticsRequestSequence) ElMessage.error(error?.message || '任务效率统计加载失败')
+  } finally {
+    if (requestId === statisticsRequestSequence) statisticsRequestRunning = false
+    if (!silent) loading.value = false
+  }
 }
 
 function handleResize() { outputChart?.resize(); tosChart?.resize() }

@@ -337,9 +337,15 @@ onUnmounted(() => {
 })
 
 // --- Load ---
-const loadTaskList = async () => {
+let listRequestSequence = 0
+let activeListRequest = 0
+const loadTaskList = async (silent = false) => {
+  if (silent && activeListRequest) return
+  const requestId = ++listRequestSequence
+  activeListRequest = requestId
   try {
-    const res = await getSubtitleRemoveTaskList(pagination.currentPage, pagination.pageSize)
+    const res = await getSubtitleRemoveTaskList(pagination.currentPage, pagination.pageSize, undefined, silent ? { hideLoading: true, silentError: true } : {})
+    if (requestId !== activeListRequest) return
     if (res.data?.code === 200) {
       const data = res.data.data
       const list = data?.data || []
@@ -356,7 +362,9 @@ const loadTaskList = async () => {
       }))
     }
   } catch (error) {
-    console.error('加载字幕消除任务失败:', error)
+    if (!silent && requestId === activeListRequest) console.error('加载字幕消除任务失败:', error)
+  } finally {
+    if (requestId === activeListRequest) activeListRequest = 0
   }
 }
 
@@ -365,7 +373,7 @@ const startPolling = () => {
   if (pollingTimer) return
   pollingTimer = setInterval(() => {
     const hasPending = taskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2 || t.taskStatus === 0)
-    if (hasPending) loadTaskList()
+    if (hasPending) loadTaskList(true)
   }, 5000)
 }
 
