@@ -215,7 +215,7 @@
         <el-table-column label="操作" width="220" align="center" fixed="right">
           <template #default="scope">
             <el-button type="primary" size="small" plain @click="openBatchDetail(scope.row)">查看子任务</el-button>
-            <el-button type="success" size="small" plain @click="downloadBatchZip(scope.row)">打包下载</el-button>
+            <el-button type="success" size="small" plain :disabled="batchDownloading" @click="downloadBatchZip(scope.row)">打包下载</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -446,6 +446,7 @@
       </div>
       <template #footer>
         <el-button type="primary" @click="downloadResult(previewItem)">下载视频</el-button>
+        <el-button @click="downloadResultByProxy(previewItem)">代理下载</el-button>
         <el-button @click="previewVisible = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -512,13 +513,13 @@
         />
       </div>
     </el-dialog>
+    <VideoZipProgress v-bind="videoZipProgress" :visible="batchDownloading" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import JSZip from 'jszip'
 import {
   createCornerMarkTaskDirectSingle,
   createCornerMarkDirectBatch,
@@ -530,7 +531,8 @@ import {
   deleteCornerMarkTask,
   getCornerMarkList
 } from '/@/api/material'
-import { downloadProxyFile, fetchProxyBlob } from '/@/utils/download'
+import { downloadVideoDirect, downloadVideoZip, downloadProxyFile, type ZipProgress } from '/@/utils/download'
+import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- Types ---
 interface CornerMarkTask {
@@ -565,6 +567,7 @@ const taskList = ref<CornerMarkTask[]>([])
 const batchTaskList = ref<CornerMarkBatchTask[]>([])
 const selectedRows = ref<CornerMarkTask[]>([])
 const batchDownloading = ref(false)
+const videoZipProgress = reactive<ZipProgress>({ phase: 'fetching', completed: 0, total: 0, percent: 0 })
 const dialogVisible = ref(false)
 const previewVisible = ref(false)
 const submitting = ref(false)
@@ -1204,7 +1207,9 @@ const loadBatchDetail = async () => {
 }
 
 const downloadBatchZip = async (row: CornerMarkBatchTask) => {
+  if (batchDownloading.value) return
   batchDownloading.value = true
+  Object.assign(videoZipProgress, { phase: 'fetching', completed: 0, total: 0, percent: 0 })
   ElMessage.info('正在收集批次视频并打包，请稍候...')
   try {
     let page = 1
@@ -1231,46 +1236,8 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
       return
     }
 
-    const zip = new JSZip()
-    let successCount = 0
-    let failedCount = 0
-
-    const downloadPromises = downloadable.map((item: any) =>
-      fetchProxyBlob(item.outputVideoUrl, {
-        taskId: item.id,
-        assetType: 'video',
-        fallbackBaseName: `${item.title || `item-${item.id}`}-1`,
-        defaultExtension: '.mp4'
-      })
-        .then((res) => res.blob)
-        .then((blob) => {
-          const fileName = `${item.title || `item-${item.id}`}-1.mp4`
-          zip.file(fileName, blob)
-          successCount++
-        })
-        .catch(() => {
-          failedCount++
-        })
-    )
-
-    await Promise.all(downloadPromises)
-    if (successCount === 0) {
-      ElMessage.error('批次视频下载失败，请稍后重试')
-      return
-    }
-
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const url = window.URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${row.title || `batch-${row.id}`}-${Date.now()}.zip`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-
-    ElMessage.success(`打包完成，成功 ${successCount} 个视频`)
-    if (failedCount > 0) ElMessage.warning(`${failedCount} 个视频下载失败`)
+    const result = await downloadVideoZip(downloadable.map((item: any) => ({ url: item.outputVideoUrl, taskId: item.id, fileName: `${item.title || `item-${item.id}`}-1.mp4` })), `${row.title || `batch-${row.id}`}-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+    ElMessage.success(`打包完成，成功 ${result.success} 个视频${result.failed ? `，${result.failed} 个失败` : ''}`)
   } catch (error) {
     console.error('批次打包下载失败:', error)
     ElMessage.error('批次打包下载失败，请稍后重试')
@@ -1280,59 +1247,19 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
 }
 
 const handleBatchDownload = async () => {
+  if (batchDownloading.value) return
   const downloadable = selectedRows.value.filter(r => r.taskStatus === 3 && r.outputVideoUrl)
   if (downloadable.length === 0) {
     return ElMessage.warning('所选任务中没有可下载视频')
   }
 
   batchDownloading.value = true
+  Object.assign(videoZipProgress, { phase: 'fetching', completed: 0, total: downloadable.length, percent: 0 })
   ElMessage.info(`准备打包 ${downloadable.length} 个视频...`)
 
   try {
-    const zip = new JSZip()
-    let successCount = 0
-    let failedCount = 0
-
-    const downloadPromises = downloadable.map(row =>
-      fetchProxyBlob(row.outputVideoUrl!, {
-        taskId: row.id,
-        assetType: 'video',
-        fallbackBaseName: `${row.title || 'corner-mark'}-${row.id}-1`,
-        defaultExtension: '.mp4'
-      })
-        .then(res => res.blob)
-        .then(blob => {
-          const fileName = `${row.title || 'corner-mark'}-${row.id}-1.mp4`
-          zip.file(fileName, blob)
-          successCount++
-        })
-        .catch(err => {
-          console.error(`下载失败: ${row.title} | url: ${row.outputVideoUrl}`, err)
-          failedCount++
-        })
-    )
-
-    await Promise.all(downloadPromises)
-
-    if (successCount === 0) {
-      ElMessage.error('所有视频下载失败，请检查网络或视频地址')
-      return
-    }
-
-    ElMessage.info('正在生成压缩包...')
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-    const url = window.URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `corner-mark-videos-${Date.now()}.zip`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-
-    if (successCount > 0) ElMessage.success(`成功打包并下载 ${successCount} 个视频`)
-    if (failedCount > 0) ElMessage.warning(`${failedCount} 个视频下载失败`)
+    const result = await downloadVideoZip(downloadable.map(row => ({ url: row.outputVideoUrl!, taskId: row.id, fileName: `${row.title || 'corner-mark'}-${row.id}-1.mp4` })), `corner-mark-videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+    ElMessage.success(`成功打包 ${result.success} 个视频${result.failed ? `，${result.failed} 个失败` : ''}`)
   } catch (error) {
     console.error('ZIP 打包失败:', error)
     ElMessage.error('打包文件失败，请重试')
@@ -1343,16 +1270,14 @@ const handleBatchDownload = async () => {
 
 const downloadResult = (row: CornerMarkTask | null) => {
   if (!row?.outputVideoUrl) return
-  downloadProxyFile(row.outputVideoUrl, {
-    taskId: row.id,
-    assetType: 'video',
-    fallbackBaseName: `corner-mark-${row.id}`,
-    defaultExtension: '.mp4'
-  })
-    .catch((error) => {
-      console.error('下载失败:', error)
-      ElMessage.error('下载失败，请稍后重试')
-    })
+  try { downloadVideoDirect(row.outputVideoUrl); ElMessage.info('已交给浏览器下载') }
+  catch { ElMessage.error('视频地址不可用') }
+}
+
+const downloadResultByProxy = async (row: CornerMarkTask | null) => {
+  if (!row?.outputVideoUrl) return
+  try { await downloadProxyFile(row.outputVideoUrl, { taskId: row.id, assetType: 'video', fallbackBaseName: `corner-mark-${row.id}`, defaultExtension: '.mp4' }) }
+  catch { ElMessage.error('代理下载失败，请稍后重试') }
 }
 
 // --- Pagination ---

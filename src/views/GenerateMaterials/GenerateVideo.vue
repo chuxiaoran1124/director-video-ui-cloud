@@ -68,7 +68,7 @@
             </div>
             <el-button 
               type="primary" 
-              :disabled="selectedVideos.length === 0"
+              :disabled="selectedVideos.length === 0 || videoZipVisible"
               @click="batchDownloadVideos"
             >
               批量下载视频 ({{ selectedVideos.length }})
@@ -1002,7 +1002,7 @@
     </el-dialog>
 
     <!-- 视频播放弹窗 -->
-    <el-dialog title="视频详情预览" v-model="videoPreview.visible" width="1000px" append-to-body custom-class="video-preview-dialog">
+    <el-dialog title="视频详情预览" v-model="videoPreview.visible" width="1000px" append-to-body custom-class="video-preview-dialog" @closed="stopSingleVideoPreview">
        <div class="space-y-6">
           <!-- 视频预览 -->
           <div v-if="videoPreview.url" class="space-y-3">
@@ -1010,12 +1010,10 @@
                <h4 class="font-bold text-gray-800 text-base flex items-center gap-2">
                   <span class="text-blue-500">▶</span>视频内容
                </h4>
-               <el-button type="primary" size="small" @click="downloadVideo" :icon="ElIcon.Download">
-                 下载视频
-               </el-button>
+               <div><el-button type="primary" size="small" @click="downloadVideo" :icon="ElIcon.Download">下载视频</el-button><el-button size="small" @click="downloadVideoByProxy">代理下载</el-button></div>
              </div>
              <div class="bg-black flex items-center justify-center rounded-lg overflow-hidden h-[500px] border-2 border-blue-100">
-                <video :src="videoPreview.url" controls autoplay class="max-w-full max-h-full"></video>
+                <video :src="videoPreview.url" controls autoplay class="max-w-full max-h-full" @error="handleSingleVideoError"></video>
              </div>
           </div>
           
@@ -1050,6 +1048,7 @@
          </div>
        </template>
     </el-dialog>
+    <VideoZipProgress v-bind="videoZipProgress" :visible="videoZipVisible" />
   </div>
 </template>
 
@@ -1067,7 +1066,8 @@ import { getUserList, IUserListItem } from '/@/api/user'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
-import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl } from '/@/utils/download'
+import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- 数据定义 ---
 const layoutStore = useLayoutStore()
@@ -1809,6 +1809,11 @@ const videoPreview = reactive({
   title: '',
   isDownloaded: 0,
 })
+const videoZipVisible = ref(false)
+const videoZipProgress = reactive<ZipProgress>({ phase: 'fetching', completed: 0, total: 0, percent: 0 })
+let singlePreviewBlobUrl = ''
+let singlePreviewFallbackUsed = false
+let singlePreviewSourceUrl = ''
 
 const resolveAssetUrl = (rawUrl: string) => normalizeAssetUrl(rawUrl)
 
@@ -2305,8 +2310,10 @@ const handleBackToList = () => {
 }
 
 const handleViewVideo = (video: any) => {
+  stopSingleVideoPreview()
   videoPreview.taskId = Number(video.id ?? 0) || null
   videoPreview.url = resolveAssetUrl(video.videoUrl)
+  singlePreviewSourceUrl = videoPreview.url
   videoPreview.coverUrl = video.videoCoverUrl
   videoPreview.voiceUrl = resolveAssetUrl(video.baseVoiceUrl)
   videoPreview.title = video.title
@@ -3012,21 +3019,28 @@ const retryAudioUpload = () => {
 }
 
 const previewResult = () => {
+  stopSingleVideoPreview()
   videoPreview.taskId = null
   videoPreview.url = resultVideo.value
+  singlePreviewSourceUrl = videoPreview.url
   videoPreview.isDownloaded = 0
   videoPreview.visible = true
 }
 
 // 下载视频
-const downloadVideo = async () => {
-  const targetUrl = resolveAssetUrl(videoPreview.url)
+const downloadVideo = () => {
+  const targetUrl = singlePreviewSourceUrl || resolveAssetUrl(videoPreview.url)
   if (!targetUrl) {
     ElMessage.warning('视频URL不可用')
-    console.log('videoPreview:', videoPreview)
     return
   }
-  
+  try { downloadVideoDirect(targetUrl); markVideoDownloadedLocally(videoPreview.taskId); ElMessage.info('已交给浏览器下载；如未开始，请使用代理下载') }
+  catch (error) { ElMessage.error('视频地址不可用') }
+}
+
+const downloadVideoByProxy = async () => {
+  const targetUrl = singlePreviewSourceUrl || resolveAssetUrl(videoPreview.url)
+  if (!targetUrl) return ElMessage.warning('视频URL不可用')
   try {
     await downloadProxyFile(targetUrl, {
       taskId: videoPreview.taskId,
@@ -3035,11 +3049,24 @@ const downloadVideo = async () => {
       defaultExtension: '.mp4'
     })
     markVideoDownloadedLocally(videoPreview.taskId)
-    ElMessage.success('下载已开始')
+    ElMessage.success('代理下载已开始')
   } catch (error) {
     console.error('下载视频失败:', error)
     ElMessage.error('下载失败，请重试')
   }
+}
+
+const stopSingleVideoPreview = () => { if (singlePreviewBlobUrl) URL.revokeObjectURL(singlePreviewBlobUrl); singlePreviewBlobUrl = ''; singlePreviewSourceUrl = ''; singlePreviewFallbackUsed = false }
+const handleSingleVideoError = async () => {
+  if (singlePreviewFallbackUsed || !singlePreviewSourceUrl || !videoPreview.visible) return
+  singlePreviewFallbackUsed = true
+  const source = singlePreviewSourceUrl
+  try {
+    const { blob } = await fetchProxyBlob(source, { taskId: videoPreview.taskId, assetType: 'video', fallbackBaseName: 'preview', defaultExtension: '.mp4' })
+    if (!videoPreview.visible || singlePreviewSourceUrl !== source) return
+    singlePreviewBlobUrl = URL.createObjectURL(blob)
+    videoPreview.url = singlePreviewBlobUrl
+  } catch { if (videoPreview.visible && singlePreviewSourceUrl === source) ElMessage.error('直连和代理预览均失败') }
 }
 
 // 下载音频
@@ -3082,6 +3109,7 @@ const handleSearch = async () => {
 
 // 批量下载视频
 const batchDownloadVideos = async () => {
+  if (videoZipVisible.value) return
   if (selectedVideos.value.length === 0) {
     ElMessage.warning('请先选择要下载的视频')
     return
@@ -3095,63 +3123,18 @@ const batchDownloadVideos = async () => {
     return
   }
 
-  ElMessage.info(`准备打包 ${validVideos.length} 个视频...`)
-
+  videoZipVisible.value = true
   try {
-    const zip = new JSZip()
-    let successCount = 0
-    let failedCount = 0
-
-    // 并行下载所有视频
-    const downloadPromises = validVideos.map(video =>
-      fetchProxyBlob(video.videoUrl, {
-        taskId: video.id,
-        assetType: 'video',
-        fallbackBaseName: `${video.title || 'video'}-${video.id}`,
-        defaultExtension: '.mp4'
-      })
-        .then(response => response.blob)
-        .then(blob => {
-          const fileName = `${video.title || 'video'}-${video.id}.mp4`
-          zip.file(fileName, blob)
-          markVideoDownloadedLocally(video.id)
-          successCount++
-        })
-        .catch(error => {
-          console.error(`下载视频失败: ${video.title}`, error)
-          failedCount++
-        })
-    )
-
-    // 等待所有下载完成
-    await Promise.all(downloadPromises)
-
-    // 生成 ZIP 文件
-    ElMessage.info('正在生成压缩包...')
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-    // 下载 ZIP 文件
-    const url = window.URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `videos-${new Date().getTime()}.zip`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-
-    if (successCount > 0) {
-      ElMessage.success(`成功打包并下载 ${successCount} 个视频`)
-    }
-    if (failedCount > 0) {
-      ElMessage.warning(`${failedCount} 个视频下载失败`)
-    }
+    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+    ElMessage.success(`成功打包 ${result.success} 个视频${result.failed ? `，${result.failed} 个失败` : ''}`)
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
     }
   } catch (error) {
     console.error('ZIP打包失败:', error)
     ElMessage.error('打包文件失败，请重试')
+  } finally {
+    videoZipVisible.value = false
   }
 }
 

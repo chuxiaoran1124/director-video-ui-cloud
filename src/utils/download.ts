@@ -1,4 +1,5 @@
 import { downloadFileByProxy } from '/@/api/material'
+import JSZip from 'jszip'
 
 const CONTENT_TYPE_EXTENSION_MAP: Array<[string, string]> = [
     ['video/mp4', '.mp4'],
@@ -107,7 +108,64 @@ export function triggerBlobDownload(blob: Blob, fileName: string): void {
     document.body.appendChild(anchor)
     anchor.click()
     document.body.removeChild(anchor)
-    window.URL.revokeObjectURL(blobUrl)
+    window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30_000)
+}
+
+// 公网视频交给浏览器请求，避免先把整段 MP4 经过应用服务和网关。
+export function directVideoUrl(rawUrl: any): string {
+    const url = normalizeAssetUrl(rawUrl)
+    if (!url || !/^https?:\/\//i.test(url)) throw new Error('视频地址不可用')
+    return url
+}
+
+export function downloadVideoDirect(rawUrl: any): void {
+    const anchor = document.createElement('a')
+    anchor.href = directVideoUrl(rawUrl)
+    anchor.target = '_blank'
+    anchor.rel = 'noopener noreferrer'
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+}
+
+export interface ZipVideoItem { url: string; taskId?: string | number | null; fileName: string }
+export interface ZipProgress { phase: 'fetching' | 'packing' | 'done'; completed: number; total: number; percent: number }
+
+// ZIP 仍需读取视频字节；每次最多两个代理请求，避免并发视频拉取占满网关。
+export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, onProgress: (progress: ZipProgress) => void): Promise<{ success: number; failed: number }> {
+    if (!items.length) throw new Error('没有可下载的视频')
+    const zip = new JSZip()
+    let cursor = 0
+    let completed = 0
+    let success = 0
+    let failed = 0
+    onProgress({ phase: 'fetching', completed: 0, total: items.length, percent: 0 })
+    const worker = async () => {
+        while (cursor < items.length) {
+            const item = items[cursor++]
+            try {
+                const { blob } = await fetchProxyBlob(item.url, { taskId: item.taskId, assetType: 'video', fallbackBaseName: item.fileName, defaultExtension: '.mp4' })
+                zip.file(sanitizeFileName(item.fileName, 'video.mp4'), blob)
+                success++
+            } catch (error) {
+                console.error('ZIP 视频获取失败', item.taskId, error)
+                failed++
+            } finally {
+                completed++
+                onProgress({ phase: 'fetching', completed, total: items.length, percent: Math.round(completed / items.length * 80) })
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(2, items.length) }, () => worker()))
+    if (!success) throw new Error('所有视频获取失败，请稍后重试')
+    onProgress({ phase: 'packing', completed, total: items.length, percent: 80 })
+    const blob = await zip.generateAsync({ type: 'blob' }, metadata => {
+        onProgress({ phase: 'packing', completed, total: items.length, percent: Math.min(99, 80 + Math.round(metadata.percent * 0.19)) })
+    })
+    triggerBlobDownload(blob, sanitizeFileName(zipName, 'videos.zip'))
+    onProgress({ phase: 'done', completed, total: items.length, percent: 100 })
+    return { success, failed }
 }
 
 export async function fetchProxyBlob(rawUrl: any, options: {

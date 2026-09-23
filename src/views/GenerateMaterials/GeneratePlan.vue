@@ -363,7 +363,7 @@
         </template>
 
         <section v-else class="child-table-card">
-          <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><el-tag>{{ detail.children.length }} 条</el-tag></div>
+          <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><div class="child-download-actions"><el-tag>{{ detail.children.length }} 条</el-tag><el-button type="success" :disabled="!detail.children.some(child => child.videoUrl) || zipVisible" @click="downloadPlanVideos">批量下载</el-button></div></div>
           <el-table :data="detail.children" row-key="id" fit style="width:100%" :header-cell-style="tableHeaderStyle">
             <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
             <el-table-column label="封面" min-width="90" align="center"><template #default="{ row }"><img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="" /><span v-else>-</span></template></el-table-column>
@@ -375,6 +375,7 @@
               <template #default="{ row }">
                 <el-button v-if="row.videoUrl" link type="primary" @click="openVideoPreview(row)">预览</el-button>
                 <el-button v-if="row.videoUrl" link type="success" @click="downloadChild(row)">下载</el-button>
+                <el-button v-if="row.videoUrl" link type="info" @click="downloadChildByProxy(row)">代理下载</el-button>
                 <el-button v-if="row.retryable" link type="warning" @click="retryChild(row)">失败重试</el-button>
               </template>
             </el-table-column>
@@ -465,8 +466,10 @@
     </el-dialog>
 
     <el-dialog v-model="preview.visible" :title="preview.title" width="72%" append-to-body @closed="stopPreview">
-      <div class="video-preview-wrap"><el-skeleton v-if="preview.loading" :rows="5" animated /><video v-else-if="preview.url" ref="previewVideo" :src="preview.url" controls autoplay playsinline /></div>
+      <div class="video-preview-wrap"><el-skeleton v-if="preview.loading" :rows="5" animated /><video v-else-if="preview.url" ref="previewVideo" :src="preview.url" controls autoplay playsinline @error="handleVideoPreviewError" /></div>
+      <template #footer><el-button v-if="preview.sourceUrl" @click="downloadChildByProxy({ videoUrl: preview.sourceUrl, videoTaskId: preview.taskId, id: preview.taskId } as BatchChild)">代理下载</el-button></template>
     </el-dialog>
+    <VideoZipProgress v-bind="zipProgress" :visible="zipVisible" />
   </div>
 </template>
 
@@ -475,6 +478,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } from '@element-plus/icons-vue'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
+import VideoZipProgress from '/@/components/VideoZipProgress.vue'
+import { directVideoUrl, downloadVideoDirect, downloadVideoZip, downloadProxyFile, type ZipProgress } from '/@/utils/download'
 import { getUserList, type IUserListItem } from '/@/api/user'
 import { useLayoutStore } from '/@/store/modules/layout'
 import {
@@ -575,7 +580,9 @@ const selectedHumanIds = ref<string[]>([])
 const humanPickerScale = ref(1)
 const humanPickerScaleLocked = ref(false)
 const humanPickerPreferenceSaving = ref(false)
-const preview = reactive({ visible: false, loading: false, url: '', title: '', downloadingId: null as string | number | null })
+const preview = reactive({ visible: false, loading: false, url: '', sourceUrl: '', taskId: null as string | number | null, fallbackUsed: false, title: '', downloadingId: null as string | number | null })
+const zipVisible = ref(false)
+const zipProgress = reactive<ZipProgress>({ phase: 'fetching', completed: 0, total: 0, percent: 0 })
 const scriptOptions = ref<ScriptOption[]>([])
 const historyOptions = ref<ScriptOption[]>([])
 const bindingOptions = ref<BindingOption[]>([])
@@ -1162,10 +1169,12 @@ async function blobToDataUrl(blob: Blob) { return await new Promise<string>((res
 async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
 async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
 
-async function getVideoBlob(child: BatchChild) { if (!child.videoUrl) throw new Error('视频尚未生成'); const response = await downloadFileByProxy(child.videoUrl, child.videoTaskId || child.id, 'video'); const blob = response?.data instanceof Blob ? response.data : null; if (!blob) throw new Error('视频代理未返回有效文件'); return blob }
-async function openVideoPreview(child: BatchChild) { stopPreview(); preview.visible = true; preview.loading = true; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; try { const blob = await getVideoBlob(child); previewObjectUrl = URL.createObjectURL(blob); preview.url = previewObjectUrl } catch (error: any) { preview.visible = false; ElMessage.error(error?.message || '视频预览失败') } finally { preview.loading = false } }
-async function downloadChild(child: BatchChild) { try { const blob = await getVideoBlob(child); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${child.digitalHumanName || '数字人'}-${child.seqNo}.mp4`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000) } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
-function stopPreview() { previewVideo.value?.pause(); if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = ''; preview.url = '' }
+function openVideoPreview(child: BatchChild) { stopPreview(); try { preview.sourceUrl = directVideoUrl(child.videoUrl); preview.taskId = child.videoTaskId || child.id; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; preview.visible = true; preview.url = preview.sourceUrl } catch (error: any) { ElMessage.error(error?.message || '视频预览失败') } }
+async function handleVideoPreviewError() { if (!preview.visible || preview.fallbackUsed || !preview.sourceUrl) return; preview.fallbackUsed = true; preview.loading = true; const source = preview.sourceUrl; try { const response = await downloadFileByProxy(source, preview.taskId || undefined, 'video'); if (!preview.visible || preview.sourceUrl !== source) return; const blob = response?.data instanceof Blob ? response.data : null; if (!blob) throw new Error('视频代理未返回有效文件'); previewObjectUrl = URL.createObjectURL(blob); preview.url = previewObjectUrl } catch { if (preview.visible && preview.sourceUrl === source) ElMessage.error('直连和代理预览均失败，请稍后重试') } finally { if (preview.sourceUrl === source) preview.loading = false } }
+function downloadChild(child: BatchChild) { try { downloadVideoDirect(child.videoUrl); ElMessage.info('已交给浏览器下载；如未开始，请使用旁边的代理下载') } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
+async function downloadChildByProxy(child: BatchChild) { try { await downloadProxyFile(child.videoUrl, { taskId: child.videoTaskId || child.id, assetType: 'video', fallbackBaseName: `${child.digitalHumanName || '数字人'}-${child.seqNo || child.id}`, defaultExtension: '.mp4' }) } catch { ElMessage.error('代理下载失败，请稍后重试') } }
+async function downloadPlanVideos() { if (zipVisible.value) return; const children = detail.children.filter(child => child.videoUrl); if (!children.length) return; zipVisible.value = true; try { const result = await downloadVideoZip(children.map(child => ({ url: child.videoUrl!, taskId: child.videoTaskId || child.id, fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4` })), `batch-plan-${detail.plan?.id || 'videos'}.zip`, state => Object.assign(zipProgress, state)); ElMessage.success(`已打包 ${result.success} 条视频${result.failed ? `，${result.failed} 条失败` : ''}`) } catch (error: any) { ElMessage.error(error?.message || '批量下载失败') } finally { zipVisible.value = false } }
+function stopPreview() { previewVideo.value?.pause(); if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = ''; preview.url = ''; preview.sourceUrl = ''; preview.fallbackUsed = false; preview.loading = false }
 function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
 function refreshPlanListWhenVisible() { if (document.visibilityState === 'visible') loadPlanList({ silent: true }) }
 
@@ -1228,6 +1237,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .w-full { width:100%; }
 .create-section { margin-top:12px; padding:18px; border:1px solid #e5ebf4; border-radius:12px; background:#fbfcfe; }
 .section-heading-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:14px; }
+.child-download-actions { display:flex; align-items:center; gap:10px; }
 .section-heading-row p, .block-title span { margin:4px 0 0; color:#8a98ac; font-size:12px; }
 .required, .enhancement-label em { color:#f56c6c; font-style:normal; }
 .script-actions { display:flex; gap:8px; }
