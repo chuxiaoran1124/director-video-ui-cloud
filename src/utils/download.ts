@@ -133,7 +133,7 @@ export interface ZipVideoItem { url: string; taskId?: string | number | null; fi
 export interface ZipProgress { phase: 'fetching' | 'packing' | 'done'; completed: number; total: number; percent: number }
 
 // ZIP 仍需读取视频字节；每次最多两个代理请求，避免并发视频拉取占满网关。
-export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, onProgress: (progress: ZipProgress) => void): Promise<{ success: number; failed: number }> {
+export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, onProgress: (progress: ZipProgress) => void, onItemSuccess?: (item: ZipVideoItem) => void): Promise<{ success: number; failed: number }> {
     if (!items.length) throw new Error('没有可下载的视频')
     const zip = new JSZip()
     let cursor = 0
@@ -148,6 +148,7 @@ export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, o
                 const { blob } = await fetchProxyBlob(item.url, { taskId: item.taskId, assetType: 'video', fallbackBaseName: item.fileName, defaultExtension: '.mp4' })
                 zip.file(sanitizeFileName(item.fileName, 'video.mp4'), blob)
                 success++
+                onItemSuccess?.(item)
             } catch (error) {
                 console.error('ZIP 视频获取失败', item.taskId, error)
                 failed++

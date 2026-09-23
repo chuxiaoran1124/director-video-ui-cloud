@@ -3125,7 +3125,7 @@ const batchDownloadVideos = async () => {
 
   videoZipVisible.value = true
   try {
-    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state), item => markVideoDownloadedLocally(Number(item.taskId) || null))
     ElMessage.success(`成功打包 ${result.success} 个视频${result.failed ? `，${result.failed} 个失败` : ''}`)
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
