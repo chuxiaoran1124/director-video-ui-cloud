@@ -1,5 +1,6 @@
 import { downloadFileByProxy } from '/@/api/material'
 import { directVideoUrl, downloadVideoDirect, downloadVideoZip } from '../src/utils/download'
+import JSZip from 'jszip'
 
 jest.mock('/@/api/material', () => ({ downloadFileByProxy: jest.fn() }))
 
@@ -58,6 +59,49 @@ test('瞬时失败最多三次尝试，成功后不记为失败', async () => {
   )
   expect(global.fetch).toHaveBeenCalledTimes(3)
   expect(result).toEqual({ success: 1, failed: 0, failedItems: [] })
+})
+
+test('部分失败时仍生成 ZIP，且只写入成功的视频', async () => {
+  let zipBlob: Blob | undefined
+  ;(window.URL.createObjectURL as jest.Mock).mockImplementation((blob: Blob) => {
+    zipBlob = blob
+    return 'blob:mixed-result'
+  })
+  ;(global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+    if (url.endsWith('/failed.mp4')) {
+      return { ok: false, status: 404, headers: { get: () => '' } }
+    }
+    return {
+      ok: true,
+      status: 200,
+      blob: async () => new Blob([url.endsWith('/a.mp4') ? 'video-a' : 'video-b'], { type: 'video/mp4' }),
+      headers: { get: () => 'video/mp4' }
+    }
+  })
+
+  const result = await downloadVideoZip(
+    [
+      { url: 'https://example.com/a.mp4', taskId: 1, taskName: '成功A', fileName: 'a.mp4' },
+      { url: 'https://example.com/failed.mp4', taskId: 2, taskName: '失败任务', fileName: 'failed.mp4' },
+      { url: 'https://example.com/b.mp4', taskId: 3, taskName: '成功B', fileName: 'b.mp4' }
+    ],
+    'mixed.zip',
+    () => undefined
+  )
+
+  expect(result.success).toBe(2)
+  expect(result.failed).toBe(1)
+  expect(result.failedItems.map(item => item.item.taskName)).toEqual(['失败任务'])
+  expect(zipBlob).toBeDefined()
+
+  const zipBytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error)
+    reader.onload = () => resolve(reader.result as ArrayBuffer)
+    reader.readAsArrayBuffer(zipBlob as Blob)
+  })
+  const zip = await JSZip.loadAsync(zipBytes)
+  expect(Object.keys(zip.files).sort()).toEqual(['a.mp4', 'b.mp4'])
 })
 
 test('全部失败仍返回完整失败任务名称，永久404不重复请求', async () => {
