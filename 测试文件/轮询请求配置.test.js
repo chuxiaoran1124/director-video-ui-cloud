@@ -47,3 +47,16 @@ test('显式加载保留默认全局反馈', () => {
   assert.equal(calls.length, 1)
   assert.equal(calls[0].hideLoading, undefined)
 })
+
+for (const [name, relativePath, pattern] of [
+  ['批量数字人计划', 'src/views/GenerateMaterials/GeneratePlan.vue', /setInterval\(refreshPlanListWhenVisible, 10000\)/],
+  ['单条视频列表', 'src/views/GenerateMaterials/GenerateVideo.vue', /setInterval\([\s\S]*?loadVideoTasks\(true\)[\s\S]*?}, 10000\)/],
+  ['快速训练列表', 'src/views/PriorDisposal/RapidGenerating.vue', /listPollTimer = setInterval\([\s\S]*?loadTaskList\(true\)[\s\S]*?}, 10000\)/],
+  ['角标任务列表', 'src/views/PriorDisposal/AddCornerMark.vue', /pollingTimer = setInterval\([\s\S]*?loadCurrentList\(true\)[\s\S]*?}, 10000\)/],
+  ['字幕消除列表', 'src/views/PriorDisposal/SubtitleRemove.vue', /pollingTimer = setInterval\([\s\S]*?loadTaskList\(true\)[\s\S]*?}, 10000\)/]
+]) {
+  test(`${name}使用10秒静默轮询`, () => {
+    const viewSource = readFileSync(join(__dirname, '..', relativePath), 'utf8')
+    assert.match(viewSource, pattern)
+  })
+}

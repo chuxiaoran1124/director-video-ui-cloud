@@ -1949,7 +1949,7 @@ const startVideoTaskAutoRefresh = () => {
       loadVideoTasks(true)
       loadVideoWaitingInfo(true)
     }
-  }, 5000)
+  }, 10000)
 }
 
 const stopVideoTaskAutoRefresh = () => {

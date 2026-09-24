@@ -870,7 +870,7 @@ const startListPolling = () => {
     if (isCreating.value) return
     loadTaskList(true)
     loadWaitingBefore(undefined, true)
-  }, 3000)
+  }, 10000)
 }
 
 watch(searchQuery, () => {

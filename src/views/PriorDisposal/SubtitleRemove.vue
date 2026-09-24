@@ -374,7 +374,7 @@ const startPolling = () => {
   pollingTimer = setInterval(() => {
     const hasPending = taskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2 || t.taskStatus === 0)
     if (hasPending) loadTaskList(true)
-  }, 5000)
+  }, 10000)
 }
 
 const stopPolling = () => {

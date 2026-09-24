@@ -781,7 +781,7 @@ const startPolling = () => {
       ? taskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2)
       : batchTaskList.value.some(t => t.taskStatus === 1 || t.taskStatus === 2)
     if (hasPending) loadCurrentList(true)
-  }, 5000)
+  }, 10000)
 }
 
 const stopPolling = () => {

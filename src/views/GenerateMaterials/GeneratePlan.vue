@@ -1181,7 +1181,7 @@ watch(() => planForm.processTypes, (types) => { planForm.performerConfigs.forEac
 onMounted(() => {
   loadPlanList()
   loadCreatorOptions()
-  listRefreshTimer = window.setInterval(refreshPlanListWhenVisible, 5000)
+  listRefreshTimer = window.setInterval(refreshPlanListWhenVisible, 10000)
   document.addEventListener('visibilitychange', refreshPlanListWhenVisible)
 })
 watch(() => layoutStore.getUserInfo.tenantId, () => {
