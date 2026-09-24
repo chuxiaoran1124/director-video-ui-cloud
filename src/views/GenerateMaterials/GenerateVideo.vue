@@ -1066,7 +1066,8 @@ import { getUserList, IUserListItem } from '/@/api/user'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
-import { downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { describeZipVideoFailures, downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { beginCriticalOperation } from '/@/utils/criticalOperation'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- 数据定义 ---
@@ -2790,6 +2791,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
   
   submitDispatchMode.value = effectiveDispatchMode
   isGenerating.value = true
+  const endCriticalOperation = beginCriticalOperation()
   resultVideo.value = ''
   genProgress.value = 0
   genStage.value = effectiveDispatchMode === 'overnight'
@@ -3002,6 +3004,8 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     } else {
       ElMessage.error(`视频生成失败: ${errorMessage}`)
     }
+  } finally {
+    endCriticalOperation()
   }
 }
 
@@ -3100,8 +3104,12 @@ const batchDownloadVideos = async () => {
 
   videoZipVisible.value = true
   try {
-    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state), item => markVideoDownloadedLocally(Number(item.taskId) || null))
-    ElMessage.success(`成功打包 ${result.success} 个视频${result.failed ? `，${result.failed} 个失败` : ''}`)
+    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, taskName: video.title || `视频任务 ${video.id}`, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state), item => markVideoDownloadedLocally(Number(item.taskId) || null))
+    if (result.failed) {
+      await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
+    } else {
+      ElMessage.success(`成功打包 ${result.success} 个视频`)
+    }
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
     }

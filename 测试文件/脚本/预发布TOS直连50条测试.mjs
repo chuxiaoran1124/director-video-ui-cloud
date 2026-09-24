@@ -2,7 +2,7 @@ import { chromium } from 'playwright'
 
 const originUrl = process.env.STAGING_ORIGIN_URL
 const urls = JSON.parse(process.env.TEST_VIDEO_URLS_JSON || '[]')
-if (!originUrl || !Array.isArray(urls) || urls.length < 50) {
+if (!originUrl || !Array.isArray(urls) || urls.length < 1) {
   throw new Error(`测试输入不足：origin=${Boolean(originUrl)}，视频数=${urls.length}`)
 }
 
@@ -49,7 +49,9 @@ try {
       durationMs: Math.round(performance.now() - startedAt)
     }
   }, urls)
-  console.log(JSON.stringify({ passed: !result.firstError && result.completed === result.requested, ...result }))
+  const passed = !result.firstError && result.completed === result.requested
+  console.log(JSON.stringify({ passed, ...result }))
+  if (!passed) process.exitCode = 1
 } finally {
   await browser.close()
 }

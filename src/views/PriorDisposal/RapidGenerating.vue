@@ -501,6 +501,7 @@ import { useTaskStore } from '/@/store/modules/task'
 import { createFastTask, getFastTaskList, deleteFastTask, retryFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
 import { getUserList, IUserListItem } from '/@/api/user'
 import { fetchDirectBlob, fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
+import { beginCriticalOperation } from '/@/utils/criticalOperation'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -1320,6 +1321,7 @@ const startBatchProcessing = async () => {
   if (!batchFiles.value.length) return ElMessage.warning('请先选择视频素材')
 
   batchSubmitting.value = true
+  const endCriticalOperation = beginCriticalOperation()
   try {
     await ensureBatchNames()
     const readyItems = batchFiles.value.filter(item => item.status === 'ready' && !item.error)
@@ -1378,6 +1380,7 @@ const startBatchProcessing = async () => {
     ElMessage.error(error?.message || '批量提交失败，请稍后重试')
   } finally {
     batchSubmitting.value = false
+    endCriticalOperation()
   }
 }
 
@@ -1390,7 +1393,7 @@ const startProcessing = async () => {
   const nameValid = await validateName(finalName, true)
   if (!nameValid) return
   if (singleSubmitting.value) return
-  
+  const endCriticalOperation = beginCriticalOperation()
   try {
     singleSubmitting.value = true
     singleUploadProgress.value = 0
@@ -1436,6 +1439,7 @@ const startProcessing = async () => {
     ElMessage.error(error.message || '提交失败，请稍后重试')
   } finally {
     singleSubmitting.value = false
+    endCriticalOperation()
   }
 }
 

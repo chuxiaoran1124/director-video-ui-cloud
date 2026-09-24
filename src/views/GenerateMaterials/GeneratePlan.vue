@@ -478,7 +478,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } from '@element-plus/icons-vue'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
-import { directVideoUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { describeZipVideoFailures, directVideoUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
 import { getUserList, type IUserListItem } from '/@/api/user'
 import { useLayoutStore } from '/@/store/modules/layout'
 import {
@@ -1170,7 +1170,7 @@ async function refreshActivePreview() { const sequence = ++previewLoadSequence; 
 function openVideoPreview(child: BatchChild) { stopPreview(); try { preview.sourceUrl = directVideoUrl(child.videoUrl); preview.taskId = child.videoTaskId || child.id; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; preview.visible = true; preview.url = preview.sourceUrl } catch (error: any) { ElMessage.error(error?.message || '视频预览失败') } }
 function handleVideoPreviewError() { if (!preview.visible || preview.fallbackUsed || !preview.sourceUrl) return; preview.fallbackUsed = true; preview.loading = false; ElMessage.error('视频直连预览失败，请检查 TOS 公网访问配置') }
 function downloadChild(child: BatchChild) { try { downloadVideoDirect(child.videoUrl); ElMessage.info('已交给浏览器直连下载') } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
-async function downloadPlanVideos() { if (zipVisible.value) return; const children = detail.children.filter(child => child.videoUrl); if (!children.length) return; zipVisible.value = true; try { const result = await downloadVideoZip(children.map(child => ({ url: child.videoUrl!, taskId: child.videoTaskId || child.id, fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4` })), `batch-plan-${detail.plan?.id || 'videos'}.zip`, state => Object.assign(zipProgress, state)); ElMessage.success(`已打包 ${result.success} 条视频${result.failed ? `，${result.failed} 条失败` : ''}`) } catch (error: any) { ElMessage.error(error?.message || '批量下载失败') } finally { zipVisible.value = false } }
+async function downloadPlanVideos() { if (zipVisible.value) return; const children = detail.children.filter(child => child.videoUrl); if (!children.length) return; zipVisible.value = true; try { const result = await downloadVideoZip(children.map(child => ({ url: child.videoUrl!, taskId: child.videoTaskId || child.id, taskName: `${child.digitalHumanName || '数字人'}（第 ${child.seqNo} 条）`, fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4` })), `batch-plan-${detail.plan?.id || 'videos'}.zip`, state => Object.assign(zipProgress, state)); if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' }); else ElMessage.success(`已打包 ${result.success} 条视频`) } catch (error: any) { ElMessage.error(error?.message || '批量下载失败') } finally { zipVisible.value = false } }
 function stopPreview() { previewVideo.value?.pause(); preview.url = ''; preview.sourceUrl = ''; preview.fallbackUsed = false; preview.loading = false }
 function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
 function refreshPlanListWhenVisible() { if (document.visibilityState === 'visible') loadPlanList({ silent: true }) }

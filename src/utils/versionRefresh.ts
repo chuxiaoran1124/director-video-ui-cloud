@@ -1,5 +1,7 @@
 declare const __APP_BUILD_ID__: string
 
+import { hasCriticalOperation } from './criticalOperation'
+
 const VERSION_CHECK_INTERVAL = 60 * 1000
 const VISIBLE_IDLE_BEFORE_REFRESH = 5 * 60 * 1000
 const HIDDEN_IDLE_BEFORE_REFRESH = 30 * 1000
@@ -49,7 +51,7 @@ function tryRefresh(): void {
 
     const idleFor = Date.now() - lastActivityAt
     const requiredIdle = document.hidden ? HIDDEN_IDLE_BEFORE_REFRESH : VISIBLE_IDLE_BEFORE_REFRESH
-    if (idleFor < requiredIdle || hasBusyUi() || hasFocusedEditor()) return
+    if (idleFor < requiredIdle || hasCriticalOperation() || hasBusyUi() || hasFocusedEditor()) return
 
     refreshToVersion(pendingVersion)
 }
