@@ -1010,7 +1010,7 @@
                <h4 class="font-bold text-gray-800 text-base flex items-center gap-2">
                   <span class="text-blue-500">▶</span>视频内容
                </h4>
-               <div><el-button type="primary" size="small" @click="downloadVideo" :icon="ElIcon.Download">下载视频</el-button><el-button size="small" @click="downloadVideoByProxy">代理下载</el-button></div>
+               <div><el-button type="primary" size="small" @click="downloadVideo" :icon="ElIcon.Download">下载视频</el-button></div>
              </div>
              <div class="bg-black flex items-center justify-center rounded-lg overflow-hidden h-[500px] border-2 border-blue-100">
                 <video :src="videoPreview.url" controls autoplay class="max-w-full max-h-full" @error="handleSingleVideoError"></video>
@@ -1811,7 +1811,6 @@ const videoPreview = reactive({
 })
 const videoZipVisible = ref(false)
 const videoZipProgress = reactive<ZipProgress>({ phase: 'fetching', completed: 0, total: 0, percent: 0 })
-let singlePreviewBlobUrl = ''
 let singlePreviewFallbackUsed = false
 let singlePreviewSourceUrl = ''
 
@@ -3034,39 +3033,15 @@ const downloadVideo = () => {
     ElMessage.warning('视频URL不可用')
     return
   }
-  try { downloadVideoDirect(targetUrl); markVideoDownloadedLocally(videoPreview.taskId); ElMessage.info('已交给浏览器下载；如未开始，请使用代理下载') }
+  try { downloadVideoDirect(targetUrl); markVideoDownloadedLocally(videoPreview.taskId); ElMessage.info('已交给浏览器直连下载') }
   catch (error) { ElMessage.error('视频地址不可用') }
 }
 
-const downloadVideoByProxy = async () => {
-  const targetUrl = singlePreviewSourceUrl || resolveAssetUrl(videoPreview.url)
-  if (!targetUrl) return ElMessage.warning('视频URL不可用')
-  try {
-    await downloadProxyFile(targetUrl, {
-      taskId: videoPreview.taskId,
-      assetType: 'video',
-      fallbackBaseName: `${videoPreview.title || 'video'}-${videoPreview.taskId || new Date().getTime()}`,
-      defaultExtension: '.mp4'
-    })
-    markVideoDownloadedLocally(videoPreview.taskId)
-    ElMessage.success('代理下载已开始')
-  } catch (error) {
-    console.error('下载视频失败:', error)
-    ElMessage.error('下载失败，请重试')
-  }
-}
-
-const stopSingleVideoPreview = () => { if (singlePreviewBlobUrl) URL.revokeObjectURL(singlePreviewBlobUrl); singlePreviewBlobUrl = ''; singlePreviewSourceUrl = ''; singlePreviewFallbackUsed = false }
-const handleSingleVideoError = async () => {
+const stopSingleVideoPreview = () => { singlePreviewSourceUrl = ''; singlePreviewFallbackUsed = false }
+const handleSingleVideoError = () => {
   if (singlePreviewFallbackUsed || !singlePreviewSourceUrl || !videoPreview.visible) return
   singlePreviewFallbackUsed = true
-  const source = singlePreviewSourceUrl
-  try {
-    const { blob } = await fetchProxyBlob(source, { taskId: videoPreview.taskId, assetType: 'video', fallbackBaseName: 'preview', defaultExtension: '.mp4' })
-    if (!videoPreview.visible || singlePreviewSourceUrl !== source) return
-    singlePreviewBlobUrl = URL.createObjectURL(blob)
-    videoPreview.url = singlePreviewBlobUrl
-  } catch { if (videoPreview.visible && singlePreviewSourceUrl === source) ElMessage.error('直连和代理预览均失败') }
+  ElMessage.error('视频直连预览失败，请检查 TOS 公网访问配置')
 }
 
 // 下载音频

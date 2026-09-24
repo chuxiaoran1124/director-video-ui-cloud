@@ -653,7 +653,7 @@ import { defineComponent, ref, onMounted, onUnmounted, computed, reactive, nextT
 import TagManager from '/@/components/TagManager/index.vue'
 import MaterialCornerMarkPanel from '/@/views/PriorDisposal/components/MaterialCornerMarkPanel.vue'
 import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding, bannerOverlayPreview, bannerOverlaySave, downloadFileByProxy } from '/@/api/material/index'
-import { normalizeAssetUrl } from '/@/utils/download'
+import { fetchDirectBlob, normalizeAssetUrl } from '/@/utils/download'
 import request from '/@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -971,12 +971,14 @@ export default defineComponent({
       bannerBgNaturalHeight.value = bgSize.height || 640
     }
 
-    const extractVideoFrameByProxy = async (videoUrl: string) => {
+    const extractVideoFrameDirect = async (videoUrl: string) => {
       if (!videoUrl) {
         throw new Error('Missing banner background video url')
       }
-      const res = await downloadFileByProxy(videoUrl)
-      const videoBlob = res.data as Blob
+      const { blob: videoBlob } = await fetchDirectBlob(videoUrl, {
+        fallbackBaseName: 'banner-background',
+        defaultExtension: '.mp4'
+      })
       const objectUrl = URL.createObjectURL(videoBlob)
       try {
         return await new Promise<string>((resolve, reject) => {
@@ -1087,7 +1089,7 @@ export default defineComponent({
       }
 
       try {
-        const frameBase64 = await extractVideoFrameByProxy(videoUrl)
+        const frameBase64 = await extractVideoFrameDirect(videoUrl)
         bannerBackgroundBase64.value = frameBase64
         await syncBannerBackgroundSize(frameBase64)
       } catch (error) {

@@ -500,7 +500,7 @@ import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
 import { createFastTask, getFastTaskList, deleteFastTask, retryFastTask, getFastTaskDetail, validateDigitalHumanTaskName, getFastTaskWaitingBefore } from '/@/api/material'
 import { getUserList, IUserListItem } from '/@/api/user'
-import { fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
+import { fetchDirectBlob, fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -1145,9 +1145,7 @@ const exportAssetPackage = async () => {
     const zip = new JSZip()
 
     if (videoUrl) {
-      const { blob, fileName } = await fetchProxyBlob(videoUrl, {
-        taskId: currentAsset.value.id,
-        assetType: 'video',
+      const { blob, fileName } = await fetchDirectBlob(videoUrl, {
         fallbackBaseName: `${assetBaseName}-video`,
         defaultExtension: '.mp4'
       })

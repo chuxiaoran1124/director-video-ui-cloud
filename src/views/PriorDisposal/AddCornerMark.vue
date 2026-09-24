@@ -446,7 +446,6 @@
       </div>
       <template #footer>
         <el-button type="primary" @click="downloadResult(previewItem)">下载视频</el-button>
-        <el-button @click="downloadResultByProxy(previewItem)">代理下载</el-button>
         <el-button @click="previewVisible = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -531,7 +530,7 @@ import {
   deleteCornerMarkTask,
   getCornerMarkList
 } from '/@/api/material'
-import { downloadVideoDirect, downloadVideoZip, downloadProxyFile, type ZipProgress } from '/@/utils/download'
+import { downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- Types ---
@@ -1272,12 +1271,6 @@ const downloadResult = (row: CornerMarkTask | null) => {
   if (!row?.outputVideoUrl) return
   try { downloadVideoDirect(row.outputVideoUrl); ElMessage.info('已交给浏览器下载') }
   catch { ElMessage.error('视频地址不可用') }
-}
-
-const downloadResultByProxy = async (row: CornerMarkTask | null) => {
-  if (!row?.outputVideoUrl) return
-  try { await downloadProxyFile(row.outputVideoUrl, { taskId: row.id, assetType: 'video', fallbackBaseName: `corner-mark-${row.id}`, defaultExtension: '.mp4' }) }
-  catch { ElMessage.error('代理下载失败，请稍后重试') }
 }
 
 // --- Pagination ---

@@ -132,7 +132,7 @@ export function downloadVideoDirect(rawUrl: any): void {
 export interface ZipVideoItem { url: string; taskId?: string | number | null; fileName: string }
 export interface ZipProgress { phase: 'fetching' | 'packing' | 'done'; completed: number; total: number; percent: number }
 
-// ZIP 仍需读取视频字节；每次最多两个代理请求，避免并发视频拉取占满网关。
+// ZIP 在浏览器侧读取公网视频字节；每次最多两个直连请求，不经过应用服务和网关。
 export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, onProgress: (progress: ZipProgress) => void, onItemSuccess?: (item: ZipVideoItem) => void): Promise<{ success: number; failed: number }> {
     if (!items.length) throw new Error('没有可下载的视频')
     const zip = new JSZip()
@@ -145,7 +145,7 @@ export async function downloadVideoZip(items: ZipVideoItem[], zipName: string, o
         while (cursor < items.length) {
             const item = items[cursor++]
             try {
-                const { blob } = await fetchProxyBlob(item.url, { taskId: item.taskId, assetType: 'video', fallbackBaseName: item.fileName, defaultExtension: '.mp4' })
+                const { blob } = await fetchDirectBlob(item.url, { fallbackBaseName: item.fileName, defaultExtension: '.mp4' })
                 zip.file(sanitizeFileName(item.fileName, 'video.mp4'), blob)
                 success++
                 onItemSuccess?.(item)
@@ -185,6 +185,24 @@ export async function fetchProxyBlob(rawUrl: any, options: {
     return {
         blob: response.data as Blob,
         fileName: buildDownloadFileName(normalizedUrl, options.fallbackBaseName, options.defaultExtension, contentType),
+        sourceUrl: normalizedUrl
+    }
+}
+
+// 只用于允许浏览器跨域读取的公网资源（例如 TOS 视频）。不带登录态，也不经过后端代理。
+export async function fetchDirectBlob(rawUrl: any, options: {
+    fallbackBaseName: string
+    defaultExtension: string
+}): Promise<{ blob: Blob; fileName: string; sourceUrl: string }> {
+    const normalizedUrl = directVideoUrl(rawUrl)
+    const response = await fetch(normalizedUrl, { mode: 'cors', credentials: 'omit' })
+    if (!response.ok) {
+        throw new Error(`视频下载失败（HTTP ${response.status}）`)
+    }
+    const blob = await response.blob()
+    return {
+        blob,
+        fileName: buildDownloadFileName(normalizedUrl, options.fallbackBaseName, options.defaultExtension, response.headers.get('content-type') || ''),
         sourceUrl: normalizedUrl
     }
 }
