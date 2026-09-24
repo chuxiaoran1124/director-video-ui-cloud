@@ -1,0 +1,1 @@
+import{_ as e}from"./index.290be68a.js";import{l as n,x as o,z as r}from"./element-plus.18d6913d.js";const t=n({name:"ThirdNav"});function a(s,c,p,u,_,d){return r(),o("div",null,"\u4E09\u7EA7\u5BFC\u822A")}var m=e(t,[["render",a]]);export{m as default};

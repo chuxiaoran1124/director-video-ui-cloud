@@ -1,0 +1,1 @@
+import{_ as e}from"./index.290be68a.js";import{l as t,x as o,z as n}from"./element-plus.18d6913d.js";const r=t({name:"BudList"});function s(a,c,i,p,d,_){return n(),o("div",null," budList ")}var u=e(r,[["render",s]]);export{u as default};

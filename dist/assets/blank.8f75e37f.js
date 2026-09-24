@@ -1,0 +1,1 @@
+import{_ as o}from"./index.290be68a.js";import{l as t,x as n,G as r,F as a,z as s}from"./element-plus.18d6913d.js";const c=t({name:"LayoutBlank",setup(){return{}}});function p(_,l,m,u,i,f){const e=a("router-view");return s(),n("div",null,[r(e)])}var k=o(c,[["render",p]]);export{k as default};
