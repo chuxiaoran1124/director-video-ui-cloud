@@ -12,6 +12,7 @@ import 'element-plus/theme-chalk/display.css'
 import 'nprogress/nprogress.css'
 import 'virtual:svg-icons-register'
 import SvgIcon from '/@/components/SvnIcon/index.vue'
+import { startVersionRefreshGuard } from '/@/utils/versionRefresh'
 
 import * as ElIcons from '@element-plus/icons-vue'
 
@@ -45,3 +46,4 @@ if (disableDevtools) {
 }
 
 app.mount('#app')
+startVersionRefreshGuard()

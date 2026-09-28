@@ -3,6 +3,7 @@ import axios, { AxiosResponse } from 'axios'
 import { ElLoading, ElNotification } from 'element-plus'
 
 const GENERIC_MASKED_ERROR_MESSAGE = '请求失败，请联系管理员'
+const SILENT_GATEWAY_STATUSES = new Set([504])
 const ORIGINAL_MESSAGE_URL_PATTERNS = [
     /\/user\/login\/?$/i,
     /\/user\/refresh-token\/?$/i,
@@ -67,7 +68,8 @@ const errorHandler = async(error: any) => {
         await layoutStore.forceLogout()
     }
 
-    if (!error?.config?.silentError) {
+    // 网关超时仍交给调用方处理并保留日志，但不再为并行请求重复弹出全局通知。
+    if (!error?.config?.silentError && !SILENT_GATEWAY_STATUSES.has(status)) {
         ElNotification({
             title: status ? `请求失败 ${status}` : '请求失败',
             message,
@@ -79,7 +81,9 @@ const errorHandler = async(error: any) => {
 }
 
 request.interceptors.request.use((config: any) => {
-    if (!config.hideLoading) {
+    // 列表轮询、详情刷新和下载都使用页面内的局部状态；全屏遮罩只允许业务动作显式开启。
+    // 这样后台刷新不会把当前页面盖住，也避免下载视频时出现无关的整页闪屏。
+    if (config.showLoading === true && !config.hideLoading) {
         config._loadingInstance = ElLoading.service({
             lock: true,
             text: '正在加载',
@@ -113,7 +117,7 @@ request.interceptors.response.use(async(response: AxiosResponse<IResponse>) => {
             await layoutStore.forceLogout()
         }
 
-        if (!(response.config as any).silentError) {
+        if (!(response.config as any).silentError && !SILENT_GATEWAY_STATUSES.has(code)) {
             ElNotification({
                 title: code === 401 ? '身份认证失败' : '请求失败',
                 message,

@@ -22,8 +22,13 @@ export default ({ command, mode }: ConfigEnv): UserConfigExport => {
     const root = process.cwd()
     const env = loadEnv(mode, root) as unknown as ImportMetaEnv
     const prodMock = false
+    const buildTime = new Date().toISOString()
+    const buildId = process.env.APP_BUILD_ID || buildTime
     return {
         base: './',
+        define: {
+            __APP_BUILD_ID__: JSON.stringify(buildId)
+        },
         resolve: {
             alias: setAlias([
                 ['/@', 'src'],
@@ -51,6 +56,17 @@ export default ({ command, mode }: ConfigEnv): UserConfigExport => {
             chunkSizeWarningLimit: 600
         },
         plugins: [
+            {
+                name: 'release-version-file',
+                apply: 'build',
+                generateBundle() {
+                    this.emitFile({
+                        type: 'asset',
+                        fileName: 'version.json',
+                        source: JSON.stringify({ version: buildId, builtAt: buildTime })
+                    })
+                }
+            },
             vue(),
             viteMockServe({
                 mockPath: 'mock',
