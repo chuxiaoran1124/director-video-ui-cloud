@@ -3,3 +3,19 @@ node_modules
 *.local
 dist
 upload.ps1
+
+# Local automation and generated artifacts
+.playwright-cli/
+.codex-temp/
+output/
+logs/
+*.log
+*.zip
+*.tar
+*.tar.gz
+*.bundle
+.prod-*
+
+# Local runtime configuration (examples stay tracked)
+.env.local
+.env.*.local
