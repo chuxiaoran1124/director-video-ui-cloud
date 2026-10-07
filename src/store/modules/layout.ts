@@ -30,6 +30,34 @@ import { RouteLocationNormalizedLoaded, RouteRecordRaw } from 'vue-router'
 const ACCESS_TOKEN_KEY = 'accessToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
 let refreshSessionPromise: Promise<void> | null = null
+const REFRESH_LOCK_NAME = 'director-video-refresh-cookie'
+type BrowserLockManager = {
+    request<T>(name: string, options: { mode: 'exclusive' }, callback: () => Promise<T>): Promise<T>
+}
+
+async function refreshWithCrossTabLock(legacyToken?: string) {
+    if (legacyToken) return refreshToken(legacyToken)
+
+    const refreshCookie = async () => {
+        try {
+            return await refreshToken()
+        } catch (error: any) {
+            if (Number(error?.status) !== 401) throw error
+            // An older tab or a browser without Web Locks may have rotated the
+            // cookie concurrently. Wait for its Set-Cookie before trying once more.
+            await new Promise(resolve => window.setTimeout(resolve, 350))
+            return refreshToken()
+        }
+    }
+
+    // The refresh cookie is single-use. Serialize rotations across same-origin
+    // tabs, but never place either token in shared localStorage.
+    const locks = (navigator as Navigator & { locks?: BrowserLockManager }).locks
+    if (locks?.request) {
+        return locks.request(REFRESH_LOCK_NAME, { mode: 'exclusive' }, refreshCookie)
+    }
+    return refreshCookie()
+}
 
 const setting = JSON.parse(localStorage.getItem('setting') || '{}')
 
@@ -446,7 +474,7 @@ export const useLayoutStore = defineStore({
         async refreshSession(legacyToken?: string): Promise<void> {
             if (!refreshSessionPromise) {
                 refreshSessionPromise = (async () => {
-                    const response = await refreshToken(legacyToken)
+                    const response = await refreshWithCrossTabLock(legacyToken)
                     this.applyLoginResponse(response.data.data)
                 })().finally(() => { refreshSessionPromise = null })
             }
