@@ -500,7 +500,15 @@
             <el-form-item label="性别">
               <el-select v-model="editForm.gender" clearable placeholder="未分类" class="max-w-xs"><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select>
             </el-form-item>
-            <el-form-item label="标签"><TagManager ref="tagManagerRef" :initial-tags="editForm.tags" /></el-form-item>
+            <el-form-item label="标签">
+              <div class="w-full">
+                <TagManager ref="tagManagerRef" :initial-tags="editForm.tags" @change="syncEditTagDictionary" />
+                <div v-if="legacyEditTags.length" class="mt-2 text-xs text-gray-500">
+                  历史标签（当前标签字典中没有，保存时仍保留）：
+                  <el-tag v-for="tag in legacyEditTags" :key="tag" class="ml-1" size="small" type="info">{{ tag }}</el-tag>
+                </div>
+              </div>
+            </el-form-item>
           </el-form>
         </template>
 
@@ -1964,6 +1972,18 @@ export default defineComponent({
     const voiceTableRef = ref(null)
     const dhTableRef = ref(null)
       const tagManagerRef = ref(null)
+      const editTagDictionaryLoaded = ref(false)
+      const knownEditTags = ref<string[]>([])
+      const syncEditTagDictionary = () => {
+        const manager = tagManagerRef.value as any
+        editTagDictionaryLoaded.value = Boolean(manager?.hasLoadedLabels?.())
+        knownEditTags.value = manager?.getKnownTagNames?.() || []
+      }
+      const legacyEditTags = computed(() => {
+        if (!editTagDictionaryLoaded.value) return []
+        const known = new Set(knownEditTags.value)
+        return editForm.tags.filter(tag => !known.has(tag))
+      })
       const relTagManagerRef = ref(null)
 
     const isAddRelTag = ref(false)
@@ -2367,6 +2387,8 @@ export default defineComponent({
     }
 
     const handleEdit = async (row: any) => {
+      editTagDictionaryLoaded.value = false
+      knownEditTags.value = []
       editForm.id = row.externalId || row.id
       // 根据当前标签页设置正确的字段
       if (activeName.value === 'digitalHuman') {
@@ -2699,6 +2721,8 @@ export default defineComponent({
       fetchDigitalHumansForDialog,
       voiceTableRef,
         tagManagerRef,
+        syncEditTagDictionary,
+        legacyEditTags,
         relTagManagerRef,
       dhTableRef,
       addBulkRelTag,
