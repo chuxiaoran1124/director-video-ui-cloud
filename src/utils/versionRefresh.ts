@@ -19,6 +19,13 @@ let lastActivityAt = Date.now()
 let pendingVersion = ''
 let refreshTimer: number | undefined
 let versionCheckRunning = false
+const refreshBlockers = new Set<() => boolean>()
+
+// 页面可登记未保存的编辑状态。新版本仍会被发现，但在编辑完成前不会强制重载。
+export function registerVersionRefreshBlocker(blocker: () => boolean): () => void {
+    refreshBlockers.add(blocker)
+    return () => refreshBlockers.delete(blocker)
+}
 
 function isVisible(element: Element): boolean {
     const style = window.getComputedStyle(element)
@@ -51,7 +58,8 @@ function tryRefresh(): void {
 
     const idleFor = Date.now() - lastActivityAt
     const requiredIdle = document.hidden ? HIDDEN_IDLE_BEFORE_REFRESH : VISIBLE_IDLE_BEFORE_REFRESH
-    if (idleFor < requiredIdle || hasCriticalOperation() || hasBusyUi() || hasFocusedEditor()) return
+    if (idleFor < requiredIdle || hasCriticalOperation() || hasBusyUi() || hasFocusedEditor()
+        || Array.from(refreshBlockers).some(blocker => blocker())) return
 
     refreshToVersion(pendingVersion)
 }

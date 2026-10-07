@@ -29,6 +29,7 @@ import { RouteLocationNormalizedLoaded, RouteRecordRaw } from 'vue-router'
 
 const ACCESS_TOKEN_KEY = 'accessToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
+let refreshSessionPromise: Promise<void> | null = null
 
 const setting = JSON.parse(localStorage.getItem('setting') || '{}')
 
@@ -158,7 +159,7 @@ export const useLayoutStore = defineStore({
         status: {
             isLoading: false,
             ACCESS_TOKEN: sessionStorage.getItem(ACCESS_TOKEN_KEY) || '',
-            REFRESH_TOKEN: sessionStorage.getItem(REFRESH_TOKEN_KEY) || '',
+            REFRESH_TOKEN: '',
             isUserLoaded: false,
             isRoutesLoaded: false,
             isLoggingOut: false
@@ -297,8 +298,9 @@ export const useLayoutStore = defineStore({
             sessionStorage.setItem(ACCESS_TOKEN_KEY, token)
         },
         setRefreshToken(token: string): void {
-            this.status.REFRESH_TOKEN = token
-            sessionStorage.setItem(REFRESH_TOKEN_KEY, token)
+            // 刷新凭据由后端 HttpOnly Cookie 保存；旧标签页的 sessionStorage 仅用于一次迁移。
+            this.status.REFRESH_TOKEN = ''
+            sessionStorage.removeItem(REFRESH_TOKEN_KEY)
         },
         setRoutes(data: Array<IMenubarList>): void {
             this.menubar.menuList = data
@@ -422,30 +424,33 @@ export const useLayoutStore = defineStore({
             if (!this.status.ACCESS_TOKEN) {
                 this.status.ACCESS_TOKEN = sessionStorage.getItem(ACCESS_TOKEN_KEY) || ''
             }
-            if (!this.status.REFRESH_TOKEN) {
-                this.status.REFRESH_TOKEN = sessionStorage.getItem(REFRESH_TOKEN_KEY) || ''
-            }
+            const legacyRefreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY) || ''
+            if (legacyRefreshToken) await this.refreshSession(legacyRefreshToken)
             if (!this.status.ACCESS_TOKEN) {
-                return
+                await this.refreshSession()
             }
 
             if (!this.status.isUserLoaded) {
                 try {
                     await this.initializeUserState()
                 } catch {
-                    if (this.status.REFRESH_TOKEN) {
-                        const refreshResponse = await refreshToken(this.status.REFRESH_TOKEN)
-                        this.applyLoginResponse(refreshResponse.data.data)
-                        await this.initializeUserState()
-                    } else {
-                        throw new Error('登录状态已失效')
-                    }
+                    await this.refreshSession()
+                    await this.initializeUserState()
                 }
             }
 
             if (!this.status.isRoutesLoaded) {
                 await this.loadDynamicRoutes()
             }
+        },
+        async refreshSession(legacyToken?: string): Promise<void> {
+            if (!refreshSessionPromise) {
+                refreshSessionPromise = (async () => {
+                    const response = await refreshToken(legacyToken)
+                    this.applyLoginResponse(response.data.data)
+                })().finally(() => { refreshSessionPromise = null })
+            }
+            return refreshSessionPromise
         },
         async getUser(): Promise<void> {
             await this.initializeUserState()
@@ -470,11 +475,9 @@ export const useLayoutStore = defineStore({
                 return
             }
             this.status.isLoggingOut = true
-            const refreshValue = this.status.REFRESH_TOKEN
+            const refreshValue = sessionStorage.getItem(REFRESH_TOKEN_KEY) || ''
             try {
-                if (refreshValue) {
-                    await logoutRequest(refreshValue)
-                }
+                await logoutRequest(refreshValue)
             } catch {
                 console.warn('退出登录接口调用失败，已本地清理登录态')
             } finally {

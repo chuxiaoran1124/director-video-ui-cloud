@@ -749,6 +749,8 @@
           <el-input placeholder="搜索数字人..." v-model="humanSelectorDialog.search" size="small" style="width: 300px;" clearable>
             <template #prefix><i class="el-icon-search"></i></template>
           </el-input>
+          <el-select v-model="humanSelectorDialog.gender" clearable placeholder="全部性别" size="small" style="width: 120px"><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select>
+          <el-input v-model="humanSelectorDialog.tag" clearable placeholder="标签名称" size="small" style="width: 160px" />
         </div>
         <div 
           class="grid grid-cols-5 gap-x-5 gap-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[800px] overflow-y-auto"
@@ -774,7 +776,7 @@
             </div>
             <div class="mt-2">
               <p class="text-xs text-gray-700 font-medium truncate">{{ item.name }}</p>
-              <p class="text-[10px] text-gray-500">{{ item.gender === 'male' ? '男' : '女' }}</p>
+              <p class="text-[10px] text-gray-500">{{ item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类' }}<span v-if="item.tags?.length"> · {{ item.tags.join(' / ') }}</span></p>
               <el-tag v-if="item.canManage === false" type="info" effect="plain" size="small">团队共享</el-tag>
             </div>
             <div v-if="videoForm.digitalHuman === item.name" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md">
@@ -1068,6 +1070,7 @@ import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
 import { describeZipVideoFailures, downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
+import { registerVersionRefreshBlocker } from '/@/utils/versionRefresh'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- 数据定义 ---
@@ -1077,6 +1080,8 @@ const GENERIC_REQUEST_ERROR_MESSAGE = '请求失败，请联系管理员'
 
 // 页面状态
 const showCreate = ref(false)
+const draftDirty = ref(false)
+const unregisterVersionRefreshBlocker = registerVersionRefreshBlocker(() => showCreate.value && draftDirty.value)
 
 // 任务列表
 // 浠诲姟鍒楄〃
@@ -1451,6 +1456,8 @@ const scriptSelector = reactive({
 const humanSelectorDialog = reactive({
   visible: false,
   search: '',
+  gender: '',
+  tag: '',
   allList: [] as any[],
   displayList: [] as any[],
   page: 1,
@@ -2206,6 +2213,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopVideoTaskAutoRefresh()
+  unregisterVersionRefreshBlocker()
 })
 
 // 切换为横版时自动关闭字幕
@@ -2301,13 +2309,19 @@ watch(enableAudioDrive, (enabled) => {
 
 const handleCreateNew = () => {
   resetForm()
+  draftDirty.value = false
   showCreate.value = true
 }
 
 const handleBackToList = () => {
   resetForm()
+  draftDirty.value = false
   showCreate.value = false
 }
+
+watch(videoForm, () => {
+  if (showCreate.value) draftDirty.value = true
+}, { deep: true })
 
 const handleViewVideo = (video: any) => {
   stopSingleVideoPreview()
@@ -2452,6 +2466,8 @@ const resetForm = () => {
   saveScriptDialog.form.newTag = ''
   humanSelectorDialog.visible = false
   humanSelectorDialog.search = ''
+  humanSelectorDialog.gender = ''
+  humanSelectorDialog.tag = ''
   humanSelectorDialog.allList = []
   humanSelectorDialog.displayList = []
   humanSelectorDialog.page = 1
@@ -3208,6 +3224,8 @@ const openHumanSelector = async () => {
   humanSelectorDialog.displayList = []
   humanSelectorDialog.page = 1
   humanSelectorDialog.search = ''
+  humanSelectorDialog.gender = ''
+  humanSelectorDialog.tag = ''
   humanSelectorDialog.hasMore = true
   if (humanSelectorDialog.displayList.length === 0) {
     await loadMoreHumans()
@@ -3220,6 +3238,8 @@ const loadMoreHumans = async () => {
     // 从 API 加载下一页数字人数据，并传入视频方向参数
     const searchParams: any = {}
     if (humanSelectorDialog.search) searchParams.name = humanSelectorDialog.search
+    if (humanSelectorDialog.gender) searchParams.gender = humanSelectorDialog.gender
+    if (humanSelectorDialog.tag.trim()) searchParams.tag = humanSelectorDialog.tag.trim()
     searchParams.type = videoForm.videoType
     searchParams.language = videoForm.language
     const response = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, searchParams)
@@ -3243,6 +3263,7 @@ const loadMoreHumans = async () => {
         coverUrl: digital.coverUrl || '',   // 原始封面 URL，用于字幕预览 frame
         videoUrl: digital.videoUrl,
         gender: digital.gender,
+        tags: String(digital.title || '').split('|').map((tag: string) => tag.trim()).filter(Boolean),
         canManage: digital.canManage
       }))
       
@@ -3600,7 +3621,8 @@ const clearRelSelection = () => {
 }
 
 // 监听搜索框变化
-watch(() => humanSelectorDialog.search, (newVal) => {
+watch(() => [humanSelectorDialog.search, humanSelectorDialog.gender, humanSelectorDialog.tag], () => {
+  if (!humanSelectorDialog.visible) return
   // 重置分页，重新从API加载搜索结果
   humanSelectorDialog.allList = []
   humanSelectorDialog.displayList = []

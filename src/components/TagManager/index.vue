@@ -131,6 +131,7 @@ interface TagLevel {
 }
 
 const loading = ref(false)
+const labelsLoaded = ref(false)
 const tagLevels = ref<TagLevel[]>([
   { key: 1, label: '1级标签', canAdd: false, canEdit: false, canDelete: false, tags: [] },
   { key: 2, label: '2级标签', canAdd: true, canEdit: true, canDelete: true, tags: [] },
@@ -207,6 +208,7 @@ const fetchLabels = async () => {
     const res = await getUserVisibleLabelGroups()
     const grouped = res.data?.data || {}
     normalizeGroupedData(grouped)
+    labelsLoaded.value = true
     syncSelection()
   } catch (error) {
     console.error('Failed to fetch labels:', error)
@@ -350,7 +352,7 @@ const selectionSummary = computed(() => {
   return parts.join(' / ')
 })
 
-defineExpose({ getSelectedTags, fetchLabels })
+defineExpose({ getSelectedTags, fetchLabels, hasLoadedLabels: () => labelsLoaded.value, getKnownTagNames: () => tagLevels.value.flatMap(level => level.tags.map(tag => tag.name)) })
 </script>
 
 <style scoped>

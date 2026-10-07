@@ -420,6 +420,14 @@
     <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body @closed="resetAssetPickerState">
       <div class="asset-picker-toolbar">
         <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
+        <template v-if="assetPicker.type === 'human'">
+          <el-select v-model="assetPicker.gender" clearable placeholder="全部性别" style="width: 120px">
+            <el-option label="男" value="male" /><el-option label="女" value="female" />
+          </el-select>
+          <el-select v-model="assetPicker.tag" clearable filterable placeholder="全部标签" style="width: 150px">
+            <el-option v-for="tag in humanTagOptions" :key="tag" :label="tag" :value="tag" />
+          </el-select>
+        </template>
         <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
           <span>卡片展示大小</span>
           <el-slider
@@ -508,7 +516,7 @@ type StatusKey = 'draft' | 'waiting' | 'running' | 'completed' | 'partial_failed
 type AssetPickerType = 'binding' | 'human' | 'voice'
 
 interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
-interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string }
+interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string; gender?: string; tags?: string[] }
 type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice'
 interface BindingOption { id: string | number; name: string; digitalHumanId?: string | number | null; voiceId?: string | number | null; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
@@ -573,7 +581,7 @@ const planForm = reactive({
 const createDialog = reactive({ visible: false, submitting: false })
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
-const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', multi: false })
+const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', tag: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
 const humanPickerScale = ref(1)
 const humanPickerScaleLocked = ref(false)
@@ -636,9 +644,13 @@ const filteredScriptOptions = computed(() => {
 const filteredAssetOptions = computed<any[]>(() => {
   const source = assetPicker.type === 'binding' ? bindingOptions.value : assetPicker.type === 'human' ? digitalHumanOptions.value : voiceOptions.value
   const keyword = assetPicker.search.trim().toLowerCase()
-  if (!keyword) return source
-  return source.filter((item: any) => `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''}`.toLowerCase().includes(keyword))
+  return source.filter((item: any) => {
+    if (assetPicker.type === 'human' && assetPicker.gender && item.gender !== assetPicker.gender) return false
+    if (assetPicker.type === 'human' && assetPicker.tag && !item.tags?.includes(assetPicker.tag)) return false
+    return !keyword || `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''} ${(item.tags || []).join(' ')}`.toLowerCase().includes(keyword)
+  })
 })
+const humanTagOptions = computed(() => Array.from(new Set(digitalHumanOptions.value.flatMap(item => item.tags || []))).sort((a, b) => a.localeCompare(b, 'zh-CN')))
 const humanPickerColumns = computed(() => {
   const scale = normalizeHumanPickerScale(humanPickerScale.value)
   if (scale <= 0.75) return 8
@@ -788,7 +800,11 @@ function assetImageUsable(item: any) { return Boolean(assetCover(item)) && !asse
 function handleAssetImageError(item: any) { assetImageFailures[assetImageKey(item)] = true }
 function clearAssetImageFailures() { Object.keys(assetImageFailures).forEach(key => delete assetImageFailures[key]) }
 function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
-function assetSubtitle(item: any) { return assetPicker.type === 'binding' ? `${item.digitalHumanName} + ${item.voiceName}` : item.language || '' }
+function assetSubtitle(item: any) {
+  if (assetPicker.type === 'binding') return `${item.digitalHumanName} + ${item.voiceName}`
+  if (assetPicker.type === 'human') return `${item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类'}${item.tags?.length ? ` · ${item.tags.join(' / ')}` : ''}`
+  return item.language || ''
+}
 
 function resetPlanForm() {
   Object.assign(planForm, { id: null, planName: '', scriptSource: 'manual', scriptId: null, historyId: null, scriptContent: '', performerConfigs: [], scheduleMode: 'immediate', scheduledAt: '', processTypes: [] })
@@ -1041,7 +1057,7 @@ async function loadHumans(force = false) {
   const items = Array.isArray(data) ? data : data?.data || data?.items || []
   humanPickerScale.value = normalizeHumanPickerScale(preference?.displayScale ?? preference?.display_scale ?? items[0]?.displayScale ?? items[0]?.display_scale)
   humanPickerScaleLocked.value = normalizeHumanPickerScaleLocked(preference?.displayScaleLocked ?? preference?.display_scale_locked ?? items[0]?.displayScaleLocked ?? items[0]?.display_scale_locked)
-  digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '' })).filter((item: any) => item.id != null)
+  digitalHumanOptions.value = items.map((item: any) => ({ id: item.id ?? item.digitalHumanId, name: item.digitalHumanName || item.name || '未命名数字人', coverUrl: item.coverUrl || item.imageUrl || '', videoUrl: item.videoUrl || '', gender: String(item.gender || '').toLowerCase(), tags: String(item.title || '').split('|').map((tag: string) => tag.trim()).filter(Boolean) })).filter((item: any) => item.id != null)
   resourcesLoaded.humans = true
 }
 async function loadVoices() {
@@ -1078,6 +1094,8 @@ async function loadResources(refreshEnhancements = false) { await Promise.all([l
 async function openAssetPicker(type: AssetPickerType) {
   assetPicker.type = type
   assetPicker.search = ''
+  assetPicker.gender = ''
+  assetPicker.tag = ''
   assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
   selectedHumanIds.value = assetPicker.multi
     ? planForm.performerConfigs

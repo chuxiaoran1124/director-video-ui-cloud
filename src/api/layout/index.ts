@@ -108,12 +108,12 @@ export function exchangeTemporaryAccess(ticket: string): Promise<AxiosResponse<I
     })
 }
 
-export function refreshToken(refreshTokenValue: string): Promise<AxiosResponse<IResponse<ILoginResponse>>> {
+export function refreshToken(refreshTokenValue?: string): Promise<AxiosResponse<IResponse<ILoginResponse>>> {
     return request({
         url: api.refreshToken,
         method: 'post',
         data: {
-            refreshToken: refreshTokenValue
+            ...(refreshTokenValue ? { refreshToken: refreshTokenValue } : {})
         },
         hideLoading: true,
         silentError: true

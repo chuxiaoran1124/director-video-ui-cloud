@@ -18,21 +18,20 @@ router.beforeEach(async(to, from) => {
     document.title = to.meta.title ? `${to.meta.title} | ${appTitle}` : appTitle
 
     if (to.path.toLowerCase() === loginRoutePath) {
-        if (getStatus.ACCESS_TOKEN) {
-            done()
-            return layoutStore.getDefaultLandingPath()
-        }
+        try {
+            await layoutStore.bootstrapSession()
+            if (layoutStore.getStatus.ACCESS_TOKEN) {
+                done()
+                return layoutStore.getDefaultLandingPath()
+            }
+        } catch { layoutStore.clearAuthState() }
         done()
         return true
     }
 
-    if (!getStatus.ACCESS_TOKEN && !sessionStorage.getItem('accessToken')) {
-        if (whiteList.has(to.path)) {
-            done()
-            return true
-        }
+    if (whiteList.has(to.path) && !getStatus.ACCESS_TOKEN && !sessionStorage.getItem('accessToken')) {
         done()
-        return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
+        return true
     }
 
     const hadRoutesBeforeBootstrap = getStatus.isRoutesLoaded && getMenubar.menuList.length > 0
@@ -41,6 +40,11 @@ router.beforeEach(async(to, from) => {
         await layoutStore.bootstrapSession()
     } catch (error) {
         layoutStore.clearAuthState()
+        done()
+        return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
+    }
+
+    if (!layoutStore.getStatus.ACCESS_TOKEN) {
         done()
         return `${loginRoutePath}?from=${encode(to.fullPath || defaultRoutePath)}`
     }

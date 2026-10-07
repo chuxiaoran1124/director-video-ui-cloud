@@ -90,7 +90,10 @@
                 prefix-icon="ElIconSearch"
                 @change="fetchData"
               />
-              <!-- <el-input v-model="filterDHTag" placeholder="输入标签关键字" size="default" style="width: 220px" clearable @change="activeName === 'digitalHuman' ? fetchDigitalHumans() : fetchData()" /> -->
+              <el-select v-model="filterDHGender" placeholder="全部性别" clearable style="width: 120px" @change="fetchDigitalHumans">
+                <el-option label="男" value="male" /><el-option label="女" value="female" />
+              </el-select>
+              <el-input v-model="filterDHTag" placeholder="输入标签名称" size="default" style="width: 180px" clearable @change="fetchDigitalHumans" />
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetDHSearch">重置条件</el-button>
@@ -110,14 +113,15 @@
               </template>
             </el-table-column>
             <el-table-column prop="digitalHumanName" label="名称" min-width="120" />
-            <!-- <el-table-column label="个性标签" min-width="150">
+            <el-table-column label="性别" width="85" align="center"><template #default="scope">{{ scope.row.gender === 'male' ? '男' : scope.row.gender === 'female' ? '女' : '未分类' }}</template></el-table-column>
+            <el-table-column label="个性标签" min-width="150">
               <template #default="scope">
                 <div class="flex flex-wrap gap-1">
                   <span v-if="!scope.row.title" class="text-gray-400 text-xs">暂无标签</span>
                   <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="success">{{ tag }}</el-tag>
                 </div>
               </template>
-            </el-table-column> -->
+            </el-table-column>
             <el-table-column prop="createTime" label="录入日期" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
@@ -475,7 +479,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="activeName === 'voice' ? '编辑声音素材' : '编辑数字人素材'"
-      width="500px"
+      :width="activeName === 'voice' ? '500px' : '850px'"
       destroy-on-close
     >
         <!-- 声音编辑 -->
@@ -493,6 +497,10 @@
             <el-form-item label="名称">
               <el-input v-model="editForm.name" placeholder="请输入素材名称" class="max-w-xs" />
             </el-form-item>
+            <el-form-item label="性别">
+              <el-select v-model="editForm.gender" clearable placeholder="未分类" class="max-w-xs"><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select>
+            </el-form-item>
+            <el-form-item label="标签"><TagManager ref="tagManagerRef" :initial-tags="editForm.tags" /></el-form-item>
           </el-form>
         </template>
 
@@ -1917,6 +1925,7 @@ export default defineComponent({
     // 鎼滅储鏁版嵁鍒濆鍖?
     const searchVoice = ref('')
     const searchDH = ref('')
+    const filterDHGender = ref('')
     const filterVoiceTag = ref('')
     const filterDHTag = ref('')
     const searchRelVoice = ref('')
@@ -1936,6 +1945,7 @@ export default defineComponent({
     const editForm = reactive({
       id: null,
       name: '',
+      gender: '',
       tags: [] as string[],
       originalRow: null as any
     })
@@ -2088,6 +2098,7 @@ export default defineComponent({
         // 浼犻€掓悳绱㈡潯浠跺埌API
         if (searchDH.value) Object.assign(searchObj, { digitalHumanName: searchDH.value })
         if (filterDHTag.value) Object.assign(searchObj, { title: filterDHTag.value })
+        if (filterDHGender.value) Object.assign(searchObj, { gender: filterDHGender.value })
         
         const res = await getDigitalHumanPaginateList(dhPage.currentPage, dhPage.pageSize, searchObj)
         if (res.data.code === 200 && res.data.data) {
@@ -2109,6 +2120,7 @@ export default defineComponent({
     const resetDHSearch = () => {
       searchDH.value = ''
       filterDHTag.value = ''
+      filterDHGender.value = ''
       dhPage.currentPage = 1
       fetchDigitalHumans()
     }
@@ -2363,6 +2375,7 @@ export default defineComponent({
         editForm.name = row.voiceName || ''
       }
       editForm.tags = splitTags(row.title)
+      editForm.gender = row.gender || ''
       editForm.originalRow = row
       newTag.value = ''
       tagInputVisible.value = false
@@ -2414,7 +2427,12 @@ export default defineComponent({
       
       try {
           // 声音编辑时从 TagManager 读取选中标签
-          const tagsStr = ''
+          const manager = tagManagerRef.value as any
+          const knownTags = new Set<string>(manager?.getKnownTagNames?.() || [])
+          const tags = activeName.value === 'digitalHuman' && manager?.hasLoadedLabels?.()
+            ? [...(manager.getSelectedTags() as string[]), ...editForm.tags.filter(tag => !knownTags.has(tag))]
+            : editForm.tags
+          const tagsStr = tags.length ? `|${tags.join('|')}|` : ''
 
           if (activeName.value === 'digitalHuman') {
           // 鏇存柊鏁板瓧浜?
@@ -2424,7 +2442,7 @@ export default defineComponent({
             title: tagsStr,
             cover_url: row.coverUrl || '',
             language: row.language || '',
-            gender: row.gender || ''
+            gender: editForm.gender
           }
           
           const res = await updateDigitalHuman(row.id, updateData)
@@ -2432,6 +2450,7 @@ export default defineComponent({
             // 更新本地数据
             row.digitalHumanName = editForm.name
             row.title = tagsStr
+            row.gender = editForm.gender
             ElMessage.success('保存成功')
             dialogVisible.value = false
           }
@@ -2622,6 +2641,7 @@ export default defineComponent({
       relations,
       searchVoice,
       searchDH,
+      filterDHGender,
       filterVoiceTag,
       filterDHTag,
       searchRelVoice,

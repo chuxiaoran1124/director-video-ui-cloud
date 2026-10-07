@@ -4,6 +4,7 @@ import { ElLoading, ElNotification } from 'element-plus'
 
 const GENERIC_MASKED_ERROR_MESSAGE = '请求失败，请联系管理员'
 const SILENT_GATEWAY_STATUSES = new Set([504])
+const AUTH_ENDPOINT_PATTERN = /\/user\/(login|logout|refresh-token|platform-login-entry|temporary-access)\//i
 const ORIGINAL_MESSAGE_URL_PATTERNS = [
     /\/user\/login\/?$/i,
     /\/user\/refresh-token\/?$/i,
@@ -57,13 +58,32 @@ const buildRejectedError = (message: string, rawMessage: string, status?: number
     })
 }
 
+const canRefreshRequest = (config: any) => Boolean(config && !config._authRetried && !AUTH_ENDPOINT_PATTERN.test(String(config.url || '')))
+
+const refreshForRetry = async (config: any) => {
+    const previousToken = String(config.headers?.Authorization || '')
+    const currentToken = sessionStorage.getItem('accessToken') || ''
+    if (!currentToken || previousToken === `Bearer ${currentToken}`) {
+        await useLayoutStore().refreshSession()
+    }
+}
+
 const errorHandler = async(error: any) => {
     error?.config?._loadingInstance?.close?.()
     const status = error?.response?.status
     const rawMessage = error?.response?.data?.message || error?.message || '请求失败'
     const message = normalizeErrorMessage(rawMessage, error?.config)
 
-    if (status === 401) {
+    if (status === 401 && canRefreshRequest(error?.config)) {
+        try {
+            await refreshForRetry(error.config)
+        } catch {
+            await useLayoutStore().forceLogout()
+            return Promise.reject(error)
+        }
+        return request({ ...error.config, _authRetried: true, showLoading: false })
+    }
+    if (status === 401 && !AUTH_ENDPOINT_PATTERN.test(String(error?.config?.url || ''))) {
         const layoutStore = useLayoutStore()
         await layoutStore.forceLogout()
     }
@@ -112,7 +132,16 @@ request.interceptors.response.use(async(response: AxiosResponse<IResponse>) => {
     if (!isBusinessSuccess) {
         const rawMessage = payload?.message || '系统出错，请联系管理员'
         const message = normalizeErrorMessage(rawMessage, response.config)
-        if (code === 401) {
+        if (code === 401 && canRefreshRequest(response.config)) {
+            try {
+                await refreshForRetry(response.config)
+            } catch {
+                await useLayoutStore().forceLogout()
+                return Promise.reject(buildRejectedError(message, rawMessage, code))
+            }
+            return request({ ...response.config, _authRetried: true, showLoading: false })
+        }
+        if (code === 401 && !AUTH_ENDPOINT_PATTERN.test(String(response.config?.url || ''))) {
             const layoutStore = useLayoutStore()
             await layoutStore.forceLogout()
         }

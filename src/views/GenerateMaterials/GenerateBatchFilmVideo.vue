@@ -1352,6 +1352,8 @@
               <el-button @click="reloadHumanOptions">搜索</el-button>
             </template>
           </el-input>
+          <el-select v-model="humanSelectorDialog.gender" clearable placeholder="全部性别" style="width: 120px" @change="reloadHumanOptions"><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select>
+          <el-input v-model="humanSelectorDialog.tag" clearable placeholder="标签名称" style="width: 160px" @keyup.enter="reloadHumanOptions" @clear="reloadHumanOptions" />
         </div>
         <div ref="humanScrollRef" class="grid grid-cols-5 gap-x-5 gap-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-[800px] overflow-y-auto" @scroll.passive="handleHumanScroll">
           <div
@@ -1369,6 +1371,7 @@
             </div>
             <div class="mt-2">
               <p class="text-xs text-gray-700 font-medium truncate">{{ item.name }}</p>
+              <p class="text-[10px] text-gray-500">{{ item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类' }}<span v-if="item.tags?.length"> · {{ item.tags.join(' / ') }}</span></p>
             </div>
             <div v-if="singleGenDialog.form.digitalHumanName === item.name" class="absolute top-2 right-2 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md">
               <i class="el-icon-check text-white text-sm"></i>
@@ -1673,6 +1676,8 @@ interface SelectOptionItem {
   externalId?: string
   coverUrl?: string
   videoUrl?: string
+  gender?: string
+  tags?: string[]
   voiceUrl?: string
   digitalHumanName?: string
   voiceName?: string
@@ -3189,6 +3194,8 @@ const voiceScrollRef = ref<HTMLElement | null>(null)
 const humanSelectorDialog = reactive({
   visible: false,
   search: '',
+  gender: '',
+  tag: '',
   page: 1,
   pageSize: 20,
   loading: false,
@@ -3235,6 +3242,8 @@ const loadHumanOptions = async () => {
     humanSelectorDialog.loading = true
     const search: any = {}
     if (humanSelectorDialog.search) search.name = humanSelectorDialog.search
+    if (humanSelectorDialog.gender) search.gender = humanSelectorDialog.gender
+    if (humanSelectorDialog.tag.trim()) search.tag = humanSelectorDialog.tag.trim()
     const res = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, search)
     const pageData = getResponseData(res) || {}
     const list = pageData.data || []
@@ -3244,6 +3253,8 @@ const loadHumanOptions = async () => {
       externalId: item.externalId || item.id || '',
       coverUrl: item.coverUrl || '',
       videoUrl: item.videoUrl || '',
+      gender: item.gender || '',
+      tags: String(item.title || '').split('|').map((tag: string) => tag.trim()).filter(Boolean),
     }))
     humanSelectorDialog.allList.push(...newItems)
     humanSelectorDialog.displayList = humanSelectorDialog.allList
@@ -3392,6 +3403,9 @@ const handleBindingScroll = (event: Event) => {
 }
 
 const openHumanSelectorForSegment = async () => {
+  humanSelectorDialog.search = ''
+  humanSelectorDialog.gender = ''
+  humanSelectorDialog.tag = ''
   humanSelectorDialog.visible = true
   await reloadHumanOptions()
 }
