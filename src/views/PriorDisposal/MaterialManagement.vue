@@ -93,7 +93,6 @@
               <el-select v-model="filterDHGender" placeholder="全部性别" clearable style="width: 120px" @change="fetchDigitalHumans">
                 <el-option label="男" value="male" /><el-option label="女" value="female" />
               </el-select>
-              <el-input v-model="filterDHTag" placeholder="输入标签名称" size="default" style="width: 180px" clearable @change="fetchDigitalHumans" />
             </div>
             <div class="flex items-center gap-3">
               <el-button size="default" @click="resetDHSearch">重置条件</el-button>
@@ -114,14 +113,6 @@
             </el-table-column>
             <el-table-column prop="digitalHumanName" label="名称" min-width="120" />
             <el-table-column label="性别" width="85" align="center"><template #default="scope">{{ scope.row.gender === 'male' ? '男' : scope.row.gender === 'female' ? '女' : '未分类' }}</template></el-table-column>
-            <el-table-column label="个性标签" min-width="150">
-              <template #default="scope">
-                <div class="flex flex-wrap gap-1">
-                  <span v-if="!scope.row.title" class="text-gray-400 text-xs">暂无标签</span>
-                  <el-tag v-for="tag in splitTags(scope.row.title)" :key="tag" size="mini" effect="plain" type="success">{{ tag }}</el-tag>
-                </div>
-              </template>
-            </el-table-column>
             <el-table-column prop="createTime" label="录入日期" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="scope">
@@ -499,15 +490,6 @@
             </el-form-item>
             <el-form-item label="性别">
               <el-select v-model="editForm.gender" clearable placeholder="未分类" class="max-w-xs"><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select>
-            </el-form-item>
-            <el-form-item label="标签">
-              <div class="w-full">
-                <TagManager ref="tagManagerRef" :initial-tags="editForm.tags" @change="syncEditTagDictionary" />
-                <div v-if="legacyEditTags.length" class="mt-2 text-xs text-gray-500">
-                  历史标签（当前标签字典中没有，保存时仍保留）：
-                  <el-tag v-for="tag in legacyEditTags" :key="tag" class="ml-1" size="small" type="info">{{ tag }}</el-tag>
-                </div>
-              </div>
             </el-form-item>
           </el-form>
         </template>
@@ -1935,7 +1917,6 @@ export default defineComponent({
     const searchDH = ref('')
     const filterDHGender = ref('')
     const filterVoiceTag = ref('')
-    const filterDHTag = ref('')
     const searchRelVoice = ref('')
     const searchRelDH = ref('')
     const searchRelTag = ref('')
@@ -1971,19 +1952,6 @@ export default defineComponent({
     const dhDialogPage = reactive({ currentPage: 1, pageSize: 20, total: 0, loading: false })
     const voiceTableRef = ref(null)
     const dhTableRef = ref(null)
-      const tagManagerRef = ref(null)
-      const editTagDictionaryLoaded = ref(false)
-      const knownEditTags = ref<string[]>([])
-      const syncEditTagDictionary = () => {
-        const manager = tagManagerRef.value as any
-        editTagDictionaryLoaded.value = Boolean(manager?.hasLoadedLabels?.())
-        knownEditTags.value = manager?.getKnownTagNames?.() || []
-      }
-      const legacyEditTags = computed(() => {
-        if (!editTagDictionaryLoaded.value) return []
-        const known = new Set(knownEditTags.value)
-        return editForm.tags.filter(tag => !known.has(tag))
-      })
       const relTagManagerRef = ref(null)
 
     const isAddRelTag = ref(false)
@@ -2117,7 +2085,6 @@ export default defineComponent({
         const searchObj = {}
         // 浼犻€掓悳绱㈡潯浠跺埌API
         if (searchDH.value) Object.assign(searchObj, { digitalHumanName: searchDH.value })
-        if (filterDHTag.value) Object.assign(searchObj, { title: filterDHTag.value })
         if (filterDHGender.value) Object.assign(searchObj, { gender: filterDHGender.value })
         
         const res = await getDigitalHumanPaginateList(dhPage.currentPage, dhPage.pageSize, searchObj)
@@ -2139,7 +2106,6 @@ export default defineComponent({
 
     const resetDHSearch = () => {
       searchDH.value = ''
-      filterDHTag.value = ''
       filterDHGender.value = ''
       dhPage.currentPage = 1
       fetchDigitalHumans()
@@ -2387,8 +2353,6 @@ export default defineComponent({
     }
 
     const handleEdit = async (row: any) => {
-      editTagDictionaryLoaded.value = false
-      knownEditTags.value = []
       editForm.id = row.externalId || row.id
       // 根据当前标签页设置正确的字段
       if (activeName.value === 'digitalHuman') {
@@ -2448,13 +2412,8 @@ export default defineComponent({
       }
       
       try {
-          // 声音编辑时从 TagManager 读取选中标签
-          const manager = tagManagerRef.value as any
-          const knownTags = new Set<string>(manager?.getKnownTagNames?.() || [])
-          const tags = activeName.value === 'digitalHuman' && manager?.hasLoadedLabels?.()
-            ? [...(manager.getSelectedTags() as string[]), ...editForm.tags.filter(tag => !knownTags.has(tag))]
-            : editForm.tags
-          const tagsStr = tags.length ? `|${tags.join('|')}|` : ''
+          // 标签入口暂不展示，编辑名称或性别时保留原有标签数据。
+          const tagsStr = editForm.tags.length ? `|${editForm.tags.join('|')}|` : ''
 
           if (activeName.value === 'digitalHuman') {
           // 鏇存柊鏁板瓧浜?
@@ -2605,12 +2564,6 @@ export default defineComponent({
       fetchVoices()
     })
     
-    // 监听标签搜索条件变化
-    watch(() => filterDHTag.value, () => {
-      dhPage.currentPage = 1 // 閲嶇疆鍒扮涓€椤?
-      fetchDigitalHumans()
-    })
-    
     // 监听声音标签搜索条件变化
     watch(() => filterVoiceTag.value, () => {
       voicePage.currentPage = 1 // 閲嶇疆鍒扮涓€椤?
@@ -2665,7 +2618,6 @@ export default defineComponent({
       searchDH,
       filterDHGender,
       filterVoiceTag,
-      filterDHTag,
       searchRelVoice,
       searchRelDH,
       searchRelTag,
@@ -2720,9 +2672,6 @@ export default defineComponent({
       fetchVoicesForDialog,
       fetchDigitalHumansForDialog,
       voiceTableRef,
-        tagManagerRef,
-        syncEditTagDictionary,
-        legacyEditTags,
         relTagManagerRef,
       dhTableRef,
       addBulkRelTag,
