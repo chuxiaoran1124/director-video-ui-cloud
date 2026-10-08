@@ -275,7 +275,7 @@
                       </el-input>
                     </div>
                     <div v-else-if="activePerformer.selectionMode === 'first_voice'" class="picker-row">
-                      <el-input :model-value="activePerformerIndex === 0 ? firstVoiceHumanLabel() : selectedHuman(activePerformer)?.name || ''" readonly :placeholder="activePerformerIndex === 0 ? '可连续加入数字人，确认后追加执行项' : '点击选择数字人'" @click="openAssetPicker('human')">
+                      <el-input :model-value="activePerformerIndex === 0 ? firstVoiceHumanLabel() : selectedHuman(activePerformer)?.name || ''" readonly :placeholder="activePerformerIndex === 0 ? '可多选数字人，确认后覆盖执行项队列' : '点击选择数字人'" @click="openAssetPicker('human')">
                         <template #prepend>选择形象</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('human')" /></template>
                       </el-input>
                       <template v-if="activePerformerIndex === 0">
@@ -449,6 +449,9 @@
           <el-select v-model="assetPicker.gender" clearable placeholder="全部性别" style="width: 120px">
             <el-option label="男" value="male" /><el-option label="女" value="female" />
           </el-select>
+          <el-select v-model="assetPicker.tag" clearable filterable placeholder="全部标签" style="width: 150px">
+            <el-option v-for="tag in humanTagOptions" :key="tag" :label="tag" :value="tag" />
+          </el-select>
         </template>
         <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
           <span>卡片展示大小</span>
@@ -471,15 +474,15 @@
       </div>
       <div v-if="assetPicker.type === 'human'" class="asset-display-size-hint">缩小时卡片会自动变小并重新排版，间距保持不变，后面的数字人会顺滑顶上来；当前每行 {{ humanPickerColumns }} 个。</div>
       <TransitionGroup v-if="assetPicker.type !== 'voice' && filteredAssetOptions.length" name="asset-card-reflow" tag="div" class="asset-grid" :class="{ 'asset-grid-human': assetPicker.type === 'human' }" :style="assetPicker.type === 'human' ? humanPickerGridStyle : undefined">
-        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && pendingHumanCount(item.id) > 0 }" type="button" @click="selectAsset(item)">
+        <button v-for="item in filteredAssetOptions" :key="item.id" class="asset-card" :class="{ 'asset-card-selected': assetPicker.multi && selectedHumanIds.includes(String(item.id)) }" type="button" @click="selectAsset(item)">
           <div class="asset-card-visual">
             <img v-if="assetImageUsable(item)" :src="assetCover(item)" alt="" @error="handleAssetImageError(item)" />
             <span v-else class="asset-card-placeholder"><el-icon><Picture /></el-icon></span>
           </div>
-          <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: pendingHumanCount(item.id) > 0 }">{{ pendingHumanCount(item.id) ? `+${pendingHumanCount(item.id)}` : '' }}</span>
+          <span v-if="assetPicker.multi" class="asset-selection-check" :class="{ checked: selectedHumanIds.includes(String(item.id)) }"><el-icon v-if="selectedHumanIds.includes(String(item.id))"><CircleCheck /></el-icon></span>
           <strong>{{ assetTitle(item) }}</strong>
           <small>{{ assetSubtitle(item) }}</small>
-          <el-button type="primary" size="small" :disabled="assetPicker.multi && humanPickerExistingCount() + pendingHumanIds.length >= 50" @click.stop="selectAsset(item)">{{ assetPicker.multi ? '加入执行项' : '选入' }}</el-button>
+          <el-button type="primary" size="small" @click.stop="selectAsset(item)">{{ assetPicker.multi && selectedHumanIds.includes(String(item.id)) ? '已选' : '选入' }}</el-button>
         </button>
       </TransitionGroup>
       <el-empty v-else-if="assetPicker.type !== 'voice'" :description="assetPickerEmptyText" :image-size="72" />
@@ -490,7 +493,7 @@
         <el-table-column label="操作" width="100" align="center"><template #default="{ row }"><el-button type="primary" @click="selectAsset(row)">选入</el-button></template></el-table-column>
       </el-table>
       <template v-if="assetPicker.multi" #footer>
-        <div class="asset-picker-footer"><span>已有 {{ humanPickerExistingCount() }} 个已选形象，本次加入 {{ pendingHumanIds.length }} 个（最多 50 个）；确认后保留原有项。搜索后可连续加入同一数字人。</span><div><el-button :disabled="!pendingHumanIds.length" @click="pendingHumanIds.pop()">撤销上次加入</el-button><el-button @click="assetPicker.visible = false">取消</el-button><el-button type="primary" :disabled="!pendingHumanIds.length" @click="confirmMultiHumanSelection">确认选择</el-button></div></div>
+        <div class="asset-picker-footer"><span>已选 {{ selectedHumanIds.length }} 个形象；确认后会覆盖当前执行项队列，后续声音跟随第1项。</span><div><el-button @click="assetPicker.visible = false">取消</el-button><el-button type="primary" @click="confirmMultiHumanSelection">确认选择</el-button></div></div>
       </template>
     </el-dialog>
 
@@ -656,9 +659,8 @@ const unregisterPlanListState = registerVersionRefreshState('batch-plan-list', (
 }))
 const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible)
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
-const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', multi: false })
-const humanPickerSearch = ref('')
-const pendingHumanIds = ref<string[]>([])
+const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', tag: '', multi: false })
+const selectedHumanIds = ref<string[]>([])
 const humanPickerScale = ref(1)
 const humanPickerScaleLocked = ref(false)
 const humanPickerPreferenceSaving = ref(false)
@@ -722,10 +724,11 @@ const filteredAssetOptions = computed<any[]>(() => {
   const keyword = assetPicker.search.trim().toLowerCase()
   return source.filter((item: any) => {
     if (assetPicker.type === 'human' && assetPicker.gender && item.gender !== assetPicker.gender) return false
-    const searchable = assetPicker.type === 'human' ? item.name : `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''} ${(item.tags || []).join(' ')}`
-    return !keyword || searchable.toLowerCase().includes(keyword)
+    if (assetPicker.type === 'human' && assetPicker.tag && !item.tags?.includes(assetPicker.tag)) return false
+    return !keyword || `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''} ${(item.tags || []).join(' ')}`.toLowerCase().includes(keyword)
   })
 })
+const humanTagOptions = computed(() => Array.from(new Set(digitalHumanOptions.value.flatMap(item => item.tags || []))).sort((a, b) => a.localeCompare(b, 'zh-CN')))
 const humanPickerColumns = computed(() => {
   const scale = normalizeHumanPickerScale(humanPickerScale.value)
   if (scale <= 0.75) return 8
@@ -878,7 +881,7 @@ function clearAssetImageFailures() { Object.keys(assetImageFailures).forEach(key
 function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
 function assetSubtitle(item: any) {
   if (assetPicker.type === 'binding') return `${item.digitalHumanName} + ${item.voiceName}`
-  if (assetPicker.type === 'human') return item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类'
+  if (assetPicker.type === 'human') return `${item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类'}${item.tags?.length ? ` · ${item.tags.join(' / ')}` : ''}`
   return item.language || ''
 }
 
@@ -1169,18 +1172,24 @@ async function loadBanners(force = false) {
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
 async function openAssetPicker(type: AssetPickerType) {
-  if (assetPicker.type === 'human') humanPickerSearch.value = assetPicker.search
   assetPicker.type = type
-  assetPicker.search = type === 'human' ? humanPickerSearch.value : ''
+  assetPicker.search = ''
+  assetPicker.gender = ''
+  assetPicker.tag = ''
   assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
-  pendingHumanIds.value = []
+  selectedHumanIds.value = assetPicker.multi
+    ? planForm.performerConfigs
+      .filter((config, index) => index === 0 || config.selectionMode === 'first_voice')
+      .map(config => String(config.digitalHumanId))
+      .filter(id => id !== 'null')
+    : []
   assetPicker.visible = true
   if (type === 'binding') await loadBindings()
   else if (type === 'human') {
     await loadHumans(true)
   } else await loadVoices()
 }
-function resetAssetPickerState() { assetPicker.multi = false; pendingHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
+function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
 function resetTenantScopedResources() {
   tenantResourceGeneration += 1
   Object.assign(resourcesLoaded, { scripts: false, history: false, bindings: false, humans: false, voices: false, corners: false, banners: false })
@@ -1193,9 +1202,6 @@ function resetTenantScopedResources() {
   bannerOverlayOptions.value = []
   humanPickerScale.value = 1
   humanPickerScaleLocked.value = false
-  humanPickerSearch.value = ''
-  assetPicker.search = ''
-  assetPicker.gender = ''
   clearAssetImageFailures()
   stopVoicePreview()
   assetPicker.visible = false
@@ -1204,8 +1210,8 @@ function resetTenantScopedResources() {
 function selectAsset(item: any) {
   if (!activePerformer.value) return
   if (assetPicker.multi && assetPicker.type === 'human') {
-    if (humanPickerExistingCount() + pendingHumanIds.value.length >= 50) { ElMessage.warning('执行项最多 50 条'); return }
-    pendingHumanIds.value.push(String(item.id))
+    const id = String(item.id)
+    selectedHumanIds.value = selectedHumanIds.value.includes(id) ? selectedHumanIds.value.filter(value => value !== id) : [...selectedHumanIds.value, id]
     return
   }
   if (assetPicker.type === 'binding') activePerformer.value.bindingId = item.id
@@ -1214,8 +1220,6 @@ function selectAsset(item: any) {
   assetPicker.visible = false
   refreshActivePreview()
 }
-function humanPickerExistingCount() { return planForm.performerConfigs.length - (planForm.performerConfigs[0]?.digitalHumanId == null ? 1 : 0) }
-function pendingHumanCount(id: string | number) { return pendingHumanIds.value.filter(value => value === String(id)).length }
 async function saveHumanPickerPreference() {
   humanPickerPreferenceSaving.value = true
   try {
@@ -1237,22 +1241,23 @@ async function toggleHumanPickerScaleLock() {
   await saveHumanPickerPreference()
 }
 function confirmMultiHumanSelection() {
-  if (!pendingHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
+  if (!selectedHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
   const first = planForm.performerConfigs[0] || createPerformerConfig(false, 'first_voice')
-  const additions = [...pendingHumanIds.value]
+  const nextConfigs: PerformerConfig[] = []
   first.selectionMode = 'first_voice'
   first.bindingId = null
+  first.digitalHumanId = selectedHumanIds.value[0]
   first.inheritFromFirst = false
-  if (!planForm.performerConfigs.length) planForm.performerConfigs.push(first)
-  if (first.digitalHumanId == null && additions.length) first.digitalHumanId = additions.shift()!
-  additions.forEach((id) => {
+  nextConfigs.push(first)
+  selectedHumanIds.value.slice(1).forEach((id) => {
     const config = createPerformerConfig(true, 'first_voice')
     config.digitalHumanId = id
-    planForm.performerConfigs.push(config)
+    nextConfigs.push(config)
   })
-  activePerformerIndex.value = planForm.performerConfigs.length - 1
+  planForm.performerConfigs.splice(0, planForm.performerConfigs.length, ...nextConfigs)
+  activePerformerIndex.value = 0
   assetPicker.visible = false
-  ElMessage.success(`已追加 ${pendingHumanIds.value.length} 个执行项，原有执行项保留`)
+  ElMessage.success(`已覆盖为 ${nextConfigs.length} 个执行项，后续声音跟随第1项`)
   refreshActivePreview()
 }
 function playVoice(url: string, name: string) { if (!url) return; stopVoicePreview(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
@@ -1433,20 +1438,19 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-display-size-control .el-button { flex:0 0 auto; min-width:74px; }
 .asset-display-size-hint { margin:-4px 0 10px; padding:7px 10px; border-radius:6px; background:#f1fbfa; color:#4b6d73; font-size:12px; }
 .asset-grid { --human-picker-columns:6; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); column-gap:14px; row-gap:14px; align-items:start; justify-content:start; max-height:60vh; overflow:auto; padding:4px; transition:grid-template-columns .28s cubic-bezier(.2,.8,.2,1); }
-.asset-grid-human { display:flex; flex-wrap:wrap; align-content:flex-start; }
-.asset-grid-human .asset-card { flex:0 0 calc((100% - (var(--human-picker-columns) - 1) * 14px) / var(--human-picker-columns)); }
-.asset-card { position:relative; width:100%; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:flex; flex-direction:column; gap:8px; text-align:left; cursor:pointer; overflow:hidden; transition:border-color .18s ease, box-shadow .18s ease; }
-.asset-card-reflow-move { transition:transform .34s cubic-bezier(.2,.8,.2,1); }
+.asset-grid-human { grid-template-columns:repeat(var(--human-picker-columns),minmax(0,1fr)); }
+.asset-card { position:relative; width:100%; min-width:0; padding:10px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:grid; gap:8px; text-align:left; cursor:pointer; overflow:hidden; transition:width .28s cubic-bezier(.2,.8,.2,1), border-color .18s ease, box-shadow .18s ease; }
+.asset-card-reflow-move { transition:transform .34s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1); }
 .asset-card-reflow-enter-active { animation:asset-card-fly-up .34s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes asset-card-fly-up { from { opacity:0; transform:translateY(18px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
 .asset-card:hover { border-color:#409eff; box-shadow:0 5px 16px rgba(64,158,255,.12); }
 .asset-card-selected { border-color:#0f8f86; background:#f1fbfa; box-shadow:0 0 0 2px rgba(15,143,134,.12); }
-.asset-card-visual { position:relative; width:100%; aspect-ratio:3/4; flex:none; overflow:hidden; border-radius:8px; background:#eef2f6; display:flex; align-items:center; justify-content:center; }
-.asset-card-visual img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.asset-card-visual { width:100%; aspect-ratio:3/4; overflow:hidden; border-radius:8px; background:#eef2f6; display:flex; align-items:center; justify-content:center; }
+.asset-card-visual img { width:100%; height:100%; object-fit:cover; }
 .asset-card-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#a7b2c1; font-size:34px; }
 .asset-card strong,.asset-card small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .asset-card small { color:#8390a3; }
-.asset-card .el-button { align-self:flex-start; }
+.asset-card .el-button { justify-self:start; }
 .asset-selection-check { position:absolute; top:16px; left:16px; width:20px; height:20px; display:grid; place-items:center; border:1px solid #c4d0de; border-radius:4px; background:#fff; color:#fff; }
 .asset-selection-check.checked { border-color:#0f8f86; background:#0f8f86; }
 .asset-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#6f8096; font-size:12px; }
