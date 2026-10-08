@@ -263,7 +263,7 @@
                     <el-radio-group v-model="activePerformer.selectionMode" @change="handleSelectionModeChange">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
-                      <el-radio-button label="first_voice">多选X乘</el-radio-button>
+                      <el-radio-button label="first_voice">多选叉乘</el-radio-button>
                     </el-radio-group>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
