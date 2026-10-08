@@ -85,8 +85,6 @@ function refreshToVersion(version: string): void {
         sessionStorage.setItem(REFRESH_STATE_KEY, JSON.stringify({
             path: currentPath(),
             savedAt: Date.now(),
-            scrollX: window.scrollX,
-            scrollY: window.scrollY,
             states
         }))
     } catch {

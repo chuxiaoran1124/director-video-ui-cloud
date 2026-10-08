@@ -661,7 +661,10 @@ const unregisterListState = registerVersionRefreshState('training-list', () => (
   creatorId: creatorUserId.value, page: currentPage.value, pageSize: pageSize.value,
   applied: { ...appliedFilters }
 }))
-const unregisterTrainingEditBlocker = registerVersionRefreshBlocker(() => isCreating.value)
+const unregisterTrainingEditBlocker = registerVersionRefreshBlocker(() =>
+  isCreating.value || singleSubmitting.value || batchSubmitting.value
+  || Boolean(form.humanName.trim()) || Boolean(form.rawFile) || batchFiles.value.length > 0
+)
 const totalCount = ref(0)  // API杩斿洖鐨勬€绘暟
 const waitingBeforeInfo = reactive({
   taskId: null as number | null,
