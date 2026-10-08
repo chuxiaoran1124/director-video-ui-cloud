@@ -24,6 +24,7 @@
         >
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <el-button type="primary" @click="handlePlanFilterChange">搜索</el-button>
         <el-select
           v-if="canFilterTaskCreator"
           v-model="selectedCreatorUserId"
@@ -364,10 +365,20 @@
 
         <section v-else class="child-table-card">
           <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><div class="child-download-actions"><el-tag>{{ detail.children.length }} 条</el-tag><el-button type="success" :disabled="!detail.children.some(child => child.videoUrl) || zipVisible" @click="downloadPlanVideos">批量下载</el-button></div></div>
-          <el-table :data="detail.children" row-key="id" fit style="width:100%" :header-cell-style="tableHeaderStyle">
+          <div class="child-filters">
+            <el-input v-model="childNameQuery" placeholder="搜索视频名称" clearable @keyup.enter="applyChildFilters" />
+            <el-select v-model="childGenderQuery" clearable placeholder="全部性别">
+              <el-option label="男" value="male" /><el-option label="女" value="female" />
+            </el-select>
+            <el-button type="primary" @click="applyChildFilters">搜索</el-button>
+            <span>筛选结果 {{ filteredChildren.length }} 条</span>
+          </div>
+          <el-table :data="filteredChildren" row-key="id" fit style="width:100%" :header-cell-style="tableHeaderStyle">
             <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
             <el-table-column label="封面" min-width="90" align="center"><template #default="{ row }"><img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="" /><span v-else>-</span></template></el-table-column>
+            <el-table-column label="视频名称" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ row.videoName || `${detail.plan?.name || '视频'}-${row.seqNo}` }}</template></el-table-column>
             <el-table-column label="数字人 / 声音" min-width="210"><template #default="{ row }"><strong>{{ row.digitalHumanName || row.performerName || '-' }}</strong><p>{{ row.voiceName || '-' }}</p></template></el-table-column>
+            <el-table-column label="性别" min-width="70" align="center"><template #default="{ row }">{{ row.digitalHumanGender === 'male' ? '男' : row.digitalHumanGender === 'female' ? '女' : '未分类' }}</template></el-table-column>
             <el-table-column label="状态" min-width="100" align="center"><template #default="{ row }"><el-tag :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template></el-table-column>
             <el-table-column label="开始时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.startTime) }}</template></el-table-column>
             <el-table-column label="完成时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.endTime) }}</template></el-table-column>
@@ -484,6 +495,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } from '@element-plus/icons-vue'
+import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 import { describeZipVideoFailures, directVideoUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
@@ -531,7 +543,7 @@ interface PerformerConfig {
 }
 interface BatchChild {
   id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: PerformerSelectionMode; digitalHumanId?: string | number | null; voiceId?: string | number | null
-  bindingName: string; performerName?: string; digitalHumanName: string; voiceName: string; statusKey: StatusKey; createTime?: string; startTime?: string; endTime?: string
+  bindingName: string; performerName?: string; digitalHumanName: string; digitalHumanGender: string; videoName: string; voiceName: string; statusKey: StatusKey; createTime?: string; startTime?: string; endTime?: string
   errorMessage?: string; videoUrl?: string; coverUrl?: string; videoTaskId?: string | number; retryable?: boolean; postProcessConfig?: Record<string, any>; videoOptions?: Record<string, any>
 }
 interface BatchPlan {
@@ -553,7 +565,12 @@ const planPage = ref(1)
 const planPageSize = ref(20)
 const planTotal = ref(0)
 const searchKeyword = ref('')
+const appliedPlanKeyword = ref('')
 const selectedCreatorUserId = ref<number | null>(null)
+const childNameQuery = ref('')
+const childGenderQuery = ref('')
+const appliedChildName = ref('')
+const appliedChildGender = ref('')
 const creatorOptions = ref<IUserListItem[]>([])
 const creatorOptionsLoading = ref(false)
 const activeConfigSections = ref<string[]>(['identity', 'enhancement', 'script'])
@@ -580,6 +597,35 @@ const planForm = reactive({
 })
 const createDialog = reactive({ visible: false, submitting: false })
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
+const filteredChildren = computed(() => detail.children.filter(child => {
+  const name = child.videoName || `${detail.plan?.name || '视频'}-${child.seqNo}`
+  return (!appliedChildName.value || name.toLowerCase().includes(appliedChildName.value))
+    && (!appliedChildGender.value || child.digitalHumanGender === appliedChildGender.value)
+}))
+function applyChildFilters() {
+  appliedChildName.value = childNameQuery.value.trim().toLowerCase()
+  appliedChildGender.value = childGenderQuery.value
+}
+let restoredPlanList = consumeVersionRefreshState<any>('batch-plan-list')
+let restoredPlanTenantId = 0
+const restorePlanList = () => {
+  if (!restoredPlanList || restoredPlanList.tenantId !== Number(layoutStore.getCurrentTenant?.id || 0)) return false
+  planPage.value = Number(restoredPlanList.page) || 1
+  planPageSize.value = Number(restoredPlanList.pageSize) || 20
+  searchKeyword.value = restoredPlanList.keyword || ''
+  appliedPlanKeyword.value = restoredPlanList.appliedKeyword || ''
+  selectedCreatorUserId.value = restoredPlanList.creatorId ?? null
+  restoredPlanTenantId = Number(layoutStore.getCurrentTenant?.id || 0)
+  restoredPlanList = null
+  return true
+}
+restorePlanList()
+const unregisterPlanListState = registerVersionRefreshState('batch-plan-list', () => ({
+  tenantId: Number(layoutStore.getCurrentTenant?.id || 0), page: planPage.value,
+  pageSize: planPageSize.value, keyword: searchKeyword.value,
+  appliedKeyword: appliedPlanKeyword.value, creatorId: selectedCreatorUserId.value
+}))
+const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible)
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
 const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', tag: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
@@ -698,7 +744,8 @@ function normalizeChild(item: any, index: number): BatchChild {
     selectionMode: item.selectionMode || snapshot.selectionMode || (item.bindingId ? 'binding' : 'custom'),
     digitalHumanId: snapshot.digitalHumanId ?? snapshot.human?.id ?? null, voiceId: snapshot.voiceId ?? snapshot.voice?.id ?? null,
     bindingName: snapshot.title || `${snapshot.digitalHumanName || '数字人'} + ${snapshot.voiceName || '配音'}`,
-    performerName: snapshot.digitalHumanName || '', digitalHumanName: snapshot.digitalHumanName || '', voiceName: snapshot.voiceName || '', statusKey: normalizeStatus(rawStatus),
+    performerName: snapshot.digitalHumanName || '', digitalHumanName: snapshot.digitalHumanName || '', digitalHumanGender: item.digitalHumanGender || snapshot.digitalHumanGender || '',
+    videoName: item.videoName || item.videoOptions?.filename || '', voiceName: snapshot.voiceName || '', statusKey: normalizeStatus(rawStatus),
     createTime: item.createTime || item.create_time, startTime: item.startTime || item.start_time, endTime: item.endTime || item.end_time,
     errorMessage: item.errorMessage || item.error_message || '', videoUrl: item.videoUrl || item.video_url || '',
     coverUrl: item.videoCoverUrl || item.digitalHumanCoverUrl || snapshot.digitalHumanCoverUrl || snapshot.human?.coverUrl || '', videoTaskId: item.videoTaskId,
@@ -979,6 +1026,7 @@ async function loadCreatorOptions() {
 }
 
 function handlePlanFilterChange() {
+  appliedPlanKeyword.value = searchKeyword.value.trim()
   planPage.value = 1
   loadPlanList()
 }
@@ -990,7 +1038,7 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
   if (!options.silent) listLoading.value = true
   try {
     const search: Record<string, any> = {}
-    if (searchKeyword.value.trim()) search.planName = searchKeyword.value.trim()
+    if (appliedPlanKeyword.value) search.planName = appliedPlanKeyword.value
     if (canFilterTaskCreator.value && selectedCreatorUserId.value != null) search.creatorUserId = selectedCreatorUserId.value
     const response = await getVideoBatchPlanList(planPage.value, planPageSize.value, search, { hideLoading: true, silentError: options.silent })
     if (requestId !== activeListRequest) return
@@ -1006,7 +1054,7 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
     }
   }
 }
-async function openDetail(row: BatchPlan) { detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function stopVoicePreview() {
   const audio = voiceAudio
@@ -1209,13 +1257,20 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
   detail.visible = false
   detail.plan = null
   detail.children = []
-  selectedCreatorUserId.value = null
+  const restored = restorePlanList() || restoredPlanTenantId === Number(layoutStore.getCurrentTenant?.id || 0)
+  restoredPlanTenantId = 0
+  if (!restored) {
+    selectedCreatorUserId.value = null
+    appliedPlanKeyword.value = ''
+    planPage.value = 1
+  }
   creatorOptions.value = []
   loadCreatorOptions()
-  planPage.value = 1
   loadPlanList()
 })
 onUnmounted(() => {
+  unregisterPlanListState()
+  unregisterPlanEditBlocker()
   activeListRequest = 0
   if (listRefreshTimer !== null) window.clearInterval(listRefreshTimer)
   document.removeEventListener('visibilitychange', refreshPlanListWhenVisible)
@@ -1350,6 +1405,9 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .asset-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#6f8096; font-size:12px; }
 .asset-picker-footer>div { display:flex; gap:8px; flex:0 0 auto; }
 .child-table-card { padding:16px; }.child-cover{width:52px;height:66px;object-fit:cover;border-radius:7px;}.video-preview-wrap video{width:100%;max-height:72vh;object-fit:contain;background:#000;}
+.child-filters { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; color:#7b8aa1; font-size:12px; }
+.child-filters :deep(.el-input) { width:min(100%, 280px); }
+.child-filters :deep(.el-select) { width:130px; }
 @media (max-width:1450px){.plan-summary{grid-template-columns:minmax(220px,.8fr) minmax(390px,1.25fr)}.time-summary{grid-column:1/-1}.time-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.editor-layout{grid-template-columns:minmax(0,1fr) minmax(280px,36%)}.asset-grid:not(.asset-grid-human){grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:980px){.draft-workspace{grid-template-columns:1fr}.performer-sidebar{display:flex;gap:8px;overflow:auto;max-height:none}.sidebar-heading{min-width:150px}.performer-nav-item{min-width:210px}.editor-layout{grid-template-columns:1fr}.preview-panel{position:static}.form-grid-two,.form-grid-three,.plan-settings-summary{grid-template-columns:1fr}.time-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-picker-toolbar{flex-direction:column}.asset-display-size-control{width:100%;min-width:0}.asset-grid:not(.asset-grid-human){grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>

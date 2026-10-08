@@ -4,8 +4,10 @@ import { hasCriticalOperation } from './criticalOperation'
 
 const VERSION_CHECK_INTERVAL = 60 * 1000
 const VISIBLE_IDLE_BEFORE_REFRESH = 5 * 60 * 1000
-const HIDDEN_IDLE_BEFORE_REFRESH = 30 * 1000
+const HIDDEN_IDLE_BEFORE_REFRESH = 5 * 60 * 1000
 const REFRESH_RETRY_INTERVAL = 5 * 1000
+const REFRESH_STATE_KEY = 'director-video-version-refresh-state'
+const REFRESH_STATE_TTL = 5 * 60 * 1000
 
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'input', 'change', 'focusin'] as const
 const BUSY_SELECTORS = [
@@ -20,11 +22,40 @@ let pendingVersion = ''
 let refreshTimer: number | undefined
 let versionCheckRunning = false
 const refreshBlockers = new Set<() => boolean>()
+const refreshStateCaptures = new Map<string, { path: string; capture: () => unknown }>()
+const currentPath = () => `${location.pathname}${location.hash}`
+const activeStateCaptures = () => Array.from(refreshStateCaptures.entries()).filter(([, entry]) => entry.path === currentPath())
 
 // 页面可登记未保存的编辑状态。新版本仍会被发现，但在编辑完成前不会强制重载。
 export function registerVersionRefreshBlocker(blocker: () => boolean): () => void {
     refreshBlockers.add(blocker)
     return () => refreshBlockers.delete(blocker)
+}
+
+// 只有自动更新使用这份一次性快照；普通手动刷新不恢复旧查询条件。
+export function registerVersionRefreshState(name: string, capture: () => unknown): () => void {
+    refreshStateCaptures.set(name, { path: currentPath(), capture })
+    return () => refreshStateCaptures.delete(name)
+}
+
+export function consumeVersionRefreshState<T>(name: string): T | null {
+    try {
+        const raw = sessionStorage.getItem(REFRESH_STATE_KEY)
+        if (!raw) return null
+        const snapshot = JSON.parse(raw)
+        if (snapshot.path !== currentPath() || Date.now() - snapshot.savedAt > REFRESH_STATE_TTL) {
+            sessionStorage.removeItem(REFRESH_STATE_KEY)
+            return null
+        }
+        const value = snapshot.states?.[name]
+        delete snapshot.states?.[name]
+        if (Object.keys(snapshot.states || {}).length) sessionStorage.setItem(REFRESH_STATE_KEY, JSON.stringify(snapshot))
+        else sessionStorage.removeItem(REFRESH_STATE_KEY)
+        return value ?? null
+    } catch {
+        sessionStorage.removeItem(REFRESH_STATE_KEY)
+        return null
+    }
 }
 
 function isVisible(element: Element): boolean {
@@ -48,6 +79,20 @@ function markActivity(): void {
 }
 
 function refreshToVersion(version: string): void {
+    try {
+        const states: Record<string, unknown> = {}
+        activeStateCaptures().forEach(([name, entry]) => { states[name] = entry.capture() })
+        sessionStorage.setItem(REFRESH_STATE_KEY, JSON.stringify({
+            path: currentPath(),
+            savedAt: Date.now(),
+            scrollX: window.scrollX,
+            scrollY: window.scrollY,
+            states
+        }))
+    } catch {
+        // 无法保存当前状态时不能强制更新，以免把用户送回列表第一页。
+        return
+    }
     const nextUrl = new URL(window.location.href)
     nextUrl.searchParams.set('_appv', version)
     window.location.replace(nextUrl.toString())
@@ -58,7 +103,9 @@ function tryRefresh(): void {
 
     const idleFor = Date.now() - lastActivityAt
     const requiredIdle = document.hidden ? HIDDEN_IDLE_BEFORE_REFRESH : VISIBLE_IDLE_BEFORE_REFRESH
+    const visiblePagination = Array.from(document.querySelectorAll('.el-pagination')).some(isVisible)
     if (idleFor < requiredIdle || hasCriticalOperation() || hasBusyUi() || hasFocusedEditor()
+        || (visiblePagination && activeStateCaptures().length === 0)
         || Array.from(refreshBlockers).some(blocker => blocker())) return
 
     refreshToVersion(pendingVersion)

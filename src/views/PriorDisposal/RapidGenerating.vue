@@ -27,6 +27,7 @@
             placeholder="搜索资产名称..." 
             class="!w-64"
             clearable
+            @keyup.enter="applyTaskFilters"
           >
             <template #prefix>
               <el-icon class="el-input__icon"><el-icon-search /></el-icon>
@@ -38,6 +39,10 @@
             <el-option label="克隆中" value="processing" />
             <el-option label="已成功" value="success" />
             <el-option label="已失败" value="failed" />
+          </el-select>
+          <el-select v-model="filterGender" placeholder="全部性别" clearable class="!w-32">
+            <el-option label="男" value="male" />
+            <el-option label="女" value="female" />
           </el-select>
           <el-select
             v-if="canFilterCreator"
@@ -57,6 +62,7 @@
               :value="user.userId"
             />
           </el-select>
+          <el-button type="primary" @click="applyTaskFilters">搜索</el-button>
         </div>
         <div class="flex items-center gap-3">
           <div class="queue-hint">
@@ -502,6 +508,7 @@ import { createFastTask, getFastTaskList, deleteFastTask, retryFastTask, getFast
 import { getUserList, IUserListItem } from '/@/api/user'
 import { fetchDirectBlob, fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
+import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -628,8 +635,33 @@ const batchProgress = computed(() => {
 // --- 浠诲姟鍒楄〃鏁版嵁 ---
 const searchQuery = ref('')
 const filterStatus = ref('')
+const filterGender = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+const appliedFilters = reactive({ keyword: '', status: '', gender: '', creatorId: '' as number | '' })
+let restoredListState = consumeVersionRefreshState<any>('training-list')
+let restoredTrainingTenantId = 0
+const restoreTrainingList = () => {
+  if (!restoredListState || restoredListState.tenantId !== currentTenantContextId.value) return false
+  searchQuery.value = restoredListState.keyword || ''
+  filterStatus.value = restoredListState.status || ''
+  filterGender.value = restoredListState.gender || ''
+  creatorUserId.value = restoredListState.creatorId || ''
+  currentPage.value = Number(restoredListState.page) || 1
+  pageSize.value = Number(restoredListState.pageSize) || 10
+  Object.assign(appliedFilters, restoredListState.applied || {})
+  restoredTrainingTenantId = currentTenantContextId.value
+  restoredListState = null
+  return true
+}
+restoreTrainingList()
+const unregisterListState = registerVersionRefreshState('training-list', () => ({
+  tenantId: currentTenantContextId.value,
+  keyword: searchQuery.value, status: filterStatus.value, gender: filterGender.value,
+  creatorId: creatorUserId.value, page: currentPage.value, pageSize: pageSize.value,
+  applied: { ...appliedFilters }
+}))
+const unregisterTrainingEditBlocker = registerVersionRefreshBlocker(() => isCreating.value)
 const totalCount = ref(0)  // API杩斿洖鐨勬€绘暟
 const waitingBeforeInfo = reactive({
   taskId: null as number | null,
@@ -638,7 +670,6 @@ const waitingBeforeInfo = reactive({
 })
 
 const taskList = ref<any[]>([])
-let fastTaskSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const getCreatorOptionLabel = (user: IUserListItem) => {
   const username = String(user.username || '').trim()
@@ -689,15 +720,16 @@ const loadTaskList = async (silent = false) => {
   activeFastListRequest = requestId
   try {
     const search: Record<string, any> = {}
-    if (searchQuery.value.trim()) {
-      search.digitalHumanName = searchQuery.value.trim()
+    if (appliedFilters.keyword) {
+      search.digitalHumanName = appliedFilters.keyword
     }
-    if (canFilterCreator.value && creatorUserId.value !== '' && creatorUserId.value !== null && creatorUserId.value !== undefined) {
-      search.creatorUserId = creatorUserId.value
+    if (canFilterCreator.value && appliedFilters.creatorId !== '') {
+      search.creatorUserId = appliedFilters.creatorId
     }
-    if (filterStatus.value) {
-      search.taskStatus = filterStatus.value
+    if (appliedFilters.status) {
+      search.taskStatus = appliedFilters.status
     }
+    if (appliedFilters.gender) search.gender = appliedFilters.gender
     const res = await getFastTaskList(
       currentPage.value,
       pageSize.value,
@@ -780,12 +812,7 @@ const loadWaitingBefore = async (taskId?: number | string, silent = false) => {
 }
 
 // 名称和状态均由服务端筛选，确保分页总数与当前列表条件一致。
-const filteredTaskList = computed(() => {
-  return taskList.value.filter(item => {
-    const matchSearch = !searchQuery.value || item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    return matchSearch
-  })
-})
+const filteredTaskList = computed(() => taskList.value)
 
 // 鍒嗛〉鍚庣殑鍒楄〃锛堢敱浜嶢PI宸茬粡杩斿洖鍒嗛〉鏁版嵁锛岃繖閲岀洿鎺ヨ繑鍥炲綋鍓嶉〉鐨勬暟鎹繘琛屽墠绔繃婊わ級
 const paginatedTaskList = computed(() => {
@@ -873,27 +900,28 @@ const startListPolling = () => {
   }, 10000)
 }
 
-watch(searchQuery, () => {
-  if (fastTaskSearchTimer) {
-    clearTimeout(fastTaskSearchTimer)
-  }
-  fastTaskSearchTimer = setTimeout(() => {
-    currentPage.value = 1
-    loadTaskList()
-  }, 250)
-})
-
-watch(filterStatus, () => {
+const applyTaskFilters = () => {
+  appliedFilters.keyword = searchQuery.value.trim()
+  appliedFilters.status = filterStatus.value
+  appliedFilters.gender = filterGender.value
+  appliedFilters.creatorId = creatorUserId.value
   currentPage.value = 1
   loadTaskList()
-})
-
-watch(creatorUserId, () => {
-  currentPage.value = 1
-  loadTaskList()
-})
+}
 
 watch([canFilterCreator, currentTenantContextId], ([enabled, tenantId], [previousEnabled, previousTenantId]) => {
+  if (restoreTrainingList()) {
+    creatorOptions.value = []
+    if (enabled) loadCreatorOptions()
+    loadTaskList()
+    return
+  }
+  if (restoredTrainingTenantId === tenantId && (!previousTenantId || previousTenantId === tenantId)) {
+    restoredTrainingTenantId = 0
+    if (enabled) loadCreatorOptions()
+    return
+  }
+  restoredTrainingTenantId = 0
   if (enabled && (!previousEnabled || tenantId !== previousTenantId)) {
     creatorUserId.value = ''
     creatorOptions.value = []
@@ -1592,6 +1620,8 @@ watch(
 )
 
 onUnmounted(() => { 
+  unregisterListState()
+  unregisterTrainingEditBlocker()
   if (timer) clearInterval(timer)
   if (pollTimer) clearInterval(pollTimer)
   stopListPolling()

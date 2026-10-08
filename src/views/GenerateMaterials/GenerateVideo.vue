@@ -23,7 +23,7 @@
               v-model="searchKeyword" 
               placeholder="搜索视频标题或ID..." 
               clearable
-              @input="handleSearch"
+              @keyup.enter="handleSearch"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
@@ -33,12 +33,16 @@
               v-model="searchLabel"
               placeholder="搜索标签..."
               clearable
-              @input="handleSearch"
+              @keyup.enter="handleSearch"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
+            <el-select v-model="searchGender" placeholder="全部性别" clearable class="!w-32">
+              <el-option label="男" value="male" />
+              <el-option label="女" value="female" />
+            </el-select>
             <el-select
               v-if="canFilterCreator"
               v-model="creatorUserId"
@@ -57,6 +61,7 @@
                 :value="user.userId"
               />
             </el-select>
+            <el-button type="primary" @click="handleSearch">搜索</el-button>
           </div>
           <div class="flex items-center gap-2">
             <div class="queue-hint">
@@ -1070,7 +1075,7 @@ import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
 import { describeZipVideoFailures, downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
-import { registerVersionRefreshBlocker } from '/@/utils/versionRefresh'
+import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- 数据定义 ---
@@ -1081,7 +1086,7 @@ const GENERIC_REQUEST_ERROR_MESSAGE = '请求失败，请联系管理员'
 // 页面状态
 const showCreate = ref(false)
 const draftDirty = ref(false)
-const unregisterVersionRefreshBlocker = registerVersionRefreshBlocker(() => showCreate.value && draftDirty.value)
+const unregisterVersionRefreshBlocker = registerVersionRefreshBlocker(() => showCreate.value)
 
 // 任务列表
 // 浠诲姟鍒楄〃
@@ -1089,6 +1094,7 @@ const videoTableRef = ref<any>(null)
 const videoTaskList = ref<any[]>([])
 const searchKeyword = ref('')
 const searchLabel = ref('')
+const searchGender = ref('')
 const creatorUserId = ref<number | ''>('')
 const creatorOptions = ref<IUserListItem[]>([])
 const creatorOptionsLoading = ref(false)
@@ -1102,6 +1108,32 @@ const selectedVideoIds = ref<Array<string | number>>([])
 const videoTaskPage = ref(1)
 const videoTaskPageSize = ref(20)
 const videoTaskTotal = ref(0)
+const appliedVideoSearch = reactive({ keyword: '', label: '', gender: '' })
+let restoredVideoList = consumeVersionRefreshState<any>('single-video-list')
+let restoredCreatorId: number | '' | null = null
+let restoredVideoTenantId = 0
+const restoreVideoList = () => {
+  if (!restoredVideoList || restoredVideoList.tenantId !== currentTenantContextId.value) return false
+  searchKeyword.value = restoredVideoList.keyword || ''
+  searchLabel.value = restoredVideoList.label || ''
+  searchGender.value = restoredVideoList.gender || ''
+  const nextCreatorId = restoredVideoList.creatorId || ''
+  if (creatorUserId.value !== nextCreatorId) restoredCreatorId = nextCreatorId
+  creatorUserId.value = nextCreatorId
+  videoTaskPage.value = Number(restoredVideoList.page) || 1
+  videoTaskPageSize.value = Number(restoredVideoList.pageSize) || 20
+  Object.assign(appliedVideoSearch, restoredVideoList.applied || {})
+  restoredVideoTenantId = currentTenantContextId.value
+  restoredVideoList = null
+  return true
+}
+restoreVideoList()
+const unregisterVideoListState = registerVersionRefreshState('single-video-list', () => ({
+  tenantId: currentTenantContextId.value,
+  keyword: searchKeyword.value, label: searchLabel.value, gender: searchGender.value,
+  creatorId: creatorUserId.value, page: videoTaskPage.value, pageSize: videoTaskPageSize.value,
+  applied: { ...appliedVideoSearch }
+}))
 const videoWaitingInfo = reactive({
   waitingTotal: 0,
   waitingBefore: 0
@@ -1827,11 +1859,12 @@ const resolveAssetUrl = (rawUrl: string) => normalizeAssetUrl(rawUrl)
 // 监听关键配置变化，重置配音状鎬?// --- 閫昏緫处理 ---
 
 const buildVideoTaskSearch = () => {
-  const keyword = searchKeyword.value.trim()
-  const label = searchLabel.value.trim()
+  const keyword = appliedVideoSearch.keyword
+  const label = appliedVideoSearch.label
   const search: any = {}
   if (keyword) search.title = keyword
   if (label) search.label = label
+  if (appliedVideoSearch.gender) search.gender = appliedVideoSearch.gender
   if (canFilterCreator.value && creatorUserId.value !== '' && creatorUserId.value !== null && creatorUserId.value !== undefined) {
     search.creatorUserId = creatorUserId.value
   }
@@ -1898,8 +1931,10 @@ const loadVideoTasks = async (silent = false) => {
       id: task.id,
       script: task.msg || task.title || '',
       title: task.title || '',
+      filename: task.filename || '',
       label: task.label || '',
       digitalHuman: task.digitalHuman || task.digital_human || '',
+      digitalHumanGender: task.digitalHumanGender || '',
       voice: task.voice || '',
       voiceId: task.voiceId,
       digitalHumanId: task.digitalHumanId,
@@ -2214,6 +2249,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopVideoTaskAutoRefresh()
   unregisterVersionRefreshBlocker()
+  unregisterVideoListState()
 })
 
 // 切换为横版时自动关闭字幕
@@ -2276,11 +2312,27 @@ watch(currentTenantId, () => {
 })
 
 watch(creatorUserId, () => {
+  if (restoredCreatorId === creatorUserId.value) {
+    restoredCreatorId = null
+    return
+  }
   videoTaskPage.value = 1
   loadVideoTasks()
 })
 
 watch([canFilterCreator, currentTenantContextId], ([enabled, tenantId], [previousEnabled, previousTenantId]) => {
+  if (restoreVideoList()) {
+    creatorOptions.value = []
+    if (enabled) loadCreatorOptions()
+    loadVideoTasks()
+    return
+  }
+  if (restoredVideoTenantId === tenantId && (!previousTenantId || previousTenantId === tenantId)) {
+    restoredVideoTenantId = 0
+    if (enabled) loadCreatorOptions()
+    return
+  }
+  restoredVideoTenantId = 0
   if (enabled && (!previousEnabled || tenantId !== previousTenantId)) {
     creatorUserId.value = ''
     creatorOptions.value = []
@@ -2403,7 +2455,7 @@ const getStatusType = (status: string | number): 'success' | 'danger' | 'warning
 }
 
 const getVideoInfoTitle = (row: any) => {
-  return String(row?.title || row?.script || '').trim()
+  return String(row?.filename || row?.title || row?.script || '').trim()
 }
 
 const markVideoDownloadedLocally = (taskId?: number | null) => {
@@ -3094,6 +3146,9 @@ const downloadResult = () => {
 // 搜索视频
 const handleSearch = async () => {
   try {
+    appliedVideoSearch.keyword = searchKeyword.value.trim()
+    appliedVideoSearch.label = searchLabel.value.trim()
+    appliedVideoSearch.gender = searchGender.value
     videoTaskPage.value = 1
     await loadVideoTasks()
   } catch (error) {
