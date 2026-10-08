@@ -364,16 +364,30 @@
         </template>
 
         <section v-else class="child-table-card">
-          <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><div class="child-download-actions"><el-tag>{{ detail.children.length }} 条</el-tag><el-button type="success" :disabled="!detail.children.some(child => child.videoUrl) || zipVisible" @click="downloadPlanVideos">批量下载</el-button></div></div>
+          <div class="section-heading-row"><div><strong>视频子任务</strong><p>点击预览时才加载结果视频。</p></div><el-tag>{{ detail.children.length }} 条</el-tag></div>
           <div class="child-filters">
-            <el-input v-model="childNameQuery" placeholder="搜索视频名称" clearable @keyup.enter="applyChildFilters" />
-            <el-select v-model="childGenderQuery" clearable placeholder="全部性别">
+            <el-input v-model="childNameQuery" placeholder="搜索视频名称" clearable @keyup.enter="applyChildFilters" @clear="applyChildFilters" />
+            <el-select v-model="childGenderQuery" clearable placeholder="全部性别" @change="applyChildFilters">
               <el-option label="男" value="male" /><el-option label="女" value="female" />
             </el-select>
             <el-button type="primary" @click="applyChildFilters">搜索</el-button>
             <span>筛选结果 {{ filteredChildren.length }} 条</span>
           </div>
+          <div class="child-download-actions">
+            <span>已勾选 {{ selectedChildren.length }} 条</span>
+            <el-button type="primary" :disabled="!selectedChildren.length || zipVisible" @click="downloadPlanVideos('selected')">下载勾选</el-button>
+            <el-button type="success" :disabled="!downloadableChildren.length || zipVisible" @click="downloadPlanVideos('all')">下载全部（{{ downloadableChildren.length }}）</el-button>
+            <el-button v-if="selectedChildren.length" link @click="selectedChildIds = []">清空勾选</el-button>
+          </div>
           <el-table :data="filteredChildren" row-key="id" fit style="width:100%" :header-cell-style="tableHeaderStyle">
+            <el-table-column width="48" align="center">
+              <template #header>
+                <el-checkbox :model-value="allVisibleChildrenSelected" :indeterminate="someVisibleChildrenSelected && !allVisibleChildrenSelected" :disabled="!visibleDownloadableChildren.length" aria-label="勾选当前筛选结果" @change="toggleVisibleChildren" />
+              </template>
+              <template #default="{ row }">
+                <el-checkbox :model-value="selectedChildIds.includes(String(row.id))" :disabled="!row.videoUrl" :aria-label="`勾选视频 ${row.videoName || row.seqNo}`" @change="toggleChildSelection(row)" />
+              </template>
+            </el-table-column>
             <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
             <el-table-column label="封面" min-width="90" align="center"><template #default="{ row }"><img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="" /><span v-else>-</span></template></el-table-column>
             <el-table-column label="视频名称" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ row.videoName || `${detail.plan?.name || '视频'}-${row.seqNo}` }}</template></el-table-column>
@@ -602,6 +616,24 @@ const filteredChildren = computed(() => detail.children.filter(child => {
   return (!appliedChildName.value || name.toLowerCase().includes(appliedChildName.value))
     && (!appliedChildGender.value || child.digitalHumanGender === appliedChildGender.value)
 }))
+const selectedChildIds = ref<string[]>([])
+const downloadableChildren = computed(() => detail.children.filter(child => child.videoUrl))
+const visibleDownloadableChildren = computed(() => filteredChildren.value.filter(child => child.videoUrl))
+const selectedChildren = computed(() => downloadableChildren.value.filter(child => selectedChildIds.value.includes(String(child.id))))
+const allVisibleChildrenSelected = computed(() => visibleDownloadableChildren.value.length > 0 && visibleDownloadableChildren.value.every(child => selectedChildIds.value.includes(String(child.id))))
+const someVisibleChildrenSelected = computed(() => visibleDownloadableChildren.value.some(child => selectedChildIds.value.includes(String(child.id))))
+function toggleChildSelection(child: BatchChild) {
+  const id = String(child.id)
+  selectedChildIds.value = selectedChildIds.value.includes(id)
+    ? selectedChildIds.value.filter(selectedId => selectedId !== id)
+    : [...selectedChildIds.value, id]
+}
+function toggleVisibleChildren(checked: string | number | boolean) {
+  const visibleIds = new Set(visibleDownloadableChildren.value.map(child => String(child.id)))
+  selectedChildIds.value = checked
+    ? [...new Set([...selectedChildIds.value, ...visibleIds])]
+    : selectedChildIds.value.filter(id => !visibleIds.has(id))
+}
 function applyChildFilters() {
   appliedChildName.value = childNameQuery.value.trim().toLowerCase()
   appliedChildGender.value = childGenderQuery.value
@@ -1054,7 +1086,7 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
     }
   }
 }
-async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl)); if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function stopVoicePreview() {
   const audio = voiceAudio
@@ -1236,7 +1268,25 @@ async function refreshActivePreview() { const sequence = ++previewLoadSequence; 
 function openVideoPreview(child: BatchChild) { stopPreview(); try { preview.sourceUrl = directVideoUrl(child.videoUrl); preview.taskId = child.videoTaskId || child.id; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; preview.visible = true; preview.url = preview.sourceUrl } catch (error: any) { ElMessage.error(error?.message || '视频预览失败') } }
 function handleVideoPreviewError() { if (!preview.visible || preview.fallbackUsed || !preview.sourceUrl) return; preview.fallbackUsed = true; preview.loading = false; ElMessage.error('视频直连预览失败，请检查 TOS 公网访问配置') }
 function downloadChild(child: BatchChild) { try { downloadVideoDirect(child.videoUrl); ElMessage.info('已交给浏览器直连下载') } catch (error: any) { ElMessage.error(error?.message || '下载失败') } }
-async function downloadPlanVideos() { if (zipVisible.value) return; const children = detail.children.filter(child => child.videoUrl); if (!children.length) return; zipVisible.value = true; try { const result = await downloadVideoZip(children.map(child => ({ url: child.videoUrl!, taskId: child.videoTaskId || child.id, taskName: `${child.digitalHumanName || '数字人'}（第 ${child.seqNo} 条）`, fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4` })), `batch-plan-${detail.plan?.id || 'videos'}.zip`, state => Object.assign(zipProgress, state)); if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' }); else ElMessage.success(`已打包 ${result.success} 条视频`) } catch (error: any) { ElMessage.error(error?.message || '批量下载失败') } finally { zipVisible.value = false } }
+async function downloadPlanVideos(scope: 'all' | 'selected') {
+  if (zipVisible.value) return
+  const children = scope === 'selected' ? selectedChildren.value : downloadableChildren.value
+  if (!children.length) return
+  zipVisible.value = true
+  try {
+    const result = await downloadVideoZip(children.map(child => ({
+      url: child.videoUrl!, taskId: child.videoTaskId || child.id,
+      taskName: `${child.digitalHumanName || '数字人'}（第 ${child.seqNo} 条）`,
+      fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4`
+    })), `batch-plan-${detail.plan?.id || 'videos'}-${scope}.zip`, state => Object.assign(zipProgress, state))
+    if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
+    else ElMessage.success(`已打包 ${result.success} 条视频`)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '批量下载失败')
+  } finally {
+    zipVisible.value = false
+  }
+}
 function stopPreview() { previewVideo.value?.pause(); preview.url = ''; preview.sourceUrl = ''; preview.fallbackUsed = false; preview.loading = false }
 function handlePageSizeChange(size: number) { planPageSize.value = size; planPage.value = 1; loadPlanList() }
 function refreshPlanListWhenVisible() { if (document.visibilityState === 'visible') loadPlanList({ silent: true }) }
@@ -1307,7 +1357,8 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .w-full { width:100%; }
 .create-section { margin-top:12px; padding:18px; border:1px solid #e5ebf4; border-radius:12px; background:#fbfcfe; }
 .section-heading-row { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:14px; }
-.child-download-actions { display:flex; align-items:center; gap:10px; }
+.child-download-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; color:#7b8aa1; font-size:12px; }
+.child-download-actions :deep(.el-button + .el-button) { margin-left:0; }
 .section-heading-row p, .block-title span { margin:4px 0 0; color:#8a98ac; font-size:12px; }
 .required, .enhancement-label em { color:#f56c6c; font-style:normal; }
 .script-actions { display:flex; gap:8px; }

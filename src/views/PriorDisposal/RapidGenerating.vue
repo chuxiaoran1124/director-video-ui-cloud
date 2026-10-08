@@ -28,19 +28,20 @@
             class="!w-64"
             clearable
             @keyup.enter="applyTaskFilters"
+            @clear="applyTaskFilters"
           >
             <template #prefix>
               <el-icon class="el-input__icon"><el-icon-search /></el-icon>
             </template>
           </el-input>
-          <el-select v-model="filterStatus" placeholder="任务状态" clearable class="!w-40">
+          <el-select v-model="filterStatus" placeholder="任务状态" clearable class="!w-40" @change="applyTaskFilters">
             <el-option label="全部状态" value="" />
             <el-option label="等待中" value="waiting" />
             <el-option label="克隆中" value="processing" />
             <el-option label="已成功" value="success" />
             <el-option label="已失败" value="failed" />
           </el-select>
-          <el-select v-model="filterGender" placeholder="全部性别" clearable class="!w-32">
+          <el-select v-model="filterGender" placeholder="全部性别" clearable class="!w-32" @change="applyTaskFilters">
             <el-option label="男" value="male" />
             <el-option label="女" value="female" />
           </el-select>
@@ -53,6 +54,7 @@
             clearable
             :loading="creatorOptionsLoading"
             filter-placeholder="搜索用户名"
+            @change="applyTaskFilters"
           >
             <el-option label="全部成员" value="" />
             <el-option
@@ -908,8 +910,8 @@ const applyTaskFilters = () => {
   appliedFilters.status = filterStatus.value
   appliedFilters.gender = filterGender.value
   appliedFilters.creatorId = creatorUserId.value
-  currentPage.value = 1
-  loadTaskList()
+  if (currentPage.value !== 1) currentPage.value = 1
+  else loadTaskList()
 }
 
 watch([canFilterCreator, currentTenantContextId], ([enabled, tenantId], [previousEnabled, previousTenantId]) => {

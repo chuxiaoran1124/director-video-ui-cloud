@@ -24,6 +24,7 @@
               placeholder="搜索视频标题或ID..." 
               clearable
               @keyup.enter="handleSearch"
+              @clear="handleSearch"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
@@ -34,12 +35,13 @@
               placeholder="搜索标签..."
               clearable
               @keyup.enter="handleSearch"
+              @clear="handleSearch"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
-            <el-select v-model="searchGender" placeholder="全部性别" clearable class="!w-32">
+            <el-select v-model="searchGender" placeholder="全部性别" clearable class="!w-32" @change="handleSearch">
               <el-option label="男" value="male" />
               <el-option label="女" value="female" />
             </el-select>
