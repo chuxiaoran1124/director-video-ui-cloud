@@ -263,12 +263,8 @@
                     <el-radio-group v-model="activePerformer.selectionMode" @change="handleSelectionModeChange">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
-                      <el-radio-button label="first_voice">声音跟随第1项</el-radio-button>
+                      <el-radio-button label="first_voice">多选X乘</el-radio-button>
                     </el-radio-group>
-                    <div v-if="firstVoiceFollowerCount > 0" class="first-voice-summary">
-                      <el-icon><Headset /></el-icon>
-                      <span>后 {{ firstVoiceFollowerCount }} 项声音跟随第1项</span>
-                    </div>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
@@ -705,11 +701,6 @@ const activePreviewProcessTypes = computed(() => planForm.processTypes.filter((t
 }))
 const assetPickerTitle = computed(() => ({ binding: '选择绑定关系', human: '选择数字人形象', voice: '选择配音声音' }[assetPicker.type]))
 const assetPickerEmptyText = computed(() => ({ binding: '暂无可用绑定关系', human: '暂无可用数字人', voice: '暂无可用配音声音' }[assetPicker.type]))
-const firstVoiceFollowerCount = computed(() => {
-  const first = planForm.performerConfigs[0]
-  if (!first || first.selectionMode !== 'first_voice') return 0
-  return planForm.performerConfigs.slice(1).filter(config => config.selectionMode === 'first_voice').length
-})
 const filteredScriptOptions = computed(() => {
   const source = scriptSelector.mode === 'library' ? scriptOptions.value : historyOptions.value
   const keyword = scriptSelector.search.trim().toLowerCase()
@@ -1402,7 +1393,7 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .collapse-title { min-width:0; flex:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding-right:8px; }
 .collapse-title span { color:#8a98ac; font-size:12px; font-weight:400; }
 .block-title, .preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:9px; }.single-picker{grid-template-columns:1fr;}.first-voice-summary{display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:6px 10px;border-radius:7px;background:#eff8ff;color:#5d7592;font-size:12px;}
+.picker-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:9px; }.single-picker{grid-template-columns:1fr;}
 .selection-preview-strip { display:flex; align-items:center; gap:8px; margin-top:8px; padding:6px 8px; border-radius:8px; background:#f0f7ff; }
 .selection-preview-strip img { width:38px; height:48px; object-fit:cover; border-radius:6px; }.selection-preview-strip span{min-width:0;flex:1;}
 .form-grid label { display:grid; gap:7px; color:#64748b; font-size:12px; }
