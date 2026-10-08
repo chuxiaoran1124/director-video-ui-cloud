@@ -444,15 +444,12 @@
 
     <el-dialog v-model="assetPicker.visible" :title="assetPickerTitle" width="82%" append-to-body @closed="resetAssetPickerState">
       <div class="asset-picker-toolbar">
-        <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
-        <template v-if="assetPicker.type === 'human'">
-          <el-select v-model="assetPicker.gender" clearable placeholder="全部性别" style="width: 120px">
+        <div class="asset-picker-filters">
+          <el-input v-model="assetPicker.search" class="selector-search" clearable :placeholder="`搜索${assetPickerTitle}`"><template #prefix><el-icon><Search /></el-icon></template></el-input>
+          <el-select v-if="assetPicker.type === 'human'" v-model="assetPicker.gender" clearable placeholder="全部性别" class="asset-gender-filter">
             <el-option label="男" value="male" /><el-option label="女" value="female" />
           </el-select>
-          <el-select v-model="assetPicker.tag" clearable filterable placeholder="全部标签" style="width: 150px">
-            <el-option v-for="tag in humanTagOptions" :key="tag" :label="tag" :value="tag" />
-          </el-select>
-        </template>
+        </div>
         <div v-if="assetPicker.type === 'human'" class="asset-display-size-control">
           <span>卡片展示大小</span>
           <el-slider
@@ -659,7 +656,7 @@ const unregisterPlanListState = registerVersionRefreshState('batch-plan-list', (
 }))
 const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible)
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
-const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', tag: '', multi: false })
+const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
 const humanPickerScale = ref(1)
 const humanPickerScaleLocked = ref(false)
@@ -724,11 +721,10 @@ const filteredAssetOptions = computed<any[]>(() => {
   const keyword = assetPicker.search.trim().toLowerCase()
   return source.filter((item: any) => {
     if (assetPicker.type === 'human' && assetPicker.gender && item.gender !== assetPicker.gender) return false
-    if (assetPicker.type === 'human' && assetPicker.tag && !item.tags?.includes(assetPicker.tag)) return false
-    return !keyword || `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''} ${(item.tags || []).join(' ')}`.toLowerCase().includes(keyword)
+    const searchable = assetPicker.type === 'human' ? item.name : `${item.name} ${item.digitalHumanName || ''} ${item.voiceName || ''} ${item.language || ''} ${(item.tags || []).join(' ')}`
+    return !keyword || searchable.toLowerCase().includes(keyword)
   })
 })
-const humanTagOptions = computed(() => Array.from(new Set(digitalHumanOptions.value.flatMap(item => item.tags || []))).sort((a, b) => a.localeCompare(b, 'zh-CN')))
 const humanPickerColumns = computed(() => {
   const scale = normalizeHumanPickerScale(humanPickerScale.value)
   if (scale <= 0.75) return 8
@@ -881,7 +877,7 @@ function clearAssetImageFailures() { Object.keys(assetImageFailures).forEach(key
 function assetTitle(item: any) { return item.name || item.digitalHumanName || '未命名' }
 function assetSubtitle(item: any) {
   if (assetPicker.type === 'binding') return `${item.digitalHumanName} + ${item.voiceName}`
-  if (assetPicker.type === 'human') return `${item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类'}${item.tags?.length ? ` · ${item.tags.join(' / ')}` : ''}`
+  if (assetPicker.type === 'human') return item.gender === 'male' ? '男' : item.gender === 'female' ? '女' : '未分类'
   return item.language || ''
 }
 
@@ -1175,7 +1171,6 @@ async function openAssetPicker(type: AssetPickerType) {
   assetPicker.type = type
   assetPicker.search = ''
   assetPicker.gender = ''
-  assetPicker.tag = ''
   assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
   selectedHumanIds.value = assetPicker.multi
     ? planForm.performerConfigs
@@ -1427,6 +1422,8 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 :global(.batch-detail-drawer .el-drawer__body) { padding:8px 16px; }
 :global(.batch-detail-drawer .el-drawer__footer) { padding:10px 18px; border-top:1px solid #e8edf4; box-shadow:0 -4px 14px rgba(31,45,67,.06); }
 .asset-picker-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.asset-picker-filters { display:flex; align-items:center; flex-wrap:wrap; gap:10px; min-width:0; }
+.asset-gender-filter { width:120px; }
 .selector-search { width:min(100%,360px); margin-bottom:0; }
 .selector-search :deep(.el-input__wrapper) { align-items:center; }
 .selector-search :deep(.el-input__prefix), .selector-search :deep(.el-input__prefix-inner) { height:100%; display:flex; align-items:center; justify-content:center; }
