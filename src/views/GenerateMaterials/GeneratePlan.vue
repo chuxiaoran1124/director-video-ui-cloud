@@ -1266,8 +1266,9 @@ async function downloadPlanVideos(scope: 'all' | 'selected') {
       fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4`
     })), `batch-plan-${detail.plan?.id || 'videos'}-${scope}.zip`, state => Object.assign(zipProgress, state))
     if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
-    else ElMessage.success(`已打包 ${result.success} 条视频`)
+    else ElMessage.success(result.streaming ? `已保存 ${result.success} 条视频到 ZIP` : `已打包 ${result.success} 条视频${(result.archives || 0) > 1 ? `，共 ${result.archives} 个 ZIP，请确认全部保存` : '，请确认浏览器下载结果'}`)
   } catch (error: any) {
+    if (error?.code === 'DOWNLOAD_CANCELLED') return
     ElMessage.error(error?.message || '批量下载失败')
   } finally {
     zipVisible.value = false

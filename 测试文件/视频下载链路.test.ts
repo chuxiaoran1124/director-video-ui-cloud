@@ -20,10 +20,10 @@ test('单个视频交给浏览器直连，不经过代理且拒绝非 HTTP 地�
   downloadVideoDirect('https://example.com/video.mp4')
   expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1)
   expect(proxy).not.toHaveBeenCalled()
-  expect(() => directVideoUrl('javascript:alert(1)')).toThrow
+  expect(() => directVideoUrl('javascript:alert(1)')).toThrow()
 })
 
-test('ZIP 直连同时最多两条，逐条上报进度并完成压缩', async () => {
+test('ZIP 直连逐条写入，逐条上报进度并完成压缩', async () => {
   let active = 0
   let peak = 0
   ;(global.fetch as jest.Mock).mockImplementation(async () => {
@@ -39,10 +39,10 @@ test('ZIP 直连同时最多两条，逐条上报进度并完成压缩', async (
     'videos.zip',
     progress => phases.push(`${progress.phase}:${progress.completed}:${progress.percent}`)
   )
-  expect(peak).toBe(2)
+  expect(peak).toBe(1)
   expect(global.fetch).toHaveBeenCalledTimes(5)
   expect(proxy).not.toHaveBeenCalled()
-  expect(result).toEqual({ success: 5, failed: 0, failedItems: [] })
+  expect(result).toMatchObject({ success: 5, failed: 0, failedItems: [] })
   expect(phases).toContain('fetching:5:80')
   expect(phases[phases.length - 1]).toBe('done:5:100')
 })
@@ -58,7 +58,7 @@ test('瞬时失败最多三次尝试，成功后不记为失败', async () => {
     () => undefined
   )
   expect(global.fetch).toHaveBeenCalledTimes(3)
-  expect(result).toEqual({ success: 1, failed: 0, failedItems: [] })
+  expect(result).toMatchObject({ success: 1, failed: 0, failedItems: [] })
 })
 
 test('部分失败时仍生成 ZIP，且只写入成功的视频', async () => {
@@ -94,12 +94,7 @@ test('部分失败时仍生成 ZIP，且只写入成功的视频', async () => {
   expect(result.failedItems.map(item => item.item.taskName)).toEqual(['失败任务'])
   expect(zipBlob).toBeDefined()
 
-  const zipBytes = await new Promise<ArrayBuffer>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(reader.error)
-    reader.onload = () => resolve(reader.result as ArrayBuffer)
-    reader.readAsArrayBuffer(zipBlob as Blob)
-  })
+  const zipBytes = await (zipBlob as Blob).arrayBuffer()
   const zip = await JSZip.loadAsync(zipBytes)
   expect(Object.keys(zip.files).sort()).toEqual(['a.mp4', 'b.mp4'])
 })

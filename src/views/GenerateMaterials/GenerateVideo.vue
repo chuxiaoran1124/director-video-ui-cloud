@@ -3181,14 +3181,15 @@ const batchDownloadVideos = async () => {
     if (result.failed) {
       await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
     } else {
-      ElMessage.success(`成功打包 ${result.success} 个视频`)
+      ElMessage.success(result.streaming ? `已保存 ${result.success} 个视频到 ZIP` : `已打包 ${result.success} 个视频${(result.archives || 0) > 1 ? `，共 ${result.archives} 个 ZIP，请确认全部保存` : '，请确认浏览器下载结果'}`)
     }
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'DOWNLOAD_CANCELLED') return
     console.error('ZIP打包失败:', error)
-    ElMessage.error('打包文件失败，请重试')
+    ElMessage.error(error?.message || '打包文件失败，请重试')
   } finally {
     videoZipVisible.value = false
   }

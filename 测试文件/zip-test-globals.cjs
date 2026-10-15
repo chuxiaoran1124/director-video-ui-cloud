@@ -1,0 +1,5 @@
+const web = process.getBuiltinModule('stream/web')
+const { Blob } = process.getBuiltinModule('buffer')
+const { TextEncoder, TextDecoder } = process.getBuiltinModule('util')
+Object.assign(global, web, { Blob, TextEncoder, TextDecoder })
+Object.assign(global, process.getBuiltinModule('vm').runInThisContext('({ Response, Request, Headers, AbortController, AbortSignal })'))
