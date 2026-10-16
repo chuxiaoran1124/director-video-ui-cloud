@@ -26,7 +26,7 @@ host.getSourceFile = (file, languageVersion, onError, shouldCreateNewSourceFile)
     : originalSource(file, languageVersion, onError, shouldCreateNewSourceFile)
 const program = ts.createProgram([...parsed.fileNames, ...virtual.keys()], parsed.options, host)
 const diagnostics = ts.getPreEmitDiagnostics(program)
-const owned = diagnostics.filter(item => item.file && /StandaloneAudioTools|standaloneAudio\.ts|standalone-audio/.test(item.file.fileName))
+const owned = diagnostics.filter(item => item.file && /StandaloneAudioTools|standaloneAudio\.ts|standalone-audio|downloadSafety|downloadInteraction|videoZipWriter|utils[\\/]download\.ts/.test(item.file.fileName))
 if (owned.length) {
     console.error(ts.formatDiagnosticsWithColorAndContext(owned, { getCurrentDirectory: () => root, getCanonicalFileName: file => file, getNewLine: () => '\n' }))
     process.exitCode = 1

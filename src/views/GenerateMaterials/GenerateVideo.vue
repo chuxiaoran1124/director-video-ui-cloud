@@ -1066,7 +1066,6 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElIcon from '@element-plus/icons-vue'
 import { Search } from '@element-plus/icons-vue'
-import JSZip from 'jszip'
 import { getTenantDetail } from '/@/api/tenant'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { useTaskStore } from '/@/store/modules/task'
@@ -1075,7 +1074,8 @@ import { getUserList, IUserListItem } from '/@/api/user'
 import request from '/@/utils/request'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import OverflowTooltipText from '/@/components/OverflowTooltipText.vue'
-import { describeZipVideoFailures, downloadProxyFile, fetchProxyBlob, normalizeAssetUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { downloadProxyFile, normalizeAssetUrl, downloadVideoDirect, type ZipProgress } from '/@/utils/download'
+import { downloadVideoZip } from '/@/utils/downloadInteraction'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
@@ -3177,12 +3177,7 @@ const batchDownloadVideos = async () => {
 
   videoZipVisible.value = true
   try {
-    const result = await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, taskName: video.title || `视频任务 ${video.id}`, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state), item => markVideoDownloadedLocally(Number(item.taskId) || null))
-    if (result.failed) {
-      await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
-    } else {
-      ElMessage.success(result.streaming ? `已保存 ${result.success} 个视频到 ZIP` : `已打包 ${result.success} 个视频${(result.archives || 0) > 1 ? `，共 ${result.archives} 个 ZIP，请确认全部保存` : '，请确认浏览器下载结果'}`)
-    }
+    await downloadVideoZip(validVideos.map(video => ({ url: video.videoUrl, taskId: video.id, taskName: video.title || `视频任务 ${video.id}`, fileName: `${video.title || 'video'}-${video.id}.mp4` })), `videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state), item => markVideoDownloadedLocally(Number(item.taskId) || null))
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个视频跳过（未完成或无URL）`)
     }
@@ -3197,6 +3192,7 @@ const batchDownloadVideos = async () => {
 
 // 批量下载音频
 const batchDownloadAudios = async () => {
+  if (videoZipVisible.value) return
   if (selectedVideos.value.length === 0) {
     ElMessage.warning('请先选择要下载的视频')
     return
@@ -3210,67 +3206,21 @@ const batchDownloadAudios = async () => {
     return
   }
 
-  ElMessage.info(`准备打包 ${validVideos.length} 个音频...`)
-
+  videoZipVisible.value = true
   try {
-    const zip = new JSZip()
-    let successCount = 0
-    let failedCount = 0
-
-    // 并行下载所有音频
-    const downloadPromises = validVideos.map(video =>
-      fetchProxyBlob(video.baseVoiceUrl, {
-        taskId: video.id,
-        assetType: 'audio',
-        fallbackBaseName: `${video.title || 'audio'}-${video.id}`,
-        defaultExtension: '.mp3'
-      })
-        .then(response => response.blob)
-        .then(blob => {
-          const fileName = `${video.title || 'audio'}-${video.id}.mp3`
-          zip.file(fileName, blob)
-          successCount++
-        })
-        .catch(error => {
-          console.error(`下载音频失败: ${video.title}`, error)
-          failedCount++
-        })
-    )
-
-    // 等待所有下载完成
-    await Promise.all(downloadPromises)
-
-    if (successCount === 0) {
-      ElMessage.error('所有音频下载失败，请检查网络或文件地址')
-      return
-    }
-
-    // 生成 ZIP 文件
-    ElMessage.info('正在生成压缩包...')
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-    // 下载 ZIP 文件
-    const url = window.URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `audios-${new Date().getTime()}.zip`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-
-    if (successCount > 0) {
-      ElMessage.success(`成功打包并下载 ${successCount} 个音频`)
-    }
-    if (failedCount > 0) {
-      ElMessage.warning(`${failedCount} 个音频下载失败`)
-    }
+    await downloadVideoZip(validVideos.map(video => ({
+      url: resolveAssetUrl(video.baseVoiceUrl), taskId: video.id,
+      taskName: video.title || `音频任务 ${video.id}`, fileName: `${video.title || 'audio'}-${video.id}.mp3`
+    })), `audios-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
     if (invalidCount > 0) {
       ElMessage.info(`${invalidCount} 个音频跳过（未完成或无URL）`)
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'DOWNLOAD_CANCELLED') return
     console.error('ZIP打包失败:', error)
-    ElMessage.error('打包文件失败，请重试')
+    ElMessage.error(error?.message || '打包文件失败，请重试')
+  } finally {
+    videoZipVisible.value = false
   }
 }
 

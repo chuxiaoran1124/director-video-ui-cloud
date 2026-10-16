@@ -118,8 +118,8 @@ async function main() {
         await page.getByRole('button', { name: /批量下载/ }).click()
         const download = await downloadPromise
         assert.ok(download.suggestedFilename().endsWith('.zip'))
-        await page.getByText(/已打包下载 1 个音频/).waitFor()
-        const resultDialog = page.getByRole('dialog', { name: '音频下载结果' })
+        await page.getByText(/已生成 ZIP 并发起浏览器保存 1 项/).waitFor()
+        const resultDialog = page.getByRole('dialog', { name: '下载结果' })
         await page.waitForTimeout(3500)
         assert.equal(await resultDialog.isVisible(), true)
         await resultDialog.getByRole('button', { name: '知道了' }).click()

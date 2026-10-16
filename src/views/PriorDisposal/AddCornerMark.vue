@@ -530,7 +530,8 @@ import {
   deleteCornerMarkTask,
   getCornerMarkList
 } from '/@/api/material'
-import { describeZipVideoFailures, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { downloadVideoDirect, type ZipProgress } from '/@/utils/download'
+import { downloadVideoZip } from '/@/utils/downloadInteraction'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 
 // --- Types ---
@@ -1208,7 +1209,9 @@ const loadBatchDetail = async () => {
 const downloadBatchZip = async (row: CornerMarkBatchTask) => {
   if (batchDownloading.value) return
   batchDownloading.value = true
-  Object.assign(videoZipProgress, { phase: 'fetching', completed: 0, total: 0, percent: 0 })
+  Object.assign(videoZipProgress, { phase: 'fetching', completed: 0, total: 0, percent: 0, cancel: undefined,
+    currentName: undefined, currentIndex: undefined, loadedBytes: undefined, totalBytes: undefined,
+    speedBytesPerSecond: undefined, attempt: undefined, notice: undefined, streaming: undefined })
   ElMessage.info('正在收集批次视频并打包，请稍候...')
   try {
     let page = 1
@@ -1235,10 +1238,9 @@ const downloadBatchZip = async (row: CornerMarkBatchTask) => {
       return
     }
 
-    const result = await downloadVideoZip(downloadable.map((item: any) => ({ url: item.outputVideoUrl, taskId: item.id, taskName: item.title || `角标任务 ${item.id}`, fileName: `${item.title || `item-${item.id}`}-1.mp4` })), `${row.title || `batch-${row.id}`}-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
-    if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
-    else ElMessage.success(`打包完成，成功 ${result.success} 个视频`)
-  } catch (error) {
+    await downloadVideoZip(downloadable.map((item: any) => ({ url: item.outputVideoUrl, taskId: item.id, taskName: item.title || `角标任务 ${item.id}`, fileName: `${item.title || `item-${item.id}`}-1.mp4` })), `${row.title || `batch-${row.id}`}-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+  } catch (error: any) {
+    if (error?.code === 'DOWNLOAD_CANCELLED') return
     console.error('批次打包下载失败:', error)
     ElMessage.error('批次打包下载失败，请稍后重试')
   } finally {
@@ -1258,10 +1260,9 @@ const handleBatchDownload = async () => {
   ElMessage.info(`准备打包 ${downloadable.length} 个视频...`)
 
   try {
-    const result = await downloadVideoZip(downloadable.map(row => ({ url: row.outputVideoUrl!, taskId: row.id, taskName: row.title || `角标任务 ${row.id}`, fileName: `${row.title || 'corner-mark'}-${row.id}-1.mp4` })), `corner-mark-videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
-    if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
-    else ElMessage.success(`成功打包 ${result.success} 个视频`)
-  } catch (error) {
+    await downloadVideoZip(downloadable.map(row => ({ url: row.outputVideoUrl!, taskId: row.id, taskName: row.title || `角标任务 ${row.id}`, fileName: `${row.title || 'corner-mark'}-${row.id}-1.mp4` })), `corner-mark-videos-${Date.now()}.zip`, state => Object.assign(videoZipProgress, state))
+  } catch (error: any) {
+    if (error?.code === 'DOWNLOAD_CANCELLED') return
     console.error('ZIP 打包失败:', error)
     ElMessage.error('打包文件失败，请重试')
   } finally {

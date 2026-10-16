@@ -63,8 +63,9 @@ async function main() {
         const file=await download
         await file.saveAs(path.join(output,'live-dubbing.zip'))
         assert.equal(await file.failure(),null)
-        await page.getByRole('dialog').filter({hasText:'音频下载结果'}).waitFor()
+        await page.getByRole('dialog').filter({hasText:'下载结果'}).waitFor()
         await page.screenshot({path:path.join(output,'dubbing-download.png'),fullPage:true})
+        await page.getByRole('button',{name:'知道了',exact:true}).click()
         assert.equal(proxyRequests.length,0)
         assert.deepEqual(pageErrors,[])
         console.log(JSON.stringify({live_cookie_session_restore:true,training_ui:true,dubbing_ui:true,direct_playback:true,

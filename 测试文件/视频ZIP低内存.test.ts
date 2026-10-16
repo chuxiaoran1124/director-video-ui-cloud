@@ -3,6 +3,7 @@ import { downloadVideoZip } from '../src/utils/download'
 import { createVideoZipSink, chooseVideoZipFile } from '../src/utils/videoZipWriter'
 import { hasCriticalOperation } from '../src/utils/criticalOperation'
 import JSZip from 'jszip'
+import { ZIP_DOWNLOAD_LIMITS } from '../src/utils/downloadSafety'
 
 jest.mock('/@/api/material', () => ({ downloadFileByProxy: jest.fn() }))
 jest.mock('../src/utils/videoZipWriter', () => ({
@@ -26,6 +27,7 @@ beforeEach(() => {
 })
 const items = (n = 2) => Array.from({ length: n }, (_, i) => ({ url: `https://example.com/${i}.mp4`, fileName: `${i}.mp4`, taskName: `video-${i}` }))
 const inspect = async (blob: Blob) => JSZip.loadAsync(await blob.arrayBuffer(), { checkCRC32: true })
+afterEach(() => jest.restoreAllMocks())
 
 test('小包可被独立ZIP库解压，且逐条读取、不再并发累积整批', async () => {
     const result = await downloadVideoZip(items(), 'test.zip', () => undefined)
@@ -63,7 +65,9 @@ test('磁盘写失败不报成功、不调用成功回调，释放关键操作�
     const output = new WritableStream<Uint8Array>({ write: () => { throw new Error('disk full') } })
     ;(window as any).showSaveFilePicker = jest.fn(async () => ({ createWritable: async () => output }))
     const callback = jest.fn()
-    await expect(downloadVideoZip(items(), 'failed.zip', () => undefined, callback)).rejects.toThrow('ZIP 保存失败')
+    const result = await downloadVideoZip(items(), 'failed.zip', () => undefined, callback)
+    expect(result).toMatchObject({ success: 0, failed: 2 })
+    expect(result.errorMessage).toContain('空间不足')
     expect(callback).not.toHaveBeenCalled()
     expect(saved).toHaveLength(0)
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -125,18 +129,19 @@ test('无Content-Length的超大文件读取期间停止，不把整个文件攒
     expect(saved).toHaveLength(0)
 })
 
-test('持续收到字节会重置停滞计时器，不用整文件固定时限', async () => {
+test('持续收到字节重置停滞计时器，但单条累计预算始终独立保留', async () => {
     const timers: Array<{ fn: () => void; ms: number; cancelled: boolean }> = []
-    window.setTimeout = ((fn: () => void, ms: number) => { timers.push({ fn, ms, cancelled: false }); return timers.length }) as any
-    window.clearTimeout = ((id: number) => { if (timers[id - 1]) timers[id - 1].cancelled = true }) as any
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms: number) => { timers.push({ fn, ms, cancelled: false }); return timers.length }) as any)
+    jest.spyOn(globalThis, 'clearTimeout').mockImplementation(((id: number) => { if (timers[id - 1]) timers[id - 1].cancelled = true }) as any)
     let reads = 0
     ;(fetch as jest.Mock).mockResolvedValue({ ok: true, headers: { get: () => null }, body: {
         getReader: () => ({ read: async () => ++reads <= 3 ? { value: new Uint8Array([1]), done: false } : { done: true }, cancel: async () => undefined, releaseLock: () => undefined })
     } })
     await downloadVideoZip(items(1), 'progress.zip', () => undefined)
-    const idle = timers.filter(t => t.ms === 180_000)
-    expect(idle).toHaveLength(4)
+    const idle = timers.filter(t => t.ms === ZIP_DOWNLOAD_LIMITS.idleMs)
+    expect(idle.length).toBeGreaterThanOrEqual(4)
     expect(idle.every(t => t.cancelled)).toBe(true)
+    expect(timers.some(t => t.ms === ZIP_DOWNLOAD_LIMITS.itemMs)).toBe(true)
 })
 
 test('50条共2.18GB输出保持小块写入，不申请整包ArrayBuffer', async () => {

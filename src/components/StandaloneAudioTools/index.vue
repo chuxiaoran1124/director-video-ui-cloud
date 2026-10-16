@@ -18,10 +18,7 @@
                 <el-button :disabled="!downloadable.length || downloading" :loading="downloading" @click="downloadSelected">批量下载 ({{ downloadable.length }})</el-button>
             </div>
             <el-alert v-if="listError" :title="listError" type="warning" :closable="false" show-icon />
-            <div v-if="downloading" class="download-progress" aria-busy="true">
-                正在下载并打包音频 {{ zipProgress.completed }}/{{ zipProgress.total }}，请勿关闭页面
-                <el-progress :percentage="zipProgress.percent" />
-            </div>
+            <VideoZipProgress v-bind="zipProgress" :visible="downloading" />
             <el-table ref="table" v-loading="loading" :data="rows" row-key="id" empty-text="暂无任务" @selection-change="selectionChanged">
                 <el-table-column type="selection" width="45" reserve-selection />
                 <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
@@ -99,11 +96,6 @@
                 <p v-if="detail.taskStatus === '2' && !detail.outputUrl">任务已完成，暂未返回音频地址，请稍后刷新。</p>
             </template>
         </el-dialog>
-        <el-dialog v-model="zipResultVisible" title="音频下载结果" width="min(620px, 94vw)" :close-on-click-modal="false">
-            <p role="status" class="zip-result">{{ zipResultMessage }}</p>
-            <p class="hint">{{ zipResultSuccess ? '已交给浏览器保存，请检查下载列表和保存位置。' : '没有成功保存的音频，请检查网络后重试。' }}</p>
-            <template #footer><el-button type="primary" @click="zipResultVisible = false">知道了</el-button></template>
-        </el-dialog>
     </section>
 </template>
 
@@ -115,7 +107,9 @@ import { useLayoutStore } from '/@/store/modules/layout'
 import { AudioTask, AudioTool, trainingPayload } from '/@/api/material/standaloneAudio'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
 import { registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
-import { describeZipVideoFailures, downloadVideoDirect, downloadVideoZip, sanitizeFileName } from '/@/utils/download'
+import { downloadVideoDirect, sanitizeFileName, type ZipProgress } from '/@/utils/download'
+import { downloadVideoZip } from '/@/utils/downloadInteraction'
+import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 import { newIdempotencyKey, readSampleDuration, statusLabels } from './media'
 import { useAudioTasks } from './useAudioTasks'
 import VoicePicker from './VoicePicker.vue'
@@ -137,10 +131,7 @@ const selectedIds = ref<number[]>([])
 const downloadable = computed(() => rows.value.filter(row => selectedIds.value.includes(row.id) && hasOutput(row)))
 const actionId = ref<number | null>(null)
 const downloading = ref(false)
-const zipProgress = reactive({ completed: 0, total: 0, percent: 0 })
-const zipResultVisible = ref(false)
-const zipResultMessage = ref('')
-const zipResultSuccess = ref(false)
+const zipProgress = reactive<ZipProgress>({ phase: 'fetching', completed: 0, total: 0, percent: 0 })
 const creating = ref(false)
 const submitting = ref(false)
 const form = reactive({ name: '', gender: 'male', voiceId: null as number | null, msg: '', language: 'zh' as 'zh' | 'en' })
@@ -291,23 +282,15 @@ async function downloadSelected() {
     if (downloading.value || !downloadable.value.length) return
     const requestScope = scopeKey.value
     downloading.value = true
-    zipResultVisible.value = false
-    zipResultMessage.value = ''
-    zipResultSuccess.value = false
     try {
-        const result = await downloadVideoZip(downloadable.value.map(row => ({
+        await downloadVideoZip(downloadable.value.map(row => ({
             url: row.outputUrl, taskId: row.id, taskName: row.name,
             fileName: `${sanitizeFileName(row.name)}-${row.id}${new URL(row.outputUrl).pathname.match(/\.(mp3|wav|m4a|mp4|ogg)$/i)?.[0] || '.mp3'}`
-        })), `audios-${Date.now()}.zip`, progress => Object.assign(zipProgress, progress))
-        if (requestScope !== scopeKey.value) return
-        zipResultSuccess.value = result.success > 0
-        zipResultMessage.value = result.failed ? describeZipVideoFailures(result)
-            : `已打包下载 ${result.success} 个音频${(result.archives || 0) > 1 ? `（${result.archives} 个分包）` : ''}`
-        zipResultVisible.value = true
-    } catch (error) {
-        if (requestScope === scopeKey.value && (error as Error).name !== 'AbortError') {
-            zipResultMessage.value = (error as Error).message || '音频打包失败，请重试'
-            zipResultVisible.value = true
+        })), `audios-${Date.now()}.zip`, progress => Object.assign(zipProgress, progress), undefined, { isCurrent: () => scopeKey.value === requestScope && active.value })
+    } catch (error: any) {
+        if (error?.code === 'DOWNLOAD_CANCELLED') return
+        if (requestScope === scopeKey.value && error?.name !== 'AbortError') {
+            ElMessage.error(error?.message || '音频打包失败，请重试')
         }
     } finally { downloading.value = false }
 }
@@ -343,7 +326,6 @@ function deactivate() {
     cancelFileCheck()
     creating.value = false
     detailVisible.value = false
-    zipResultVisible.value = false
     unregisterState?.()
     unregisterState = undefined
 }
@@ -379,8 +361,6 @@ h2 { margin: 0 0 8px; font-size: 22px; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 20px; overflow-x: auto; }
 audio { width: 100%; }
 .error { color: #f56c6c; white-space: pre-wrap; overflow-wrap: anywhere; }
-.zip-result { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
-.download-progress { padding: 12px 0; font-size: 13px; }
 .name-feedback { min-height: 24px; width: 100%; }
 input[type=file] { max-width: 100%; }
 @media (max-width: 640px) {
