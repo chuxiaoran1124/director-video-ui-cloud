@@ -191,7 +191,8 @@ async function fetchZipVideoWithRetry(item: ZipVideoItem, signal: AbortSignal, p
             if (budget.signal.aborted) throw abortReason(budget.signal)
             lastError = controller.signal.aborted ? abortReason(controller.signal) : error
             const status = Number((error as any)?.status || 0)
-            const retryable = !status || status === 408 || status === 425 || status === 429 || status >= 500
+            const memoryFailure = error instanceof RangeError || /array buffer allocation|out of memory/i.test((error as any)?.message || '')
+            const retryable = !memoryFailure && (!status || status === 408 || status === 425 || status === 429 || status >= 500)
             if (!retryable) break
             if (attempt < ZIP_VIDEO_MAX_ATTEMPTS) {
                 progress({ notice: `下载暂时失败，准备第 ${attempt + 1} 次尝试` })

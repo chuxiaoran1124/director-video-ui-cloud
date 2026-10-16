@@ -29,6 +29,14 @@ const items = (n = 2) => Array.from({ length: n }, (_, i) => ({ url: `https://ex
 const inspect = async (blob: Blob) => JSZip.loadAsync(await blob.arrayBuffer(), { checkCRC32: true })
 afterEach(() => jest.restoreAllMocks())
 
+test('浏览器内存分配失败立即提示，不反复申请同一大文件', async () => {
+    ;(fetch as jest.Mock).mockRejectedValue(new RangeError('Array buffer allocation failed'))
+    const result = await downloadVideoZip(items(1), 'memory.zip', () => undefined)
+    expect(result).toMatchObject({ success: 0, failed: 1 })
+    expect(result.failedItems[0].reason).toContain('浏览器可用内存不足')
+    expect(fetch).toHaveBeenCalledTimes(1)
+})
+
 test('小包可被独立ZIP库解压，且逐条读取、不再并发累积整批', async () => {
     const result = await downloadVideoZip(items(), 'test.zip', () => undefined)
     expect(result).toMatchObject({ success: 2, failed: 0, archives: 1, streaming: false })

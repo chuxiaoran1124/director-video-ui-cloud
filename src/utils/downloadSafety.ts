@@ -37,6 +37,7 @@ export async function boundedCleanup(operation: Promise<unknown>): Promise<void>
     } finally { if (timer) clearTimeout(timer) }
 }
 export function explainDownloadError(error: any): string {
+    if (error instanceof RangeError || /array buffer allocation|out of memory/i.test(error?.message || '')) return '浏览器可用内存不足，请关闭其他标签页，或改为单条直连下载'
     if (error?.name === 'QuotaExceededError' || /disk full|no space|ENOSPC/i.test(error?.message || '')) return '保存盘或浏览器临时空间不足，请释放空间或更换保存位置'
     if (['NotAllowedError', 'SecurityError', 'NoModificationAllowedError'].includes(error?.name)) return '保存位置无法写入，请检查权限或更换保存位置'
     return error instanceof Error ? error.message : '下载或保存失败，请检查网络和保存位置'

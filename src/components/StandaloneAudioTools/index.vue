@@ -320,6 +320,7 @@ function activate() {
     void load()
 }
 function deactivate() {
+    if (downloading.value) zipProgress.cancel?.()
     active.value = false
     stop()
     stopPlayback()

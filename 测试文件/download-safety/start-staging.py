@@ -2,8 +2,11 @@
 import hashlib, json, subprocess, sys, zipfile
 from pathlib import Path
 ROOT = Path('/home/director-video-audio-staging-20261015')
-TARGET = ROOT / 'frontend-download-safety-20261016'
-NAME = 'director-video-download-safety-staging-frontend'
+assert len(sys.argv) in (2, 3) and (len(sys.argv) == 2 or sys.argv[2] == 'r2')
+SUFFIX = '-r2' if len(sys.argv) == 3 else ''
+TARGET = ROOT / ('frontend-download-safety-20261016' + SUFFIX)
+NAME = 'director-video-download-safety-staging-frontend' + SUFFIX
+PORT = 28282 if SUFFIX else 28281
 def run(args):
     result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=40)
     if result.returncode: raise RuntimeError('Isolated staging operation failed: '+args[0])
@@ -28,8 +31,8 @@ assert (TARGET/'index.html').is_file()
 image = json.loads(run(['docker','inspect','director-video-frontend-candidate-408d962']))[0]['Image']
 run(['docker','start','director-video-audio-staging-redis','director-video-audio-staging-backend'])
 run(['docker','run','-d','--name',NAME,'--restart','no','--memory','48m',
-     '--network','director-video-audio-staging-net','-p','127.0.0.1:28281:8080',
+     '--network','director-video-audio-staging-net','-p',f'127.0.0.1:{PORT}:8080',
      '-v',str(TARGET)+':/usr/share/nginx/html:ro',
      '-v',str(ROOT/'frontend-nginx.conf')+':/etc/nginx/conf.d/default.conf:ro',image])
 run(['docker','exec',NAME,'nginx','-t'])
-print(json.dumps({'frontend':NAME,'port':28281,'sha256':sys.argv[1],'scheduler':'stopped'}))
+print(json.dumps({'frontend':NAME,'port':PORT,'sha256':sys.argv[1],'scheduler':'stopped'}))
