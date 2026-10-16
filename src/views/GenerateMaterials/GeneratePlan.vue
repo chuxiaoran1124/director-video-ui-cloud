@@ -505,7 +505,8 @@ import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } fr
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
-import { describeZipVideoFailures, directVideoUrl, downloadVideoDirect, downloadVideoZip, type ZipProgress } from '/@/utils/download'
+import { directVideoUrl, downloadVideoDirect, type ZipProgress } from '/@/utils/download'
+import { downloadVideoZip } from '/@/utils/downloadInteraction'
 import { getUserList, type IUserListItem } from '/@/api/user'
 import { useLayoutStore } from '/@/store/modules/layout'
 import {
@@ -1260,13 +1261,11 @@ async function downloadPlanVideos(scope: 'all' | 'selected') {
   if (!children.length) return
   zipVisible.value = true
   try {
-    const result = await downloadVideoZip(children.map(child => ({
+    await downloadVideoZip(children.map(child => ({
       url: child.videoUrl!, taskId: child.videoTaskId || child.id,
       taskName: `${child.digitalHumanName || '数字人'}（第 ${child.seqNo} 条）`,
       fileName: `${String(child.seqNo).padStart(2, '0')}-${child.digitalHumanName || '数字人'}-${child.id}.mp4`
     })), `batch-plan-${detail.plan?.id || 'videos'}-${scope}.zip`, state => Object.assign(zipProgress, state))
-    if (result.failed) await ElMessageBox.alert(describeZipVideoFailures(result), '批量下载完成（部分失败）', { type: 'warning', confirmButtonText: '知道了' })
-    else ElMessage.success(result.streaming ? `已保存 ${result.success} 条视频到 ZIP` : `已打包 ${result.success} 条视频${(result.archives || 0) > 1 ? `，共 ${result.archives} 个 ZIP，请确认全部保存` : '，请确认浏览器下载结果'}`)
   } catch (error: any) {
     if (error?.code === 'DOWNLOAD_CANCELLED') return
     ElMessage.error(error?.message || '批量下载失败')
