@@ -18,7 +18,7 @@ const wav = (seconds = 10) => {
 async function main() {
     const server = await createServer({
         configFile: false, root, cacheDir: path.join(root, '.codex-temp/audio-vite-cache'),
-        optimizeDeps: { entries: ['测试文件/standalone-audio/fixture.html'] },
+        optimizeDeps: { entries: ['测试文件/standalone-audio/fixture.html'], include: ['@element-plus/icons-vue'] },
         resolve: { alias: [
             { find: '/@/store/modules/layout', replacement: path.join(__dirname, 'layout.fixture.ts') },
             { find: '/@', replacement: path.join(root, 'src') }
@@ -50,6 +50,7 @@ async function main() {
         await page.goto(`http://127.0.0.1:${address.port}/测试文件/standalone-audio/fixture.html`)
         await page.getByRole('heading', { name: '声音训练' }).waitFor()
         await page.locator('.el-table__body tr').first().waitFor()
+        await page.locator('.el-table__body').getByText('2026-10-15 09:00:00', { exact: true }).first().waitFor()
         if (process.argv.includes('--visual-only')) {
             await page.evaluate(() => window.audioFixture.navigate('/generate-materials/audio-dubbing'))
             await page.setViewportSize({ width: 390, height: 844 })
@@ -66,6 +67,23 @@ async function main() {
         }
         await page.getByRole('button', { name: '新建声音训练' }).click()
         const dialog = page.getByRole('dialog')
+        await dialog.getByLabel('上传中文声音样本').focus()
+        assert.equal(await dialog.locator('.sample-upload:focus-within').count(), 1)
+        await dialog.locator('.sample-upload').evaluate((element, bytes) => {
+            const transfer = new DataTransfer()
+            transfer.items.add(new File([new Uint8Array(bytes)], 'dropped.wav', { type: 'audio/wav' }))
+            element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }))
+        }, Array.from(wav(10)))
+        await dialog.getByText('dropped.wav · 10.0 秒').waitFor()
+        fs.mkdirSync(artifactDir, { recursive: true })
+        await page.screenshot({ path: path.join(artifactDir, 'desktop-training-form.png'), fullPage: true })
+        await page.setViewportSize({ width: 390, height: 844 })
+        await dialog.getByRole('button', { name: '提交任务', exact: true }).scrollIntoViewIfNeeded()
+        assert.notEqual(await dialog.locator('.el-dialog__body').evaluate(element => getComputedStyle(element).maxHeight), 'none')
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+        assert.equal(await dialog.getByRole('button', { name: '提交任务', exact: true }).isVisible(), true)
+        await page.screenshot({ path: path.join(artifactDir, 'mobile-training-form.png'), fullPage: true })
+        await page.setViewportSize({ width: 1440, height: 1000 })
         await dialog.getByPlaceholder('请输入名称').fill('中文样本')
         await dialog.getByLabel('上传中文声音样本').setInputFiles({ name: 'sample.wav', mimeType: 'audio/wav', buffer: wav(10) })
         await dialog.getByText('sample.wav · 10.0 秒').waitFor()
@@ -191,6 +209,8 @@ async function main() {
         await page.getByRole('button', { name: '新建配音生成' }).click()
         await dialog.getByPlaceholder('请选择云端声音').waitFor()
         await page.waitForTimeout(500)
+        const submitBounds = await dialog.getByRole('button', { name: '提交任务', exact: true }).boundingBox()
+        assert.ok(submitBounds && submitBounds.y + submitBounds.height <= 844, 'mobile footer must remain inside viewport')
         await page.screenshot({ path: path.join(artifactDir, 'mobile-dubbing-form.png'), fullPage: true })
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
         await dialog.getByRole('button', { name: '取消', exact: true }).click()

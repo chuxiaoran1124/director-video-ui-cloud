@@ -2,7 +2,7 @@
     <section class="audio-tools">
         <header class="page-header">
             <div><h2>{{ title }}</h2><p>{{ training ? '上传中文声音样本，训练完成后加入云端声音素材库。' : '选择云端声音，将文案生成独立配音。' }}</p></div>
-            <el-button type="primary" @click="openCreate">新建{{ title }}</el-button>
+            <el-button type="primary" size="large" @click="openCreate">新建{{ title }}</el-button>
         </header>
         <div class="panel">
             <div class="toolbar">
@@ -27,8 +27,8 @@
                 <el-table-column v-if="training" label="模型" width="80"><template #default="{ row }">{{ row.model === 'a2e' ? 'A2E' : row.model || '—' }}</template></el-table-column>
                 <el-table-column label="状态" width="125"><template #default="{ row }"><el-tag :type="statusType(row.taskStatus)">{{ statusLabels[row.taskStatus] || '状态待确认' }}</el-tag></template></el-table-column>
                 <el-table-column prop="attemptNo" label="尝试次数" width="90" />
-                <el-table-column prop="createTime" label="创建时间" min-width="170" />
-                <el-table-column prop="updateTime" label="更新时间" min-width="170" />
+                <el-table-column label="创建时间" min-width="175"><template #default="{ row }">{{ formatTaskTime(row.createTime) }}</template></el-table-column>
+                <el-table-column label="更新时间" min-width="175"><template #default="{ row }">{{ formatTaskTime(row.updateTime) }}</template></el-table-column>
                 <el-table-column label="操作" :fixed="narrow ? undefined : 'right'" width="250">
                     <template #default="{ row }">
                         <el-button type="text" @click="showDetail(row)">详情</el-button>
@@ -46,7 +46,7 @@
             <p class="hint">当前页面每 10 秒静默刷新，离开页面后停止。任务完成后可试听、下载。</p>
         </div>
 
-        <el-dialog v-model="creating" :title="`新建${title}`" width="min(640px, 94vw)" :before-close="beforeCloseCreate"
+        <el-dialog v-model="creating" custom-class="audio-create-dialog" top="5vh" :title="`新建${title}`" width="min(640px, 94vw)" :before-close="beforeCloseCreate"
             :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" destroy-on-close>
             <el-form :model="form" label-position="top" :disabled="submitting" @submit.prevent="submit">
                 <el-form-item :label="training ? '样本名称' : '配音名称'" required>
@@ -61,10 +61,14 @@
                     <el-form-item label="性别" required><el-radio-group v-model="form.gender"><el-radio label="male">男</el-radio><el-radio label="female">女</el-radio></el-radio-group></el-form-item>
                     <el-form-item label="训练语言 / 模型"><span>中文（zh） / A2E（固定）</span></el-form-item>
                     <el-form-item label="中文声音样本" required>
-                        <input type="file" accept=".mp3,.wav,.m4a,.mp4" :disabled="submitting" aria-label="上传中文声音样本" @change="chooseFile" />
+                        <label class="sample-upload" :class="{ 'is-disabled': submitting }" @dragover.prevent @drop.prevent="dropSample">
+                            <input type="file" accept=".mp3,.wav,.m4a,.mp4" :disabled="submitting" aria-label="上传中文声音样本" @change="chooseFile" />
+                            <UploadFilled class="upload-icon" aria-hidden="true" />
+                            <span>拖拽音频到此处，或<span class="upload-action">点击上传</span></span>
+                            <span v-if="fileChecking" class="sample-status" role="status">正在校验素材时长…</span>
+                            <span v-else-if="sample" class="sample-status">{{ sample.name }} · {{ duration.toFixed(1) }} 秒</span>
+                        </label>
                         <p class="hint">支持 MP3、WAV、M4A、MP4，原录音 10–60 秒；系统仅取前约 15 秒作为训练样本。请使用清晰单人中文录音，避免开头静音、杂音。</p>
-                        <p v-if="fileChecking" role="status">正在校验素材时长…</p>
-                        <p v-else-if="sample">{{ sample.name }} · {{ duration.toFixed(1) }} 秒</p>
                     </el-form-item>
                 </template>
                 <template v-else>
@@ -88,8 +92,8 @@
         <el-dialog v-model="detailVisible" title="任务详情" width="min(620px, 94vw)">
             <template v-if="detail">
                 <p>名称：{{ detail.name }}</p><p>状态：{{ statusLabels[detail.taskStatus] }}</p>
-                <p>创建时间：{{ detail.createTime || '—' }}</p><p>更新时间：{{ detail.updateTime || '—' }}</p>
-                <p>开始时间：{{ detail.startTime || '—' }}</p><p>结束时间：{{ detail.endTime || '—' }}</p>
+                <p>创建时间：{{ formatTaskTime(detail.createTime) }}</p><p>更新时间：{{ formatTaskTime(detail.updateTime) }}</p>
+                <p>开始时间：{{ formatTaskTime(detail.startTime) }}</p><p>结束时间：{{ formatTaskTime(detail.endTime) }}</p>
                 <p>尝试次数：{{ detail.attemptNo }}</p>
                 <p v-if="detail.taskStatus === 'uncertain'">任务结果待确认，请等待后台核实；仅在允许重试时操作，避免重复生成。</p>
                 <p v-if="detail.errorMessage || detail.statusHint || ['-1', 'uncertain'].includes(detail.taskStatus)" class="error">{{ taskExplanation(detail) }}</p>
@@ -103,6 +107,7 @@
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import { useLayoutStore } from '/@/store/modules/layout'
 import { AudioTask, AudioTool, trainingPayload } from '/@/api/material/standaloneAudio'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
@@ -113,6 +118,7 @@ import VideoZipProgress from '/@/components/VideoZipProgress.vue'
 import { newIdempotencyKey, readSampleDuration, statusLabels } from './media'
 import { useAudioTasks } from './useAudioTasks'
 import VoicePicker from './VoicePicker.vue'
+import { formatTaskTime } from './time'
 
 const props = defineProps<{ tool: AudioTool }>()
 const training = props.tool === 'voice-training'
@@ -213,13 +219,22 @@ async function checkName(): Promise<boolean> {
 async function applyRecommended() { form.name = recommendedName.value; await nextTick(); await checkName() }
 function cancelFileCheck() { fileVersion++; cancelProbe?.(); cancelProbe = undefined; fileChecking.value = false }
 async function chooseFile(event: Event) {
-    cancelFileCheck()
     const input = event.target as HTMLInputElement
-    const file = input.files?.[0]
+    await chooseSample(input.files?.[0])
+    input.value = ''
+}
+function dropSample(event: DragEvent) {
+    if (submitting.value) return
+    const files = event.dataTransfer?.files
+    if (files && files.length > 1) { ElMessage.warning('每次请选择一个声音样本'); return }
+    void chooseSample(files?.[0])
+}
+async function chooseSample(file?: File) {
+    if (submitting.value || !file) return
+    cancelFileCheck()
     sample.value = null
     duration.value = 0
-    if (!file) return
-    if (!/\.(mp3|wav|m4a|mp4)$/i.test(file.name)) { input.value = ''; ElMessage.error('仅支持 MP3/WAV/M4A/MP4'); return }
+    if (!/\.(mp3|wav|m4a|mp4)$/i.test(file.name)) { ElMessage.error('仅支持 MP3/WAV/M4A/MP4'); return }
     const ticket = fileVersion
     fileChecking.value = true
     const probe = readSampleDuration(file)
@@ -230,7 +245,7 @@ async function chooseFile(event: Event) {
         sample.value = file
         duration.value = seconds
     } catch (error) {
-        if (ticket === fileVersion) { input.value = ''; ElMessage.error((error as Error).message) }
+        if (ticket === fileVersion) ElMessage.error((error as Error).message)
     } finally { if (ticket === fileVersion) { fileChecking.value = false; cancelProbe = undefined } }
 }
 async function submit() {
@@ -350,22 +365,34 @@ onBeforeUnmount(() => { deactivate(); unregisterBlocker(); document.removeEventL
 </script>
 
 <style scoped>
-.audio-tools { padding: 20px; color: #303133; }
+.audio-tools { padding: 24px; color: #303133; background: #f8fafc; min-height: 100%; }
 .page-header, .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.page-header { justify-content: space-between; margin-bottom: 20px; }
-h2 { margin: 0 0 8px; font-size: 22px; }
+.page-header { justify-content: space-between; margin-bottom: 24px; padding: 24px; background: #fff; border: 1px solid #ebeef5; border-radius: 12px; }
+h2 { margin: 0 0 8px; font-size: 24px; font-weight: 700; line-height: 1.4; }
 .page-header p, .hint { color: #909399; font-size: 13px; line-height: 1.6; margin: 8px 0; }
-.panel { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 20px; }
-.toolbar { margin-bottom: 16px; }
+.panel { background: #fff; border: 1px solid #ebeef5; border-radius: 16px; padding: 24px; }
+.toolbar { margin-bottom: 24px; }
+.audio-tools :deep(.el-table th.el-table__cell) { background: #f8fafc; color: #606266; font-weight: 600; }
 .toolbar .el-input { width: 220px; }
 .toolbar .el-select { width: 140px; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 20px; overflow-x: auto; }
 audio { width: 100%; }
 .error { color: #f56c6c; white-space: pre-wrap; overflow-wrap: anywhere; }
 .name-feedback { min-height: 24px; width: 100%; }
-input[type=file] { max-width: 100%; }
+.sample-upload { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 180px; padding: 24px; box-sizing: border-box; border: 2px dashed #dcdfe6; border-radius: 12px; background: #f8fafc; cursor: pointer; text-align: center; line-height: 1.6; }
+.sample-upload:hover, .sample-upload:focus-within { border-color: var(--el-color-primary); }
+.sample-upload:focus-within { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.sample-upload.is-disabled { opacity: .65; cursor: not-allowed; }
+.sample-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.upload-icon { width: 48px; height: 48px; color: #a8abb2; }
+.upload-action { color: var(--el-color-primary); }
+.sample-status { max-width: 100%; overflow-wrap: anywhere; color: #606266; }
+:global(.audio-create-dialog) { border-radius: 12px; margin-top: 5vh; margin-bottom: 5vh; }
+:global(.audio-create-dialog .el-dialog__body) { max-height: 65vh; overflow-y: auto; padding-top: 16px; }
+:global(.audio-create-dialog .el-dialog__footer) { border-top: 1px solid #ebeef5; padding: 16px 20px; }
 @media (max-width: 640px) {
     .audio-tools { padding: 12px; }
+    .page-header { padding: 16px; margin-bottom: 16px; }
     .panel { padding: 12px; }
     .toolbar .el-input { width: 100%; }
     .toolbar .el-select { flex: 1; min-width: 120px; }

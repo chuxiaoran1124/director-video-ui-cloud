@@ -27,7 +27,7 @@ const row = (id: number) => ({
     taskStatus: id === 1 ? state.status : id === 3 ? 'uncertain' : id === 4 ? '-1' : '2',
     outputUrl: `${location.origin}/fixture-audio.wav`, errorMessage: id === 4 ? 'INTERNAL_TOKEN_SHOULD_NOT_LEAK' : '',
     statusHint: id === 4 ? '生成失败，请重试或联系管理员' : '',
-    createTime: '2026-10-15 09:00:00', updateTime: '2026-10-15 09:01:00', startTime: '', endTime: '',
+    createTime: '2026-10-15T09:00:00.123456', updateTime: '2026-10-15T09:01:00.123456', startTime: '', endTime: '',
     canRetry: id === 4, attemptNo: 1
 })
 request.defaults.adapter = async config => {
