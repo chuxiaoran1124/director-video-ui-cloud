@@ -62,7 +62,7 @@
                     <el-form-item label="训练语言 / 模型"><span>中文（zh） / A2E（固定）</span></el-form-item>
                     <el-form-item label="中文声音样本" required>
                         <input type="file" accept=".mp3,.wav,.m4a,.mp4" :disabled="submitting" aria-label="上传中文声音样本" @change="chooseFile" />
-                        <p class="hint">支持 MP3、WAV、M4A、MP4，时长 10–60 秒，请使用清晰单人中文录音。</p>
+                        <p class="hint">支持 MP3、WAV、M4A、MP4，原录音 10–60 秒；系统仅取前约 15 秒作为训练样本。请使用清晰单人中文录音，避免开头静音、杂音。</p>
                         <p v-if="fileChecking" role="status">正在校验素材时长…</p>
                         <p v-else-if="sample">{{ sample.name }} · {{ duration.toFixed(1) }} 秒</p>
                     </el-form-item>
