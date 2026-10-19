@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="generate-video p-6 bg-gray-50 min-h-full">
     <!-- 列表页面 -->
     <div v-if="!showCreate" class="max-w-[1500px] mx-auto">
@@ -3748,3 +3748,11 @@ watch(() => bannerOverlaySelectorDialog.search, () => {
   border-radius: 0 0 12px 12px;
 }
 </style>
+
+
+
+
+
+
+
+

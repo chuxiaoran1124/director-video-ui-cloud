@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="add-corner-mark p-6 bg-gray-50 min-h-full">
     <!-- 顶部标题 -->
     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
@@ -1344,3 +1344,4 @@ const getBatchItemStatusType = (status: number): 'success' | 'warning' | 'info' 
   --el-table-header-bg-color: #f8fafc;
 }
 </style>
+
