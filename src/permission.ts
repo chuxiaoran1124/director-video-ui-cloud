@@ -8,6 +8,7 @@ configure({ showSpinner: false })
 const loginRoutePath = '/login'
 const defaultRoutePath = '/'
 const whiteList = new Set([loginRoutePath, '/platform-login-entry', '/link-entry', '/error/401', '/error/404'])
+const authorizationEntryPaths = new Set(['/platform-login-entry', '/link-entry'])
 
 router.beforeEach(async(to, from) => {
     start()
@@ -17,7 +18,21 @@ router.beforeEach(async(to, from) => {
     const appTitle = import.meta.env.VITE_APP_TITLE || '内容支持工具'
     document.title = to.meta.title ? `${to.meta.title} | ${appTitle}` : appTitle
 
+    // Entry pages exchange their own credentials. A stale session must not
+    // redirect away before that exchange; the backend still validates the link.
+    if (authorizationEntryPaths.has(to.path)) {
+        done()
+        return true
+    }
+
     if (to.path.toLowerCase() === loginRoutePath) {
+        // Both the initial grant URL and its normalized URL use entry=link or
+        // entry=platform. Leave grant validation to Login.vue instead of
+        // restoring an unrelated/expired cookie session over this login flow.
+        if (to.query.entry === 'link' || to.query.entry === 'platform') {
+            done()
+            return true
+        }
         try {
             await layoutStore.bootstrapSession()
             if (layoutStore.getStatus.ACCESS_TOKEN) {
