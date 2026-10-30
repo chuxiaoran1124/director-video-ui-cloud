@@ -1,11 +1,11 @@
 <template>
-  <section class="audio-assets" aria-label="音频素材库">
+  <section class="audio-assets" :class="{ 'audio-assets--compact': compact }" aria-label="音频素材库">
     <div class="quota-row">
       <el-tag>上传音频 {{ quota ? `${quota.uploaded.used}/${quota.uploaded.limit}` : '--/100' }}</el-tag>
       <el-tag type="success">生成音频 {{ quota ? `${quota.generated.used}/${quota.generated.limit}` : '--/100' }}</el-tag>
-      <span>两类各最多 100 条</span>
+      <span v-if="!compact">两类各最多 100 条</span>
     </div>
-    <el-alert title="删除仅移除音频库素材，不删除已有任务历史；历史仍按任务快照展示。上传保留完整音频，不裁剪。" type="info" :closable="false" show-icon />
+    <el-alert v-if="!compact" title="删除仅移除音频库素材，不删除已有任务历史；上传保留完整音频，不裁剪。" type="info" :closable="false" show-icon />
     <div class="audio-toolbar">
       <el-input v-model="keyword" placeholder="输入音频名称搜索" clearable aria-label="音频名称搜索" @keyup.enter="search" @clear="search" />
       <el-select v-model="source" aria-label="音频来源" @change="search">
@@ -14,35 +14,36 @@
         <el-option label="生成成品" value="generated" />
       </el-select>
       <el-button type="primary" :loading="loading" @click="search">搜索</el-button>
-      <el-button :disabled="disabled || !quota || quota.uploaded.used >= quota.uploaded.limit" @click="uploadVisible = true">上传音频</el-button>
+      <el-button plain :disabled="disabled || !quota || quota.uploaded.used >= quota.uploaded.limit" @click="uploadVisible = true">上传音频</el-button>
     </div>
     <div v-if="selectable" class="selection-summary">
-      <span>已选 {{ modelValue.length }} 条（跨搜索、来源和分页保留）</span>
-      <el-button v-if="modelValue.length" :disabled="disabled" link @click="emit('update:modelValue', [])">清空选择</el-button>
-      <div class="selected-tags">
+      <span>已选 {{ modelValue.length }} 条<span class="selection-note"> · 跨页保留</span></span>
+      <el-button v-if="modelValue.length" :disabled="disabled" size="small" plain @click="emit('update:modelValue', [])">清空选择</el-button>
+      <div v-if="!compact" class="selected-tags">
         <el-tag v-for="item in modelValue" :key="String(item.id)" :closable="!disabled" @close="toggle(item)">{{ item.name }}</el-tag>
       </div>
     </div>
     <el-alert v-if="errorMessage" :title="errorMessage" type="error" :closable="false" />
-    <el-table v-loading="loading" :data="records" row-key="id" border max-height="360">
-      <el-table-column v-if="selectable" label="选择" width="60" align="center">
+    <el-table v-loading="loading" :data="records" row-key="id" border :size="compact ? 'small' : 'default'">
+      <el-table-column v-if="selectable" label="选择" :width="compact ? 42 : 60" align="center">
         <template #default="{ row }"><el-checkbox :model-value="isSelected(row)" :disabled="disabled || !audioAssetReady(row)" :aria-label="`选择音频 ${row.name}`" @change="toggle(row)" /></template>
       </el-table-column>
-      <el-table-column prop="name" label="音频名称" min-width="170" show-overflow-tooltip />
-      <el-table-column label="来源" width="95"><template #default="{ row }">{{ row.source === 'uploaded' ? '历史上传' : '生成成品' }}</template></el-table-column>
-      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="audioAssetReady(row) ? 'success' : 'info'">{{ statusText(row) }}</el-tag></template></el-table-column>
-      <el-table-column label="时长" width="85"><template #default="{ row }">{{ durationText(row.duration) }}</template></el-table-column>
-      <el-table-column label="大小" width="90"><template #default="{ row }">{{ sizeText(row.sizeBytes) }}</template></el-table-column>
-      <el-table-column label="创建时间" min-width="160"><template #default="{ row }">{{ formatTime(row.createTime) }}</template></el-table-column>
-      <el-table-column label="操作" width="145">
+      <el-table-column prop="name" label="音频名称" :min-width="compact ? 140 : 220" show-overflow-tooltip>
+        <template #default="{ row }"><div class="audio-name"><span>{{ row.name }}</span><small v-if="compact">{{ row.source === 'uploaded' ? '历史上传' : '生成成品' }}<template v-if="!audioAssetReady(row)"> · {{ statusText(row) }}</template></small></div></template>
+      </el-table-column>
+      <el-table-column v-if="!compact" label="来源" width="100"><template #default="{ row }">{{ row.source === 'uploaded' ? '历史上传' : '生成成品' }}</template></el-table-column>
+      <el-table-column v-if="!compact" label="状态" width="105"><template #default="{ row }"><el-tag :type="audioAssetReady(row) ? 'success' : 'info'">{{ statusText(row) }}</el-tag></template></el-table-column>
+      <el-table-column label="时长" :width="compact ? 66 : 90"><template #default="{ row }">{{ durationText(row.duration) }}</template></el-table-column>
+      <el-table-column v-if="!compact" label="大小" width="95"><template #default="{ row }">{{ sizeText(row.sizeBytes) }}</template></el-table-column>
+      <el-table-column v-if="!compact" label="创建时间" min-width="175"><template #default="{ row }"><span class="audio-date">{{ formatTime(row.createTime) }}</span></template></el-table-column>
+      <el-table-column label="操作" :width="compact ? 118 : 166" align="center">
         <template #default="{ row }">
-          <el-button link type="primary" :disabled="!row.url || !audioAssetReady(row)" @click="preview(row)">试听</el-button>
-          <el-button link type="danger" :disabled="disabled || deletingId !== null" @click="remove(row)">删除</el-button>
+          <div class="audio-row-actions"><el-button size="small" plain type="primary" :disabled="!row.url || !audioAssetReady(row)" @click="preview(row)">试听</el-button><el-button size="small" plain type="danger" :disabled="disabled || deletingId !== null" @click="remove(row)">删除</el-button></div>
         </template>
       </el-table-column>
-      <template #empty><el-empty description="暂无音频，可上传完整音频或选择历史生成成品" :image-size="65" /></template>
+      <template #empty><el-empty :description="compact ? '暂无音频，可点击上传' : '暂无音频，可上传完整音频或选择历史生成成品'" :image-size="compact ? 40 : 65" /></template>
     </el-table>
-    <el-pagination class="audio-pagination" :current-page="page" :page-size="pageSize" :total="total" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" @current-change="changePage" @size-change="changeSize" />
+    <el-pagination class="audio-pagination" :small="compact" :pager-count="5" :current-page="page" :page-size="pageSize" :total="total" :page-sizes="[10, 20, 50]" :layout="compact ? 'total, prev, pager, next' : 'total, sizes, prev, pager, next'" @current-change="changePage" @size-change="changeSize" />
 
     <el-dialog v-model="previewVisible" :title="previewName" width="min(520px, 94vw)" append-to-body destroy-on-close @close="stopPlayback">
       <audio ref="audioElement" :src="previewUrl" controls preload="none" style="width:100%" />
@@ -69,13 +70,13 @@ import { useLayoutStore } from '/@/store/modules/layout'
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import { audioAssetError, audioAssetReady, deleteAudioAsset, paginateAudioAssets, uploadAudioAsset, type AudioAsset, type AudioAssetPage, type AudioSource } from '/@/api/material/audioAssets'
 
-const props = withDefaults(defineProps<{ modelValue?: AudioAsset[]; selectable?: boolean; active?: boolean; disabled?: boolean }>(), { modelValue: () => [], selectable: true, active: true, disabled: false })
+const props = withDefaults(defineProps<{ modelValue?: AudioAsset[]; selectable?: boolean; active?: boolean; disabled?: boolean; compact?: boolean; rowsPerPage?: number }>(), { modelValue: () => [], selectable: true, active: true, disabled: false, compact: false, rowsPerPage: 4 })
 const emit = defineEmits<{ (event: 'update:modelValue', value: AudioAsset[]): void }>()
 const layoutStore = useLayoutStore()
 const records = ref<AudioAsset[]>([])
 const quota = ref<AudioAssetPage['quota'] | null>(null)
 const keyword = ref(''), source = ref<AudioSource | ''>(''), appliedKeyword = ref('')
-const page = ref(1), pageSize = ref(10), total = ref(0), loading = ref(false), errorMessage = ref('')
+const page = ref(1), pageSize = ref(props.compact ? props.rowsPerPage : 10), total = ref(0), loading = ref(false), errorMessage = ref('')
 const deletingId = ref<string | number | null>(null)
 const previewVisible = ref(false), previewName = ref(''), previewUrl = ref('')
 const audioElement = ref<HTMLAudioElement | null>(null)
@@ -177,6 +178,7 @@ async function upload() {
 }
 function deactivate() { ++lifetime; ++listSequence; stopPlayback(); previewVisible.value = false; uploadVisible.value = false }
 watch(() => props.active, active => { if (active) load(); else { stopPlayback(); previewVisible.value = false; uploadVisible.value = false; ++listSequence; loading.value = false } }, { immediate: true })
+watch(() => props.rowsPerPage, rows => { if (props.compact && pageSize.value !== rows) { pageSize.value = rows; page.value = 1; load() } })
 watch(() => layoutStore.getUserInfo.tenantId, () => {
   deactivate(); records.value = []; quota.value = null; total.value = 0; page.value = 1; keyword.value = ''; appliedKeyword.value = ''; source.value = ''
   uploading.value = false; uploadFile.value = null; uploadUncertain.value = false; uploadName.value = ''; uploadError.value = ''; requestId = ''; deletingId.value = null
@@ -195,4 +197,24 @@ defineExpose({ stopPlayback })
 .audio-toolbar .el-select { width:140px; }
 .selected-tags { display:flex; flex-wrap:wrap; gap:6px; width:100%; max-height:95px; overflow:auto; }
 .audio-pagination { margin-top:16px; justify-content:flex-end; flex-wrap:wrap; }
+.audio-row-actions { display:flex; flex-wrap:nowrap; justify-content:center; align-items:center; gap:8px; white-space:nowrap; }
+.audio-row-actions .el-button { margin:0 !important; min-width:56px; height:30px; padding:6px 10px; }
+.audio-name { min-width:0; }
+.audio-name>span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.audio-name small,.selection-note { color:#8a96a8; font-size:12px; }
+.audio-date { white-space:nowrap; }
+.audio-toolbar { padding:12px; border:1px solid #edf0f5; background:#f8fafc; border-radius:6px; }
+.audio-toolbar .el-button+.el-button,.selection-summary .el-button { margin-left:0; }
+.audio-assets--compact .quota-row { gap:8px; margin:0 0 10px; }
+.audio-assets--compact .audio-toolbar { padding:0; border:0; background:transparent; margin:0 0 8px; gap:6px; flex-wrap:nowrap; }
+.audio-assets--compact .audio-toolbar .el-input { width:0; min-width:105px; flex:1; }
+.audio-assets--compact .audio-toolbar .el-select { width:112px; flex-shrink:0; }
+.audio-assets--compact .audio-toolbar .el-button { flex-shrink:0; padding:8px 10px; }
+.audio-assets--compact .selection-summary { margin:0 0 8px; gap:8px; min-height:26px; justify-content:space-between; }
+.audio-assets--compact .audio-row-actions { gap:6px; }
+.audio-assets--compact .audio-row-actions .el-button { min-width:40px; height:26px; padding:4px 6px; }
+.audio-assets--compact .audio-name small { display:block; line-height:16px; }
+.audio-assets--compact :deep(.el-table .cell) { padding:0 8px; line-height:18px; }
+.audio-assets--compact :deep(.el-table td),.audio-assets--compact :deep(.el-table th) { padding:5px 0; }
+.audio-assets--compact .audio-pagination { margin-top:8px; justify-content:flex-end; }
 </style>

@@ -1,25 +1,26 @@
 <template>
-  <el-dialog custom-class="audio-batch-dialog" :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1120px, 96vw)" top="4vh" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
-    <el-alert title="多个数字人 × 多条完整音频，每个组合生成一个执行项，最多 50 项。不需要配音声音或文案；创建后进入详情，确认后再提交执行。" type="info" :closable="false" />
-    <el-form label-position="top" class="audio-batch-form">
-      <el-form-item label="计划名称"><el-input v-model="name" :disabled="submitting || createUncertain" maxlength="80" show-word-limit /></el-form-item>
-      <el-form-item :label="`数字人（已选 ${humans.length} 个）`">
+  <el-dialog custom-class="audio-batch-dialog" :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1240px, 96vw)" top="4vh" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
+    <p class="batch-hint">数字人 × 完整音频，每个组合生成一个执行项，最多 50 项。创建计划后确认提交，不需要选择配音声音或填写文案。</p>
+    <div class="plan-name"><label for="audio-batch-plan-name">计划名称</label><el-input id="audio-batch-plan-name" v-model="name" :disabled="submitting || createUncertain" maxlength="80" show-word-limit placeholder="请输入计划名称" /></div>
+    <div class="batch-selection-layout">
+      <section class="selection-panel">
+        <div class="panel-heading"><strong>选择数字人</strong><span>已选 {{ humans.length }} 个 · 跨页保留</span><el-button v-if="humans.length" size="small" :disabled="submitting || createUncertain" @click="humans = []">清空</el-button></div>
         <div class="human-section">
           <div class="human-search"><el-input v-model="humanKeyword" placeholder="搜索数字人名称" clearable @keyup.enter="applyHumanSearch" @clear="applyHumanSearch" /><el-select v-model="humanGender" placeholder="全部性别" style="width:130px"><el-option label="全部性别" value="" /><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select><el-button @click="applyHumanSearch">搜索</el-button><el-button :loading="loadingHumans" @click="loadHumans">刷新</el-button></div>
           <el-alert v-if="humanError" :title="humanError" type="error" :closable="false" />
           <div v-loading="loadingHumans" class="human-grid">
-            <label v-for="human in visibleHumans" :key="String(human.id)" class="human-card" :class="{ selected: humanSelected(human) }">
+            <label v-for="human in pagedHumans" :key="String(human.id)" class="human-card" :class="{ selected: humanSelected(human) }">
               <el-checkbox :model-value="humanSelected(human)" :disabled="submitting || createUncertain" :aria-label="`选择数字人 ${human.name}`" @change="toggleHuman(human)" />
               <img v-if="human.coverUrl" :src="human.coverUrl" alt="" loading="lazy" />
               <span>{{ human.name }}</span>
             </label>
           </div>
           <el-empty v-if="!loadingHumans && !visibleHumans.length" description="暂无匹配数字人" :image-size="50" />
-          <div class="human-tags"><el-tag v-for="human in humans" :key="String(human.id)" :closable="!submitting && !createUncertain" @close="toggleHuman(human)">{{ human.name }}</el-tag></div>
+          <el-pagination small :pager-count="5" :current-page="humanPage" :page-size="humanPageSize" :total="visibleHumans.length" layout="total, prev, pager, next" @current-change="humanPage = $event" />
         </div>
-      </el-form-item>
-    </el-form>
-    <AudioAssetPicker v-if="modelValue" ref="picker" v-model="audios" :active="modelValue" :disabled="submitting || createUncertain" />
+      </section>
+      <section class="selection-panel"><div class="panel-heading"><strong>选择音频</strong><span>上传或选择已有音频</span></div><AudioAssetPicker v-if="modelValue" ref="picker" v-model="audios" compact :rows-per-page="rowsPerPage" :active="modelValue" :disabled="submitting || createUncertain" /></section>
+    </div>
     <el-alert v-if="createUncertain" title="创建结果未确认，为避免重复创建已停止重试。请关闭弹窗并刷新计划列表确认。" type="warning" :closable="false" />
     <template #footer>
       <span class="combination-count" :class="{ over: combinationCount > AUDIO_BATCH_LIMIT }">{{ humans.length }} 个数字人 × {{ audios.length }} 条音频 = {{ combinationCount }} / {{ AUDIO_BATCH_LIMIT }} 项</span>
@@ -47,8 +48,16 @@ const humanGender = ref('')
 const humans = ref<AudioBatchHuman[]>([]), allHumans = ref<AudioBatchHuman[]>([]), audios = ref<AudioAsset[]>([])
 const loadingHumans = ref(false), submitting = ref(false), createUncertain = ref(false)
 const picker = ref<InstanceType<typeof AudioAssetPicker> | null>(null)
+const viewportHeight = ref(window.innerHeight)
+const rowsPerPage = computed(() => viewportHeight.value < 700 ? 3 : viewportHeight.value < 850 ? 4 : 6)
+const humanPage = ref(1)
+const humanPageSize = computed(() => rowsPerPage.value < 6 ? 4 : 6)
+function resizeDialog() { viewportHeight.value = window.innerHeight }
+window.addEventListener('resize', resizeDialog)
 const combinationCount = computed(() => humans.value.length * audios.value.length)
 const visibleHumans = computed(() => allHumans.value.filter(row => row.name.toLowerCase().includes(appliedHumanKeyword.value) && (!humanGender.value || (['男', 'male'].includes(row.gender || '') ? 'male' : ['女', 'female'].includes(row.gender || '') ? 'female' : '') === humanGender.value)))
+const pagedHumans = computed(() => visibleHumans.value.slice((humanPage.value - 1) * humanPageSize.value, humanPage.value * humanPageSize.value))
+watch([visibleHumans, humanPageSize], () => { humanPage.value = 1 })
 const unregisterBlocker = registerVersionRefreshBlocker(() => props.modelValue)
 let generation = 0, humanRequest = 0
 function applyHumanSearch() { appliedHumanKeyword.value = humanKeyword.value.trim().toLowerCase() }
@@ -97,23 +106,33 @@ watch(() => props.modelValue, visible => {
   else picker.value?.stopPlayback()
 })
 watch(() => layoutStore.getUserInfo.tenantId, () => { ++generation; ++humanRequest; humans.value = []; audios.value = []; allHumans.value = []; emit('update:modelValue', false) })
-onBeforeUnmount(() => { ++generation; ++humanRequest; unregisterBlocker() })
+onBeforeUnmount(() => { ++generation; ++humanRequest; unregisterBlocker(); window.removeEventListener('resize', resizeDialog) })
 </script>
 
 <style scoped>
 :global(.audio-batch-dialog) { max-height:92vh; display:flex; flex-direction:column; }
-:global(.audio-batch-dialog .el-dialog__body) { overflow:auto; min-height:0; }
+:global(.audio-batch-dialog .el-dialog__body) { overflow:hidden; min-height:0; padding:12px 20px; }
 :global(.audio-batch-dialog .el-dialog__header), :global(.audio-batch-dialog .el-dialog__footer) { flex-shrink:0; }
-.audio-batch-form { margin-top:16px; }
+.batch-hint { margin:0 0 12px; padding:9px 12px; border-radius:4px; background:#f1f8f8; color:#688087; font-size:12px; line-height:18px; }
+.plan-name { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+.plan-name label { flex-shrink:0; color:#52647d; }
+.batch-selection-layout { display:grid; grid-template-columns:minmax(280px,.85fr) minmax(440px,1.4fr); gap:16px; }
+.selection-panel { min-width:0; padding:12px; border:1px solid #e7edf5; border-radius:8px; }
+.panel-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:28px; margin-bottom:10px; color:#26364d; }
+.panel-heading span { color:#8a96a8; font-size:12px; }
+.panel-heading .el-button { margin-left:auto; }
 .human-section { width:100%; }
 .human-search { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-.human-search .el-input { max-width:280px; }
-.human-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; max-height:210px; overflow:auto; }
+.human-search .el-input { width:100%; }
+.human-search .el-select { flex:1; }
+.human-search .el-button { margin:0; }
+.human-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
 .human-card { display:flex; gap:8px; align-items:center; border:1px solid #e3e9f2; border-radius:8px; padding:8px; cursor:pointer; }
-.human-card.selected { border-color:#409eff; background:#ecf5ff; }
-.human-card img { width:32px; height:42px; object-fit:cover; border-radius:4px; }
-.human-card span { overflow-wrap:anywhere; }
+.human-card.selected { border-color:#168c84; background:#eff9f8; }
+.human-card img { width:36px; height:48px; flex-shrink:0; object-fit:cover; border-radius:4px; }
+.human-card span { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere; font-size:12px; line-height:18px; }
 .human-tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
 .combination-count { display:inline-block; margin:0 16px 8px 0; color:#52647d; }
 .combination-count.over { color:#e45656; }
+@media(max-width:800px),(max-height:620px) { :global(.audio-batch-dialog .el-dialog__body) { overflow:auto; } .batch-selection-layout { grid-template-columns:minmax(0,1fr); } }
 </style>

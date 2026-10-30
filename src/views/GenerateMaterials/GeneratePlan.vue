@@ -6,12 +6,12 @@
         <h1>生成计划管理</h1>
         <p>先创建计划，再进入详情逐个配置数字人执行项。</p>
       </div>
-      <div>
-      <el-button @click="audioBatchVisible = true">多选叉乘-音频驱动</el-button>
-      <el-button type="primary" @click="openCreateDialog">
-        <el-icon><Plus /></el-icon>
-        新建批量计划
-      </el-button>
+      <div class="hero-actions">
+        <el-button @click="openAudioBatch">多选叉乘-音频驱动</el-button>
+        <el-button type="primary" @click="openCreateDialog">
+          <el-icon><Plus /></el-icon>
+          新建批量计划
+        </el-button>
       </div>
     </section>
 
@@ -263,12 +263,12 @@
                       <template #title>
                         <div class="collapse-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
                       </template>
-                    <el-radio-group v-model="activePerformer.selectionMode" @change="handleSelectionModeChange">
+                    <el-radio-group :model-value="activePerformer.selectionMode" class="performer-selection-modes" @update:model-value="handleSelectionModeChange">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
                       <el-radio-button label="first_voice">多选叉乘</el-radio-button>
+                      <el-radio-button label="audio_batch">多选叉乘-音频驱动</el-radio-button>
                     </el-radio-group>
-                    <el-button plain style="margin-left:8px" @click="audioBatchVisible = true">多选叉乘-音频驱动</el-button>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
@@ -951,9 +951,19 @@ function addPerformer() {
 }
 function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
 function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
-function handleSelectionModeChange(value: PerformerSelectionMode) {
+function hasOpenTextDraft() {
+  return createDialog.visible || (detail.visible && detail.plan?.statusKey === 'draft' && !detailIsAudio.value)
+}
+function openAudioBatch() {
+  if (hasOpenTextDraft()) ElMessage.info('音频驱动将新建独立计划，当前文案配置会保留；建议先保存文案草稿。')
+  audioBatchVisible.value = true
+}
+function handleSelectionModeChange(value: PerformerSelectionMode | 'audio_batch') {
+  // 动作入口不写入执行项，避免清空选择或将 UI 标签带进旧 payload。
+  if (value === 'audio_batch') { openAudioBatch(); return }
   const config = activePerformer.value
-  if (!config) return
+  if (!config || config.selectionMode === value) return
+  config.selectionMode = value
   resetPerformerSelection(config)
   if (activePerformerIndex.value === 0 && value === 'first_voice') {
     planForm.performerConfigs.splice(1)
@@ -1096,7 +1106,16 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
   }
 }
 async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl)); if (plan.statusKey !== 'draft') audioStartUncertainIds.delete(String(plan.id)); if (plan.statusKey === 'draft' && !isAudioPlan(plan)) { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
-async function audioBatchCreated(id: string | number) { audioBatchVisible.value = false; await openDetail({ id } as BatchPlan); await loadPlanList() }
+async function audioBatchCreated(id: string | number) {
+  audioBatchVisible.value = false
+  if (hasOpenTextDraft()) {
+    // 不跳转/重新填充详情，否则原文案计划尚未保存的执行项配置会丢失。
+    ElMessage.success('音频计划已创建，可在列表中查看；当前文案草稿配置已保留。')
+  } else {
+    await openDetail({ id } as BatchPlan)
+  }
+  await loadPlanList()
+}
 async function startAudioDraft() {
   const plan = detail.plan
   if (!plan || !isAudioPlan(plan) || plan.statusKey !== 'draft' || detail.starting || audioStartUncertainIds.has(String(plan.id))) return
@@ -1357,6 +1376,8 @@ onUnmounted(() => {
 .batch-plan-page { width: 100%; min-height: 100%; box-sizing: border-box; padding: clamp(16px, 2vw, 28px); background: #f5f7fb; color: #26364d; }
 .page-hero, .filter-card, .table-card, .child-table-card { width: 100%; box-sizing: border-box; background: #fff; border: 1px solid #e7edf5; border-radius: 14px; box-shadow: 0 5px 18px rgba(38,55,88,.04); }
 .page-hero { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:clamp(20px,3vw,32px); }
+.hero-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+.hero-actions :deep(.el-button + .el-button) { margin-left:0; }
 .eyebrow { color:#7b8aa1; font-size:12px; letter-spacing:.08em; }
 h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2vw,29px); }
 .page-hero p, .detail-title-row p { margin:7px 0 0; color:#8c9ab0; font-size:13px; }
@@ -1424,6 +1445,10 @@ h1, .detail-title-row h2 { margin:7px 0 0; color:#1f2d43; font-size:clamp(22px,2
 .step-badge { width:30px; height:30px; border-radius:50%; background:#409eff; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
 .editor-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(285px,31%); gap:10px; margin-top:10px; align-items:start; }
 .editor-form-panel { min-width:0; }
+.performer-selection-modes { display:flex; flex-wrap:wrap; gap:8px; width:100%; }
+.performer-selection-modes :deep(.el-radio-button) { flex:0 0 auto; margin:0; }
+.performer-selection-modes :deep(.el-radio-button__inner) { display:flex; align-items:center; justify-content:center; min-height:36px; box-sizing:border-box; padding:8px 12px; border:1px solid var(--el-border-color, #dcdfe6); border-radius:6px; white-space:normal; line-height:18px; box-shadow:none; }
+.performer-selection-modes :deep(.el-radio-button.is-active .el-radio-button__inner) { border-color:var(--el-color-primary, #409eff); }
 .preview-panel { padding:11px; border:1px solid #e5ebf3; border-radius:10px; background:#fff; }
 .config-collapse { border:1px solid #e5ebf3; border-radius:10px; overflow:hidden; background:#fbfcfe; }
 .config-collapse :deep(.el-collapse-item__header) { min-height:42px; height:auto; padding:0 12px; background:#fbfcfe; }

@@ -223,35 +223,11 @@
               <el-col :span="24">
                 <el-form-item class="!mb-2">
                   <div class="flex items-center gap-3 flex-wrap">
-                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap"><span class="text-red-500">*</span> 生成渠道</span>
-                    <el-radio-group v-model="videoForm.channel" size="small">
-                      <el-radio value="A2E">默认</el-radio>
+                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap">视频语言</span>
+                    <el-radio-group v-model="videoForm.language">
+                      <el-radio :label="'zh'" size="large">中文</el-radio>
                     </el-radio-group>
-                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频方向</span>
-                    <el-radio-group v-model="videoForm.videoType" size="small">
-                      <el-radio :label="0">竖版</el-radio>
-                      <el-radio :label="1">横版</el-radio>
-                    </el-radio-group>
-                    <template v-if="videoForm.mode === 0">
-                      <span class="text-sm text-gray-700 font-medium whitespace-nowrap ml-4">视频语言 <span class="text-xs text-gray-400 font-normal">（语言配置仅适用于视频文案配置）</span></span>
-                      <el-radio-group v-model="videoForm.language">
-                        <el-radio :label="'zh'" size="large">中文</el-radio>
-                      </el-radio-group>
-                    </template>
                   </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <!-- 配置方式 -->
-            <el-row :gutter="20" class="mt-2">
-              <el-col :span="24">
-                <el-form-item class="!mb-2">
-                  <template #label><span class="text-gray-700"><span class="text-red-500">*</span> 配置方式</span></template>
-                  <el-radio-group v-model="videoForm.mode">
-                    <el-radio :label="0" size="large" border>视频文案配置</el-radio>
-                    <el-radio v-if="enableAudioDrive" :label="1" size="large" border>音频驱动视频</el-radio>
-                  </el-radio-group>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -2254,12 +2230,13 @@ onUnmounted(() => {
   unregisterVideoListState()
 })
 
-// 切换为横版时自动关闭字幕
-watch(() => videoForm.videoType, (val) => {
-  if (val === 1) {
-    videoForm.subtitleSelector = 0
-  }
-})
+// 单条仅开放默认渠道、竖版文案；同步收敛旧缓存/保活状态，不能只隐藏入口。
+const normalizeSingleVideoOptions = () => {
+  videoForm.channel = 'A2E'
+  videoForm.videoType = 0
+  videoForm.mode = 0
+}
+watch(() => [videoForm.channel, videoForm.videoType, videoForm.mode], normalizeSingleVideoOptions, { immediate: true, flush: 'sync' })
 
 // 当前云上版暂不开放泰语，若旧状态带入则自动回落为中文
 watch(() => videoForm.language, (val) => {
@@ -2276,22 +2253,6 @@ watch(() => shouldShowSubtitlePreview.value, async (val) => {
     previewRefreshSeq += 1
     subtitlePreviewFrameBase64.value = ''
   }
-})
-
-// 监听 mode 切换：清空模式相关残留，避免预设/配音跨模式遗留
-watch(() => videoForm.mode, () => {
-  videoForm.relId = ''
-  relName.value = ''
-  videoForm.voice = ''
-  videoForm.voiceExternalId = ''
-  videoForm.voiceUrl = ''
-  videoForm.digitalHuman = ''
-  videoForm.digitalHumanExternalId = ''
-  videoForm.previewImg = ''
-  videoForm.label = ''
-  previewRefreshSeq += 1
-  subtitlePreviewFrameBase64.value = ''
-  resetAudioUploadState()
 })
 
 watch(showCreate, (val) => {
@@ -2831,6 +2792,8 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     return
   }
 
+  normalizeSingleVideoOptions()
+
   const effectiveDispatchMode = dispatchMode === 'overnight' && !enableOvernightDispatch
     ? 'immediate'
     : dispatchMode
@@ -2900,7 +2863,7 @@ const startGeneration = async (dispatchMode: 'immediate' | 'overnight' = 'immedi
     const formData = new FormData()
     
     // 添加视频方向参数
-    formData.append('type', String(videoForm.videoType))
+    formData.append('type', '0')
     
     // 映射表单字段到 API 参数（snake_case）
     formData.append('title', videoForm.title)
