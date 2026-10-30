@@ -66,7 +66,7 @@
 import { onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLayoutStore } from '/@/store/modules/layout'
-import { registerVersionRefreshBlocker } from '/@/utils/versionRefresh'
+import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import { audioAssetError, audioAssetReady, deleteAudioAsset, paginateAudioAssets, uploadAudioAsset, type AudioAsset, type AudioAssetPage, type AudioSource } from '/@/api/material/audioAssets'
 
 const props = withDefaults(defineProps<{ modelValue?: AudioAsset[]; selectable?: boolean; active?: boolean; disabled?: boolean }>(), { modelValue: () => [], selectable: true, active: true, disabled: false })
@@ -81,6 +81,18 @@ const previewVisible = ref(false), previewName = ref(''), previewUrl = ref('')
 const audioElement = ref<HTMLAudioElement | null>(null)
 const uploadVisible = ref(false), uploadName = ref(''), uploadFile = ref<File | null>(null), fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false), uploadProgress = ref(0), uploadError = ref(''), uploadUncertain = ref(false)
+const owner = () => `${layoutStore.getUserInfo.tenantId}:${layoutStore.getUserInfo.userId}`
+const restored = props.selectable ? null : consumeVersionRefreshState<any>('audio-library-list')
+if (restored?.owner === owner()) {
+  page.value = Math.max(1, Number(restored.page) || 1)
+  pageSize.value = [10, 20, 50].includes(restored.pageSize) ? restored.pageSize : 10
+  keyword.value = restored.keyword || ''; appliedKeyword.value = restored.appliedKeyword || ''
+  source.value = ['uploaded', 'generated'].includes(restored.source) ? restored.source : ''
+}
+const unregisterListState = props.selectable ? () => {} : registerVersionRefreshState('audio-library-list', () => ({
+  owner: owner(), page: page.value, pageSize: pageSize.value, keyword: keyword.value,
+  appliedKeyword: appliedKeyword.value, source: source.value
+}))
 let requestId = '', listSequence = 0, lifetime = 0
 const unregisterRefreshBlocker = registerVersionRefreshBlocker(() => props.active && (uploadVisible.value || uploading.value || deletingId.value !== null || previewVisible.value))
 function formatTime(value: string) { return value ? String(value).replace('T', ' ').slice(0, 19) : '-' }
@@ -171,7 +183,7 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
   emit('update:modelValue', []); load()
 })
 onDeactivated(stopPlayback)
-onBeforeUnmount(() => { deactivate(); unregisterRefreshBlocker() })
+onBeforeUnmount(() => { deactivate(); unregisterRefreshBlocker(); unregisterListState() })
 defineExpose({ stopPlayback })
 </script>
 

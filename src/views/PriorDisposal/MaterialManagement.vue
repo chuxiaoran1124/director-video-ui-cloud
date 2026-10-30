@@ -654,6 +654,8 @@ import { defineComponent, ref, onMounted, onUnmounted, computed, reactive, nextT
 import TagManager from '/@/components/TagManager/index.vue'
 import MaterialCornerMarkPanel from '/@/views/PriorDisposal/components/MaterialCornerMarkPanel.vue'
 import AudioAssetManager from '/@/components/AudioAssets/AudioAssetManager.vue'
+import { useLayoutStore } from '/@/store/modules/layout'
+import { consumeVersionRefreshState, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding, bannerOverlayPreview, bannerOverlaySave, downloadFileByProxy } from '/@/api/material/index'
 import { fetchDirectBlob, normalizeAssetUrl } from '/@/utils/download'
 import request from '/@/utils/request'
@@ -668,6 +670,12 @@ export default defineComponent({
   },
   setup() {
     const activeName = ref('voice')
+    const layoutStore = useLayoutStore()
+    const restoredAudioTab = consumeVersionRefreshState<any>('material-audio-tab')
+    const ownerKey = () => `${layoutStore.getUserInfo.tenantId}:${layoutStore.getUserInfo.userId}`
+    if (restoredAudioTab?.owner === ownerKey() && restoredAudioTab.active === 'audio') activeName.value = 'audio'
+    const unregisterAudioTabState = registerVersionRefreshState('material-audio-tab', () => ({ owner: ownerKey(), active: activeName.value }))
+    onUnmounted(unregisterAudioTabState)
     const voices = ref([])
     const digitalHumans = ref([])
     const digitalHumansTotal = ref(0) // 鏁板瓧浜烘€绘暟

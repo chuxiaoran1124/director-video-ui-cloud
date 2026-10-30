@@ -1,11 +1,11 @@
 <template>
-  <el-dialog :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1120px, 96vw)" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
+  <el-dialog class="audio-batch-dialog" :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1120px, 96vw)" top="4vh" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
     <el-alert title="多个数字人 × 多条完整音频，每个组合生成一个执行项，最多 50 项。不需要配音声音或文案；创建后进入详情，确认后再提交执行。" type="info" :closable="false" />
     <el-form label-position="top" class="audio-batch-form">
       <el-form-item label="计划名称"><el-input v-model="name" :disabled="submitting || createUncertain" maxlength="80" show-word-limit /></el-form-item>
       <el-form-item :label="`数字人（已选 ${humans.length} 个）`">
         <div class="human-section">
-          <div class="human-search"><el-input v-model="humanKeyword" placeholder="搜索数字人名称" clearable @keyup.enter="applyHumanSearch" @clear="applyHumanSearch" /><el-button @click="applyHumanSearch">搜索</el-button><el-button :loading="loadingHumans" @click="loadHumans">刷新</el-button></div>
+          <div class="human-search"><el-input v-model="humanKeyword" placeholder="搜索数字人名称" clearable @keyup.enter="applyHumanSearch" @clear="applyHumanSearch" /><el-select v-model="humanGender" placeholder="全部性别" style="width:130px"><el-option label="全部性别" value="" /><el-option label="男" value="male" /><el-option label="女" value="female" /></el-select><el-button @click="applyHumanSearch">搜索</el-button><el-button :loading="loadingHumans" @click="loadHumans">刷新</el-button></div>
           <el-alert v-if="humanError" :title="humanError" type="error" :closable="false" />
           <div v-loading="loadingHumans" class="human-grid">
             <label v-for="human in visibleHumans" :key="String(human.id)" class="human-card" :class="{ selected: humanSelected(human) }">
@@ -43,11 +43,12 @@ const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ (event: 'update:modelValue', value: boolean): void; (event: 'created', id: number | string): void }>()
 const layoutStore = useLayoutStore()
 const name = ref(''), humanKeyword = ref(''), appliedHumanKeyword = ref(''), humanError = ref('')
+const humanGender = ref('')
 const humans = ref<AudioBatchHuman[]>([]), allHumans = ref<AudioBatchHuman[]>([]), audios = ref<AudioAsset[]>([])
 const loadingHumans = ref(false), submitting = ref(false), createUncertain = ref(false)
 const picker = ref<InstanceType<typeof AudioAssetPicker> | null>(null)
 const combinationCount = computed(() => humans.value.length * audios.value.length)
-const visibleHumans = computed(() => allHumans.value.filter(row => row.name.toLowerCase().includes(appliedHumanKeyword.value)))
+const visibleHumans = computed(() => allHumans.value.filter(row => row.name.toLowerCase().includes(appliedHumanKeyword.value) && (!humanGender.value || (['男', 'male'].includes(row.gender || '') ? 'male' : ['女', 'female'].includes(row.gender || '') ? 'female' : '') === humanGender.value)))
 const unregisterBlocker = registerVersionRefreshBlocker(() => props.modelValue)
 let generation = 0, humanRequest = 0
 function applyHumanSearch() { appliedHumanKeyword.value = humanKeyword.value.trim().toLowerCase() }
@@ -92,7 +93,7 @@ async function create() {
 }
 watch(() => props.modelValue, visible => {
   ++generation; ++humanRequest
-  if (visible) { name.value = ''; humans.value = []; audios.value = []; allHumans.value = []; humanKeyword.value = ''; appliedHumanKeyword.value = ''; createUncertain.value = false; submitting.value = false; loadHumans() }
+  if (visible) { name.value = ''; humans.value = []; audios.value = []; allHumans.value = []; humanKeyword.value = ''; humanGender.value = ''; appliedHumanKeyword.value = ''; createUncertain.value = false; submitting.value = false; loadHumans() }
   else picker.value?.stopPlayback()
 })
 watch(() => layoutStore.getUserInfo.tenantId, () => { ++generation; ++humanRequest; humans.value = []; audios.value = []; allHumans.value = []; emit('update:modelValue', false) })
@@ -100,9 +101,12 @@ onBeforeUnmount(() => { ++generation; ++humanRequest; unregisterBlocker() })
 </script>
 
 <style scoped>
+:global(.audio-batch-dialog) { max-height:92vh; display:flex; flex-direction:column; }
+:global(.audio-batch-dialog .el-dialog__body) { overflow:auto; min-height:0; }
+:global(.audio-batch-dialog .el-dialog__header), :global(.audio-batch-dialog .el-dialog__footer) { flex-shrink:0; }
 .audio-batch-form { margin-top:16px; }
 .human-section { width:100%; }
-.human-search { display:flex; gap:8px; margin-bottom:10px; }
+.human-search { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .human-search .el-input { max-width:280px; }
 .human-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; max-height:210px; overflow:auto; }
 .human-card { display:flex; gap:8px; align-items:center; border:1px solid #e3e9f2; border-radius:8px; padding:8px; cursor:pointer; }

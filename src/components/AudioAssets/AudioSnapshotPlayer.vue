@@ -3,12 +3,14 @@
   <span v-else>暂无试听地址（历史信息保留）</span>
 </template>
 <script setup lang="ts">
-import { onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
+import { onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
 const props = defineProps<{ url?: string; active: boolean }>()
 const element = ref<HTMLAudioElement | null>(null)
 function stop() { const audio = element.value; if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load() } }
 function stopOthers() { document.querySelectorAll('audio').forEach(audio => { if (audio !== element.value) audio.pause() }) }
-watch(() => props.active, active => { if (!active) stop() })
+function restore() { if (props.active && props.url && element.value) element.value.src = props.url }
+watch(() => props.active, active => { if (!active) stop(); else restore() })
+onActivated(restore)
 onBeforeUnmount(stop)
 onDeactivated(stop)
 </script>
