@@ -425,7 +425,7 @@
       </template>
     </el-drawer>
 
-    <AudioBatchDialog v-model="audioBatchVisible" @created="audioBatchCreated" />
+    <AudioBatchDialog ref="audioBatchDialog" v-model="audioBatchVisible" @select-humans="openAudioHumanPicker" @created="audioBatchCreated" />
 
     <el-dialog v-model="scriptSelector.visible" title="选择脚本" width="76%" append-to-body>
       <el-tabs v-model="scriptSelector.mode" @tab-change="handleScriptTabChange">
@@ -497,7 +497,7 @@
         <el-table-column label="操作" width="100" align="center"><template #default="{ row }"><el-button type="primary" @click="selectAsset(row)">选入</el-button></template></el-table-column>
       </el-table>
       <template v-if="assetPicker.multi" #footer>
-        <div class="asset-picker-footer"><span>已选 {{ selectedHumanIds.length }} 个形象；确认后会覆盖当前执行项队列，后续声音跟随第1项。</span><div><el-button @click="assetPicker.visible = false">取消</el-button><el-button type="primary" @click="confirmMultiHumanSelection">确认选择</el-button></div></div>
+        <div class="asset-picker-footer"><span>已选 {{ selectedHumanIds.length }} 个形象；{{ audioHumanPicker ? '所有形象共用所选的一条音频，最多50个。' : '确认后会覆盖当前执行项队列，后续声音跟随第1项。' }}</span><div><el-button @click="assetPicker.visible = false">取消</el-button><el-button type="primary" @click="confirmMultiHumanSelection">确认选择</el-button></div></div>
       </template>
     </el-dialog>
 
@@ -619,6 +619,8 @@ const planForm = reactive({
 })
 const createDialog = reactive({ visible: false, submitting: false })
 const audioBatchVisible = ref(false)
+const audioBatchDialog = ref<InstanceType<typeof AudioBatchDialog> | null>(null)
+const audioHumanPicker = ref(false)
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
 function isAudioPlan(plan: BatchPlan) { return plan.script?.source === 'audio' || plan.children.some(child => child.selectionMode === 'audio') }
 const detailIsAudio = computed(() => Boolean(detail.plan && isAudioPlan(detail.plan)))
@@ -1217,6 +1219,7 @@ async function loadBanners(force = false) {
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
 async function openAssetPicker(type: AssetPickerType) {
+  audioHumanPicker.value = false
   assetPicker.type = type
   assetPicker.search = ''
   assetPicker.gender = ''
@@ -1233,7 +1236,14 @@ async function openAssetPicker(type: AssetPickerType) {
     await loadHumans(true)
   } else await loadVoices()
 }
-function resetAssetPickerState() { assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
+async function openAudioHumanPicker(humans: { id: number | string }[]) {
+  audioHumanPicker.value = true
+  assetPicker.type = 'human'; assetPicker.search = ''; assetPicker.gender = ''; assetPicker.multi = true
+  selectedHumanIds.value = humans.map(item => String(item.id))
+  assetPicker.visible = true
+  try { await loadHumans(true) } catch (error: any) { ElMessage.error(error?.message || '数字人加载失败，请重新选择') }
+}
+function resetAssetPickerState() { audioHumanPicker.value = false; assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
 function resetTenantScopedResources() {
   tenantResourceGeneration += 1
   Object.assign(resourcesLoaded, { scripts: false, history: false, bindings: false, humans: false, voices: false, corners: false, banners: false })
@@ -1252,9 +1262,10 @@ function resetTenantScopedResources() {
   resetAssetPickerState()
 }
 function selectAsset(item: any) {
-  if (!activePerformer.value) return
+  if (!activePerformer.value && !audioHumanPicker.value) return
   if (assetPicker.multi && assetPicker.type === 'human') {
     const id = String(item.id)
+    if (audioHumanPicker.value && !selectedHumanIds.value.includes(id) && selectedHumanIds.value.length >= 50) { ElMessage.warning('最多选择50个形象'); return }
     selectedHumanIds.value = selectedHumanIds.value.includes(id) ? selectedHumanIds.value.filter(value => value !== id) : [...selectedHumanIds.value, id]
     return
   }
@@ -1286,6 +1297,14 @@ async function toggleHumanPickerScaleLock() {
 }
 function confirmMultiHumanSelection() {
   if (!selectedHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
+  if (audioHumanPicker.value) {
+    if (selectedHumanIds.value.length > 50) { ElMessage.warning('最多选择50个形象'); return }
+    const selected = selectedHumanIds.value.map(id => digitalHumanOptions.value.find(item => String(item.id) === id))
+    if (selected.some(item => !item)) { ElMessage.warning('部分形象不可用，请重新选择'); return }
+    audioBatchDialog.value?.setHumans(selected.map(item => ({ id: item!.id, name: item!.name })))
+    assetPicker.visible = false
+    return
+  }
   const first = planForm.performerConfigs[0] || createPerformerConfig(false, 'first_voice')
   const nextConfigs: PerformerConfig[] = []
   first.selectionMode = 'first_voice'

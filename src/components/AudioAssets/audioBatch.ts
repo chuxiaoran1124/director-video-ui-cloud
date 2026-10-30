@@ -7,6 +7,7 @@ export function audioBatchPayload(name: string, humans: AudioBatchHuman[], audio
   const uniqueHumans = [...new Map(humans.map(row => [String(row.id), row])).values()]
   const uniqueAudios = [...new Map(audios.map(row => [String(row.id), row])).values()]
   if (!uniqueHumans.length || !uniqueAudios.length) throw new Error('请至少选择一个数字人和一条音频')
+  if (uniqueAudios.length !== 1) throw new Error('请选择一条共用音频，所有形象使用同一条音频')
   if (uniqueAudios.some(row => !audioAssetReady(row))) throw new Error('只能选择可用音频，请移除未就绪素材')
   if (uniqueHumans.length * uniqueAudios.length > AUDIO_BATCH_LIMIT) throw new Error('所有组合最多 50 项，请减少数字人或音频')
   return {

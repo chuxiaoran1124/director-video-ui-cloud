@@ -6,10 +6,11 @@ const asset = (id: number, source: 'uploaded' | 'generated' = 'uploaded'): Audio
   id, name: `audio-${id}`, source, status: 'ready', url: '/sample.mp3', duration: 30, sizeBytes: 50, createTime: ''
 })
 describe('音频叉乘契约', () => {
-  it('2人x3音频生成6项，历史上传与生成成品混选', () => {
+  it('多个形象共用一条音频，生成成品也可选择', () => {
     const p = audioBatchPayload('计划', [{ id: 1, name: 'A' }, { id: 2, name: 'B' }],
-      [asset(1), asset(2, 'generated'), asset(3)])
-    expect(p.performerConfigs).toHaveLength(6)
+      [asset(1, 'generated')])
+    expect(p.performerConfigs).toHaveLength(2)
+    expect(p.performerConfigs.every(row => row.audioAssetId === 1)).toBe(true)
     expect(p.performerConfigs[0]).toEqual({ selectionMode: 'audio', digitalHumanId: 1, audioAssetId: 1 })
     expect(p.performerConfigs.every(row => !('voiceId' in row))).toBe(true)
     expect(p.script).toEqual({ source: 'audio', title: '音频驱动', content: '' })
@@ -19,9 +20,12 @@ describe('音频叉乘契约', () => {
       [asset(1), asset(1)]).performerConfigs).toHaveLength(1)
   })
   it('接受50项，拒绝超限，不静默截断', () => {
-    const humans = Array.from({ length: 5 }, (_, id) => ({ id: id + 1, name: 'A' }))
-    expect(audioBatchPayload('p', humans, Array.from({ length: 10 }, (_, i) => asset(i + 1))).performerConfigs).toHaveLength(50)
-    expect(() => audioBatchPayload('p', humans, Array.from({ length: 11 }, (_, i) => asset(i + 1)))).toThrow('50')
+    const humans = Array.from({ length: 50 }, (_, id) => ({ id: id + 1, name: 'A' }))
+    expect(audioBatchPayload('p', humans, [asset(1)]).performerConfigs).toHaveLength(50)
+    expect(() => audioBatchPayload('p', [...humans, { id: 51, name: 'B' }], [asset(1)])).toThrow('50')
+  })
+  it('拒绝多条不同音频，防止旧UI多选流入提交', () => {
+    expect(() => audioBatchPayload('p', [{ id: 1, name: 'A' }], [asset(1), asset(2)])).toThrow('一条共用音频')
   })
   it('未就绪预占项不允许提交', () => {
     const row = { ...asset(1), status: 'reserved' as const }

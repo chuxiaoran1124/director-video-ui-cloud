@@ -26,7 +26,7 @@
     <el-alert v-if="errorMessage" :title="errorMessage" type="error" :closable="false" />
     <el-table v-loading="loading" :data="records" row-key="id" border :size="compact ? 'small' : 'default'">
       <el-table-column v-if="selectable" label="选择" :width="compact ? 42 : 60" align="center">
-        <template #default="{ row }"><el-checkbox :model-value="isSelected(row)" :disabled="disabled || !audioAssetReady(row)" :aria-label="`选择音频 ${row.name}`" @change="toggle(row)" /></template>
+        <template #default="{ row }"><el-radio v-if="single" :model-value="modelValue[0]?.id" :label="row.id" :disabled="disabled || !audioAssetReady(row)" :aria-label="`选择音频 ${row.name}`" @change="toggle(row)"><span class="sr-only">{{ row.name }}</span></el-radio><el-checkbox v-else :model-value="isSelected(row)" :disabled="disabled || !audioAssetReady(row)" :aria-label="`选择音频 ${row.name}`" @change="toggle(row)" /></template>
       </el-table-column>
       <el-table-column prop="name" label="音频名称" :min-width="compact ? 140 : 220" show-overflow-tooltip>
         <template #default="{ row }"><div class="audio-name"><span>{{ row.name }}</span><small v-if="compact">{{ row.source === 'uploaded' ? '历史上传' : '生成成品' }}<template v-if="!audioAssetReady(row)"> · {{ statusText(row) }}</template></small></div></template>
@@ -70,7 +70,7 @@ import { useLayoutStore } from '/@/store/modules/layout'
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import { audioAssetError, audioAssetReady, deleteAudioAsset, paginateAudioAssets, uploadAudioAsset, type AudioAsset, type AudioAssetPage, type AudioSource } from '/@/api/material/audioAssets'
 
-const props = withDefaults(defineProps<{ modelValue?: AudioAsset[]; selectable?: boolean; active?: boolean; disabled?: boolean; compact?: boolean; rowsPerPage?: number }>(), { modelValue: () => [], selectable: true, active: true, disabled: false, compact: false, rowsPerPage: 4 })
+const props = withDefaults(defineProps<{ modelValue?: AudioAsset[]; selectable?: boolean; active?: boolean; disabled?: boolean; compact?: boolean; single?: boolean; rowsPerPage?: number }>(), { modelValue: () => [], selectable: true, active: true, disabled: false, compact: false, single: false, rowsPerPage: 4 })
 const emit = defineEmits<{ (event: 'update:modelValue', value: AudioAsset[]): void }>()
 const layoutStore = useLayoutStore()
 const records = ref<AudioAsset[]>([])
@@ -101,6 +101,7 @@ function formatTime(value: string) { return value ? String(value).replace('T', '
 function isSelected(row: AudioAsset) { return props.modelValue.some(item => String(item.id) === String(row.id)) }
 function toggle(row: AudioAsset) {
   if (props.disabled || !audioAssetReady(row)) return
+  if (props.single) { emit('update:modelValue', [row]); return }
   emit('update:modelValue', isSelected(row) ? props.modelValue.filter(item => String(item.id) !== String(row.id)) : [...props.modelValue, row])
 }
 async function load() {
@@ -163,7 +164,7 @@ async function upload() {
   try {
     const row = await uploadAudioAsset(uploadFile.value, uploadName.value, requestId, value => { if (generation === lifetime) uploadProgress.value = value })
     if (generation !== lifetime) return
-    if (props.selectable && audioAssetReady(row) && !isSelected(row)) emit('update:modelValue', [...props.modelValue, row])
+    if (props.selectable && audioAssetReady(row) && !isSelected(row)) emit('update:modelValue', props.single ? [row] : [...props.modelValue, row])
     uploadVisible.value = false; uploadFile.value = null; uploadName.value = ''; requestId = ''; uploadUncertain.value = false
     if (fileInput.value) fileInput.value.value = ''
     ElMessage.success(props.selectable ? '已保存到音频库并自动选中' : '已保存到音频库')
@@ -191,6 +192,9 @@ defineExpose({ stopPlayback })
 
 <style scoped>
 .audio-assets { min-width:0; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+.audio-assets :deep(.el-radio) { margin-right:0; }
+.audio-assets :deep(.el-radio__label) { padding:0; }
 .quota-row,.audio-toolbar,.selection-summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:14px 0; }
 .quota-row>span { color:#758398; font-size:12px; }
 .audio-toolbar .el-input { width:240px; }
