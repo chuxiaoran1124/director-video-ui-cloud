@@ -464,6 +464,9 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane label="音频管理" name="audio">
+        <AudioAssetManager v-if="activeName === 'audio'" />
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 编辑弹窗 (通用) -->
@@ -650,6 +653,7 @@
 import { defineComponent, ref, onMounted, onUnmounted, computed, reactive, nextTick, watch } from 'vue'
 import TagManager from '/@/components/TagManager/index.vue'
 import MaterialCornerMarkPanel from '/@/views/PriorDisposal/components/MaterialCornerMarkPanel.vue'
+import AudioAssetManager from '/@/components/AudioAssets/AudioAssetManager.vue'
 import { getDigitalHumanPaginateList, updateDigitalHuman, updateVoice, deleteVoice, deleteDigitalHuman, getVoicePaginateList, getBindingList, createBinding, updateBinding, deleteBinding, bannerOverlayPreview, bannerOverlaySave, downloadFileByProxy } from '/@/api/material/index'
 import { fetchDirectBlob, normalizeAssetUrl } from '/@/utils/download'
 import request from '/@/utils/request'
@@ -659,7 +663,8 @@ export default defineComponent({
   name: 'MaterialManagement',
   components: {
     TagManager,
-    MaterialCornerMarkPanel
+    MaterialCornerMarkPanel,
+    AudioAssetManager
   },
   setup() {
     const activeName = ref('voice')

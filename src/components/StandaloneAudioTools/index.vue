@@ -21,7 +21,7 @@
             <VideoZipProgress v-bind="zipProgress" :visible="downloading" />
             <el-table ref="table" v-loading="loading" :data="rows" row-key="id" empty-text="暂无任务" @selection-change="selectionChanged">
                 <el-table-column type="selection" width="45" reserve-selection />
-                <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ row.name }}<div v-if="row.audioSourceDeleted"><el-tag type="info" size="small">源音频已删除</el-tag></div></template></el-table-column>
                 <el-table-column label="性别" width="70"><template #default="{ row }">{{ genderLabel(row.gender) }}</template></el-table-column>
                 <el-table-column label="语言" width="70"><template #default="{ row }">{{ row.language === 'zh' ? '中文' : row.language === 'en' ? '英文' : '—' }}</template></el-table-column>
                 <el-table-column v-if="training" label="模型" width="80"><template #default="{ row }">{{ row.model === 'a2e' ? 'A2E' : row.model || '—' }}</template></el-table-column>
@@ -97,7 +97,8 @@
                 <p>尝试次数：{{ detail.attemptNo }}</p>
                 <p v-if="detail.taskStatus === 'uncertain'">任务结果待确认，请等待后台核实；仅在允许重试时操作，避免重复生成。</p>
                 <p v-if="detail.errorMessage || detail.statusHint || ['-1', 'uncertain'].includes(detail.taskStatus)" class="error">{{ taskExplanation(detail) }}</p>
-                <p v-if="detail.taskStatus === '2' && !detail.outputUrl">任务已完成，暂未返回音频地址，请稍后刷新。</p>
+                <p v-if="detail.audioSourceDeleted">源音频已删除，任务历史保留，无法试听或下载。</p>
+                <p v-else-if="detail.taskStatus === '2' && !detail.outputUrl">任务已完成，暂未返回音频地址，请稍后刷新。</p>
             </template>
         </el-dialog>
     </section>
@@ -169,7 +170,7 @@ function taskExplanation(row: AudioTask) {
     if (layout.getUserInfo.isPlatformSuperAdmin) return row.errorMessage || row.statusHint || '请联系管理员确认任务状态'
     return row.statusHint || (row.taskStatus === 'uncertain' ? '任务结果待确认，请等待后台核实' : '任务处理失败，请重试或联系管理员')
 }
-function hasOutput(row: AudioTask) { return row.taskStatus === '2' && /^https?:\/\//i.test(row.outputUrl || '') }
+function hasOutput(row: AudioTask) { return !row.audioSourceDeleted && row.taskStatus === '2' && /^https?:\/\//i.test(row.outputUrl || '') }
 function selectionChanged(selection: AudioTask[]) { if (!restoringSelection) selectedIds.value = selection.map(row => row.id) }
 function clearSelection() { selectedIds.value = []; table.value?.clearSelection() }
 function search() { query.search.name = searchName.value.trim(); clearSelection(); runSearch() }
@@ -287,9 +288,10 @@ function stopPlayback() {
     previewVisible.value = false
     previewUrl.value = ''
 }
-function play(row: AudioTask) { stopPlayback(); previewName.value = row.name; previewUrl.value = row.outputUrl; previewVisible.value = true }
+function play(row: AudioTask) { if (!hasOutput(row)) return; stopPlayback(); previewName.value = row.name; previewUrl.value = row.outputUrl; previewVisible.value = true }
 function playbackError() { if (previewVisible.value && previewUrl.value) ElMessage.error('音频播放失败，请检查音源或网络后重试') }
 function downloadOne(row: AudioTask) {
+    if (!hasOutput(row)) return
     try { downloadVideoDirect(row.outputUrl); ElMessage.info('已打开音频直连，由浏览器处理下载；也可在试听播放器中保存') }
     catch { ElMessage.error('音频地址不可用') }
 }

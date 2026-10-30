@@ -10,6 +10,7 @@ export interface AudioTask {
     model: string
     taskStatus: AudioTaskStatus
     outputUrl: string
+    audioSourceDeleted?: boolean
     errorMessage: string
     statusHint?: string
     createTime: string

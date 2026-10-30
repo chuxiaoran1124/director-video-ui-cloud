@@ -5,16 +5,17 @@ import request from '/@/utils/request'
 export interface BatchDigitalHumanPlanPayload {
     planName: string
     script: {
-        source: 'manual' | 'library' | 'history'
+        source: 'manual' | 'library' | 'history' | 'audio'
         sourceId?: number | string | null
         title?: string
         content: string
     }
     performerConfigs: Array<{
-        selectionMode: 'binding' | 'custom' | 'first_voice'
+        selectionMode: 'binding' | 'custom' | 'first_voice' | 'audio'
         bindingId?: number | string | null
         digitalHumanId?: number | string | null
         voiceId?: number | string | null
+        audioAssetId?: number | string | null
     }>
     videoOptions?: Record<string, any>
     postProcessConfig?: Record<string, any>

@@ -6,10 +6,13 @@
         <h1>生成计划管理</h1>
         <p>先创建计划，再进入详情逐个配置数字人执行项。</p>
       </div>
+      <div>
+      <el-button @click="audioBatchVisible = true">多选叉乘-音频驱动</el-button>
       <el-button type="primary" @click="openCreateDialog">
         <el-icon><Plus /></el-icon>
         新建批量计划
       </el-button>
+      </div>
     </section>
 
     <section class="filter-card">
@@ -65,7 +68,7 @@
           </template>
         </el-table-column>
         <el-table-column label="脚本" min-width="145" show-overflow-tooltip>
-          <template #default="{ row }"><span class="script-cell">{{ truncate(row.script?.content || '', 62) }}</span></template>
+          <template #default="{ row }"><span class="script-cell">{{ isAudioPlan(row) ? '音频驱动' : truncate(row.script?.content || '', 62) }}</span></template>
         </el-table-column>
         <el-table-column label="执行方式" min-width="85" align="center">
           <template #default="{ row }">
@@ -89,7 +92,7 @@
         <el-table-column label="操作" min-width="190" align="center">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' ? '继续配置' : '任务详情' }}</el-button>
+              <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' && !isAudioPlan(row) ? '继续配置' : '任务详情' }}</el-button>
               <el-button v-if="row.statusKey === 'draft'" link type="danger" @click="deletePlan(row)">删除</el-button>
               <el-button v-if="canCancelPlan(row)" link type="warning" @click="cancelPlan(row)">取消</el-button>
             </div>
@@ -176,13 +179,13 @@
 
         <div class="plan-summary">
           <div class="summary-card script-summary">
-            <span class="summary-title">脚本</span>
-            <p>{{ detail.plan.script?.content }}</p>
+            <span class="summary-title">{{ detailIsAudio ? '音频驱动' : '脚本' }}</span>
+            <p>{{ detailIsAudio ? '使用完整音频，不需要配音声音或文案。执行项按快照展示，源音频删除后任务历史仍保留。' : detail.plan.script?.content }}</p>
           </div>
           <div class="summary-card plan-settings-summary">
             <div class="summary-setting-block">
               <span class="summary-title">增强能力</span>
-              <el-checkbox-group v-if="detail.plan.statusKey === 'draft'" v-model="planForm.processTypes" class="summary-feature-checkboxes">
+              <el-checkbox-group v-if="detail.plan.statusKey === 'draft' && !detailIsAudio" v-model="planForm.processTypes" class="summary-feature-checkboxes">
                 <el-checkbox label="subtitle" border>字幕</el-checkbox>
                 <el-checkbox label="corner_mark" border>角标</el-checkbox>
                 <el-checkbox label="banner_overlay" border>横幅</el-checkbox>
@@ -191,7 +194,7 @@
             </div>
             <div class="summary-setting-block">
               <span class="summary-title">执行方式</span>
-              <template v-if="detail.plan.statusKey === 'draft'">
+              <template v-if="detail.plan.statusKey === 'draft' && !detailIsAudio">
                 <el-radio-group v-model="planForm.scheduleMode" class="summary-schedule-mode">
                   <el-radio-button label="immediate">立即执行</el-radio-button>
                   <el-radio-button label="scheduled">指定时间</el-radio-button>
@@ -221,7 +224,7 @@
           </div>
         </div>
 
-        <template v-if="detail.plan.statusKey === 'draft'">
+        <template v-if="detail.plan.statusKey === 'draft' && !detailIsAudio">
           <div class="draft-workspace">
             <aside class="performer-sidebar">
               <div class="sidebar-heading">
@@ -265,6 +268,7 @@
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
                       <el-radio-button label="first_voice">多选叉乘</el-radio-button>
                     </el-radio-group>
+                    <el-button plain style="margin-left:8px" @click="audioBatchVisible = true">多选叉乘-音频驱动</el-button>
                     <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
@@ -387,7 +391,7 @@
             <el-table-column label="#" min-width="55" align="center"><template #default="{ row }">{{ row.seqNo }}</template></el-table-column>
             <el-table-column label="封面" min-width="90" align="center"><template #default="{ row }"><img v-if="row.coverUrl" :src="row.coverUrl" class="child-cover" alt="" /><span v-else>-</span></template></el-table-column>
             <el-table-column label="视频名称" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ row.videoName || `${detail.plan?.name || '视频'}-${row.seqNo}` }}</template></el-table-column>
-            <el-table-column label="数字人 / 声音" min-width="210"><template #default="{ row }"><strong>{{ row.digitalHumanName || row.performerName || '-' }}</strong><p>{{ row.voiceName || '-' }}</p></template></el-table-column>
+            <el-table-column :label="detailIsAudio ? '数字人 / 音频' : '数字人 / 声音'" min-width="210"><template #default="{ row }"><strong>{{ row.digitalHumanName || row.performerName || '-' }}</strong><p>{{ row.audioName || row.voiceName || '-' }}</p><AudioSnapshotPlayer v-if="row.selectionMode === 'audio'" :url="row.audioUrl" :active="detail.visible" /></template></el-table-column>
             <el-table-column label="性别" min-width="70" align="center"><template #default="{ row }">{{ row.digitalHumanGender === 'male' ? '男' : row.digitalHumanGender === 'female' ? '女' : '未分类' }}</template></el-table-column>
             <el-table-column label="状态" min-width="100" align="center"><template #default="{ row }"><el-tag :type="statusType(row.statusKey)">{{ statusLabel(row.statusKey) }}</el-tag></template></el-table-column>
             <el-table-column label="开始时间" min-width="155" align="center"><template #default="{ row }">{{ formatTime(row.startTime) }}</template></el-table-column>
@@ -406,7 +410,12 @@
       <template #footer>
         <div v-if="detail.plan" class="detail-footer-actions">
           <el-button :loading="detail.loading" @click="refreshDetail"><el-icon><Refresh /></el-icon>刷新</el-button>
-          <template v-if="detail.plan.statusKey === 'draft'">
+          <template v-if="detail.plan.statusKey === 'draft' && detailIsAudio">
+            <el-button type="success" :loading="detail.starting" :disabled="audioStartUncertainIds.has(String(detail.plan.id))" @click="startAudioDraft">提交执行（{{ detail.children.length }} 项）</el-button>
+            <span v-if="audioStartUncertainIds.has(String(detail.plan.id))">提交结果未确认，请刷新详情确认状态，勿重复提交。</span>
+            <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
+          </template>
+          <template v-else-if="detail.plan.statusKey === 'draft'">
             <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
             <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
             <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
@@ -415,6 +424,8 @@
         </div>
       </template>
     </el-drawer>
+
+    <AudioBatchDialog v-model="audioBatchVisible" @created="audioBatchCreated" />
 
     <el-dialog v-model="scriptSelector.visible" title="选择脚本" width="76%" append-to-body>
       <el-tabs v-model="scriptSelector.mode" @tab-change="handleScriptTabChange">
@@ -505,6 +516,8 @@ import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } fr
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
+import AudioBatchDialog from '/@/components/AudioAssets/AudioBatchDialog.vue'
+import AudioSnapshotPlayer from '/@/components/AudioAssets/AudioSnapshotPlayer.vue'
 import { directVideoUrl, downloadVideoDirect, type ZipProgress } from '/@/utils/download'
 import { downloadVideoZip } from '/@/utils/downloadInteraction'
 import { getUserList, type IUserListItem } from '/@/api/user'
@@ -550,13 +563,14 @@ interface PerformerConfig {
   postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
 }
 interface BatchChild {
-  id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: PerformerSelectionMode; digitalHumanId?: string | number | null; voiceId?: string | number | null
+  id: string | number; seqNo: number; bindingId?: string | number; selectionMode?: PerformerSelectionMode | 'audio'; digitalHumanId?: string | number | null; voiceId?: string | number | null
+  audioAssetId?: string | number; audioName?: string; audioUrl?: string
   bindingName: string; performerName?: string; digitalHumanName: string; digitalHumanGender: string; videoName: string; voiceName: string; statusKey: StatusKey; createTime?: string; startTime?: string; endTime?: string
   errorMessage?: string; videoUrl?: string; coverUrl?: string; videoTaskId?: string | number; retryable?: boolean; postProcessConfig?: Record<string, any>; videoOptions?: Record<string, any>
 }
 interface BatchPlan {
   id: string | number; name: string; statusKey: StatusKey; scheduleMode: ScheduleMode; scheduledAt?: string; createTime?: string; startTime?: string; endTime?: string
-  totalCount: number; completedCount: number; failedCount: number; script?: { source: ScriptSource; sourceId?: string | number | null; title?: string; content?: string }
+  totalCount: number; completedCount: number; failedCount: number; script?: { source: ScriptSource | 'audio'; sourceId?: string | number | null; title?: string; content?: string }
   processTypes: string[]; cornerMarkId?: string | number | null; bannerOverlayId?: string | number | null; videoOptions?: Record<string, any>; children: BatchChild[]
 }
 
@@ -604,7 +618,11 @@ const planForm = reactive({
   performerConfigs: [] as PerformerConfig[], scheduleMode: 'immediate' as ScheduleMode, scheduledAt: '', processTypes: [] as string[]
 })
 const createDialog = reactive({ visible: false, submitting: false })
+const audioBatchVisible = ref(false)
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
+function isAudioPlan(plan: BatchPlan) { return plan.script?.source === 'audio' || plan.children.some(child => child.selectionMode === 'audio') }
+const detailIsAudio = computed(() => Boolean(detail.plan && isAudioPlan(detail.plan)))
+const audioStartUncertainIds = reactive(new Set<string>())
 const filteredChildren = computed(() => detail.children.filter(child => {
   const name = child.videoName || `${detail.plan?.name || '视频'}-${child.seqNo}`
   return (!appliedChildName.value || name.toLowerCase().includes(appliedChildName.value))
@@ -651,7 +669,7 @@ const unregisterPlanListState = registerVersionRefreshState('batch-plan-list', (
   pageSize: planPageSize.value, keyword: searchKeyword.value,
   appliedKeyword: appliedPlanKeyword.value, creatorId: selectedCreatorUserId.value
 }))
-const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible)
+const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible || audioBatchVisible.value)
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
 const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
@@ -763,6 +781,7 @@ function normalizeChild(item: any, index: number): BatchChild {
     id: item.id ?? index, seqNo: Number(item.seqNo ?? item.child_seq ?? index + 1), bindingId: item.bindingId ?? item.binding_id,
     selectionMode: item.selectionMode || snapshot.selectionMode || (item.bindingId ? 'binding' : 'custom'),
     digitalHumanId: snapshot.digitalHumanId ?? snapshot.human?.id ?? null, voiceId: snapshot.voiceId ?? snapshot.voice?.id ?? null,
+    audioAssetId: snapshot.audioAssetId, audioName: snapshot.audioName || '', audioUrl: snapshot.audioUrl || snapshot.audioA2eUrl || '',
     bindingName: snapshot.title || `${snapshot.digitalHumanName || '数字人'} + ${snapshot.voiceName || '配音'}`,
     performerName: snapshot.digitalHumanName || '', digitalHumanName: snapshot.digitalHumanName || '', digitalHumanGender: item.digitalHumanGender || snapshot.digitalHumanGender || '',
     videoName: item.videoName || item.videoOptions?.filename || '', voiceName: snapshot.voiceName || '', statusKey: normalizeStatus(rawStatus),
@@ -906,10 +925,11 @@ async function createDraftPlan() {
 }
 
 function fillPlanForm(plan: BatchPlan) {
-  planForm.id = plan.id; planForm.planName = plan.name; planForm.scriptSource = plan.script?.source || 'manual'; planForm.scriptId = plan.script?.source === 'library' ? plan.script.sourceId ?? null : null; planForm.historyId = plan.script?.source === 'history' ? plan.script.sourceId ?? null : null; planForm.scriptContent = plan.script?.content || ''
+  if (isAudioPlan(plan)) return // Never serialize audio snapshots as text/custom performers.
+  planForm.id = plan.id; planForm.planName = plan.name; planForm.scriptSource = (plan.script?.source as ScriptSource) || 'manual'; planForm.scriptId = plan.script?.source === 'library' ? plan.script.sourceId ?? null : null; planForm.historyId = plan.script?.source === 'history' ? plan.script.sourceId ?? null : null; planForm.scriptContent = plan.script?.content || ''
   planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
   planForm.performerConfigs = plan.children.map((child) => ({
-    key: String(child.id), selectionMode: child.selectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
+    key: String(child.id), selectionMode: child.selectionMode as PerformerSelectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
     inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
     postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
@@ -1007,6 +1027,7 @@ function buildDraftPayload() {
   return payload
 }
 async function saveDraftConfiguration(notify = true) {
+  if (detailIsAudio.value) return false
   if (!detail.plan || !validateDraftForSave()) return false
   detail.saving = true
   try {
@@ -1074,7 +1095,24 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
     }
   }
 }
-async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl)); if (plan.statusKey === 'draft') { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl)); if (plan.statusKey !== 'draft') audioStartUncertainIds.delete(String(plan.id)); if (plan.statusKey === 'draft' && !isAudioPlan(plan)) { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
+async function audioBatchCreated(id: string | number) { audioBatchVisible.value = false; await openDetail({ id } as BatchPlan); await loadPlanList() }
+async function startAudioDraft() {
+  const plan = detail.plan
+  if (!plan || !isAudioPlan(plan) || plan.statusKey !== 'draft' || detail.starting || audioStartUncertainIds.has(String(plan.id))) return
+  if (!plan.children.length || plan.children.length > 50) { ElMessage.warning('音频执行项必须为 1～50 项'); return }
+  detail.starting = true
+  let submitted = false
+  try {
+    await ElMessageBox.confirm(`将提交 ${plan.children.length} 个音频驱动视频任务，是否继续？无需配音或文案，不裁剪音频。`, '提交音频计划', { type: 'warning', confirmButtonText: '提交执行', cancelButtonText: '返回详情' })
+    if (detail.plan?.id !== plan.id || !detail.visible) return
+    submitted = true
+    await startVideoBatchPlan(plan.id)
+    ElMessage.success('音频计划已提交执行'); await refreshDetail(); await loadPlanList()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') { if (submitted) audioStartUncertainIds.add(String(plan.id)); ElMessage.error(error?.message || '提交结果未确认，请刷新详情') }
+  } finally { detail.starting = false }
+}
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function stopVoicePreview() {
   const audio = voiceAudio
@@ -1290,6 +1328,7 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
   resetTenantScopedResources()
   resetPlanForm()
   createDialog.visible = false
+  audioBatchVisible.value = false
   detail.visible = false
   detail.plan = null
   detail.children = []
