@@ -1,5 +1,5 @@
 <template>
-  <el-dialog class="audio-batch-dialog" :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1120px, 96vw)" top="4vh" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
+  <el-dialog custom-class="audio-batch-dialog" :model-value="modelValue" title="多选叉乘-音频驱动" width="min(1120px, 96vw)" top="4vh" append-to-body destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!submitting" :show-close="!submitting" :before-close="beforeClose" @update:model-value="emit('update:modelValue', $event)" @close="picker?.stopPlayback()">
     <el-alert title="多个数字人 × 多条完整音频，每个组合生成一个执行项，最多 50 项。不需要配音声音或文案；创建后进入详情，确认后再提交执行。" type="info" :closable="false" />
     <el-form label-position="top" class="audio-batch-form">
       <el-form-item label="计划名称"><el-input v-model="name" :disabled="submitting || createUncertain" maxlength="80" show-word-limit /></el-form-item>
