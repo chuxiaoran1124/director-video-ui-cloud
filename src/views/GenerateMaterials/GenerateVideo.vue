@@ -3078,7 +3078,7 @@ const stopSingleVideoPreview = () => { singlePreviewSourceUrl = ''; singlePrevie
 const handleSingleVideoError = () => {
   if (singlePreviewFallbackUsed || !singlePreviewSourceUrl || !videoPreview.visible) return
   singlePreviewFallbackUsed = true
-  ElMessage.error('视频直连预览失败，请检查 TOS 公网访问配置')
+  ElMessage.error(layoutStore.getUserInfo.isPlatformSuperAdmin === true ? '视频直连预览失败，请检查 TOS 公网访问配置' : '视频预览失败，请稍后重试或联系管理员')
 }
 
 // 下载音频

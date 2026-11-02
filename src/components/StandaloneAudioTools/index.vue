@@ -95,11 +95,11 @@
                 <p>创建时间：{{ formatTaskTime(detail.createTime) }}</p><p>更新时间：{{ formatTaskTime(detail.updateTime) }}</p>
                 <p>开始时间：{{ formatTaskTime(detail.startTime) }}</p><p>结束时间：{{ formatTaskTime(detail.endTime) }}</p>
                 <p>尝试次数：{{ detail.attemptNo }}</p>
-                <p v-if="detail.taskStatus === 'uncertain'">任务结果待确认，请等待后台核实；仅在允许重试时操作，避免重复生成。</p>
+                <p v-if="detail.taskStatus === 'uncertain' || (detail.taskStatus === '-1' && detail.statusHint === '提交结果待确认，请联系管理员')">任务结果待确认，请等待后台核实；仅在允许重试时操作，避免重复生成。</p>
                 <p v-if="showTaskExplanation(detail)" class="error">{{ taskExplanation(detail) }}</p>
                 <p v-if="detail.audioSourceDeleted">源音频已删除，任务历史保留，无法试听或下载。</p>
                 <p v-else-if="detail.taskStatus === '2' && !detail.outputUrl">任务已完成，暂未返回音频地址，请稍后刷新。</p>
-                <AudioPreparationDetail v-if="training && detailVisible && detail.audioPreparation" :key="detail.id" :preparation="detail.audioPreparation" />
+                <AudioPreparationDetail v-if="layout.getUserInfo.isPlatformSuperAdmin === true && training && detailVisible && detail.audioPreparation" :key="detail.id" :preparation="detail.audioPreparation" />
             </template>
         </el-dialog>
     </section>
@@ -170,15 +170,18 @@ const unregisterBlocker = registerVersionRefreshBlocker(() => submitting.value |
 
 function statusType(status: string) { return status === '2' ? 'success' : status === '-1' ? 'danger' : status === '0' ? 'info' : 'warning' }
 function taskStatusLabel(row: AudioTask) {
+    if (row.taskStatus === '-1' && row.statusHint === '提交结果待确认，请联系管理员') return statusLabels.uncertain
     return training && isAudioOptimizing(row.audioPreparation, row.taskStatus) ? '等待中' : statusLabels[row.taskStatus] || '状态待确认'
 }
 function genderLabel(gender: string) { return gender === 'male' ? '男' : gender === 'female' ? '女' : '—' }
 function showTaskExplanation(row: AudioTask) {
-    return ['-1', 'uncertain'].includes(row.taskStatus) || (!training && !!(row.errorMessage || row.statusHint))
+    return ['-1', 'uncertain'].includes(row.taskStatus)
+        || (layout.getUserInfo.isPlatformSuperAdmin === true && !training && !!(row.errorMessage || row.statusHint))
 }
 function taskExplanation(row: AudioTask) {
-    if (layout.getUserInfo.isPlatformSuperAdmin) return row.errorMessage || row.statusHint || '请联系管理员确认任务状态'
-    return (!training && row.statusHint) || (row.taskStatus === 'uncertain' ? '任务结果待确认，请等待后台核实' : '任务处理失败，请重试或联系管理员')
+    if (layout.getUserInfo.isPlatformSuperAdmin === true) return row.errorMessage || row.statusHint || '请联系管理员确认任务状态'
+    return row.taskStatus === 'uncertain' || (row.taskStatus === '-1' && row.statusHint === '提交结果待确认，请联系管理员')
+        ? '任务结果待确认，请等待后台核实' : '任务处理失败，请重试或联系管理员'
 }
 function hasOutput(row: AudioTask) { return !row.audioSourceDeleted && row.taskStatus === '2' && /^https?:\/\//i.test(row.outputUrl || '') }
 function selectionChanged(selection: AudioTask[]) { if (!restoringSelection) selectedIds.value = selection.map(row => row.id) }

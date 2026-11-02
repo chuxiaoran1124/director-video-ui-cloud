@@ -28,9 +28,9 @@ const request = axios.create({
 const shouldMaskErrorMessage = () => {
     try {
         const layoutStore = useLayoutStore()
-        return Boolean(layoutStore.getStatus.ACCESS_TOKEN) && !layoutStore.getUserInfo.isPlatformSuperAdmin
+        return layoutStore.getUserInfo.isPlatformSuperAdmin !== true
     } catch (_error) {
-        return false
+        return true
     }
 }
 
@@ -53,7 +53,7 @@ const normalizeErrorMessage = (rawMessage: string, config?: any) => {
 
 const buildRejectedError = (message: string, rawMessage: string, status?: number) => {
     return Object.assign(new Error(message), {
-        rawMessage,
+        rawMessage: shouldMaskErrorMessage() ? message : rawMessage,
         status
     })
 }

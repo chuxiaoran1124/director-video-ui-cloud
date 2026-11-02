@@ -116,7 +116,7 @@
                 <el-icon><el-icon-circle-check /></el-icon> 已完成
               </div>
               <div v-else-if="scope.row.taskStatus === -1 || scope.row.taskStatus === 4" class="text-red-500 text-sm">
-                <span v-if="isPlatformSuperAdmin && scope.row.errorMessage" class="text-red-500">{{ scope.row.errorMessage }}</span>
+                <span v-if="isPlatformSuperAdmin === true && scope.row.errorMessage" class="text-red-500">{{ scope.row.errorMessage }}</span>
                 <span v-else class="inline-flex items-center gap-1"><el-icon><el-icon-warning /></el-icon>任务失败</span>
               </div>
               <span v-else class="text-slate-400 text-sm italic">等待中</span>
@@ -434,7 +434,7 @@
       <template v-if="trainingDetail">
         <p>名称：{{ trainingDetail.name }}</p>
         <p>状态：{{ getStatusLabel(trainingDetail) }}</p>
-        <AudioPreparationDetail v-if="trainingDetailVisible && trainingDetail.audioPreparation" :key="trainingDetail.id" :preparation="trainingDetail.audioPreparation" />
+        <AudioPreparationDetail v-if="isPlatformSuperAdmin === true && trainingDetailVisible && trainingDetail.audioPreparation" :key="trainingDetail.id" :preparation="trainingDetail.audioPreparation" />
       </template>
     </el-dialog>
 
