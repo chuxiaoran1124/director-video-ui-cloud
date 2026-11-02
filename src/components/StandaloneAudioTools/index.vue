@@ -170,7 +170,7 @@ const unregisterBlocker = registerVersionRefreshBlocker(() => submitting.value |
 
 function statusType(status: string) { return status === '2' ? 'success' : status === '-1' ? 'danger' : status === '0' ? 'info' : 'warning' }
 function taskStatusLabel(row: AudioTask) {
-    return training && isAudioOptimizing(row.audioPreparation, row.taskStatus) ? '音频优化处理中' : statusLabels[row.taskStatus] || '状态待确认'
+    return training && isAudioOptimizing(row.audioPreparation, row.taskStatus) ? '等待中' : statusLabels[row.taskStatus] || '状态待确认'
 }
 function genderLabel(gender: string) { return gender === 'male' ? '男' : gender === 'female' ? '女' : '—' }
 function showTaskExplanation(row: AudioTask) {

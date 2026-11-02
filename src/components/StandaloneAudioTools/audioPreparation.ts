@@ -29,7 +29,7 @@ export function audioPreparationLabel(preparation: AudioPreparation): string {
     if (failedStatuses.includes(preparation.status)) return '音频优化未完成'
     if (preparation.status === 'unknown') return '训练提交结果待确认，请联系管理员'
     if (preparation.status === 'cancelled') return '音频优化已取消'
-    if (isAudioOptimizing(preparation, 'processing')) return '音频优化处理中'
+    if (isAudioOptimizing(preparation, 'processing')) return '等待中'
     return '音频优化状态待确认'
 }
 

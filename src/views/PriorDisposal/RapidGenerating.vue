@@ -107,7 +107,7 @@
             <template #default="scope">
               <div v-if="scope.row.taskStatus === 0 || scope.row.taskStatus === 1 || scope.row.taskStatus === 2 || scope.row.taskStatus === 'processing'" class="px-2">
                 <div class="flex justify-between text-[10px] text-slate-400 mb-1 leading-none">
-                  <span>{{ isAudioOptimizing(scope.row.audioPreparation, scope.row.taskStatus) ? '音频优化处理中' : getProgressText(scope.row.taskStatus) }}</span>
+                  <span>{{ isAudioOptimizing(scope.row.audioPreparation, scope.row.taskStatus) ? '等待中' : getProgressText(scope.row.taskStatus) }}</span>
                   <span>{{ scope.row.progress }}%</span>
                 </div>
                 <el-progress :percentage="scope.row.progress" :stroke-width="8" striped striped-flow :show-text="false" />
@@ -875,7 +875,7 @@ const getStatusType = (status: string) => {
 
 const getStatusLabel = (row: any) => {
   const taskStatus = row.taskStatus ?? row.status
-  if (isAudioOptimizing(row.audioPreparation, taskStatus)) return '音频优化处理中'
+  if (isAudioOptimizing(row.audioPreparation, taskStatus)) return '等待中'
   
   // 如果是数字状态码
   if (typeof taskStatus === 'number') {

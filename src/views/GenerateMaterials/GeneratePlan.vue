@@ -7,8 +7,8 @@
         <p>先创建计划，再进入详情逐个配置数字人执行项。</p>
       </div>
       <div class="hero-actions">
-        <el-button @click="openAudioBatch">多选叉乘-音频驱动</el-button>
-        <el-button type="primary" @click="openCreateDialog">
+        <el-button @click="openCreateDialog('audio')">多选叉乘-音频驱动</el-button>
+        <el-button type="primary" @click="openCreateDialog()">
           <el-icon><Plus /></el-icon>
           新建批量计划
         </el-button>
@@ -92,7 +92,7 @@
         <el-table-column label="操作" min-width="190" align="center">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' && !isAudioPlan(row) ? '继续配置' : '任务详情' }}</el-button>
+              <el-button link type="primary" @click="openDetail(row)">{{ row.statusKey === 'draft' ? '继续配置' : '任务详情' }}</el-button>
               <el-button v-if="row.statusKey === 'draft'" link type="danger" @click="deletePlan(row)">删除</el-button>
               <el-button v-if="canCancelPlan(row)" link type="warning" @click="cancelPlan(row)">取消</el-button>
             </div>
@@ -134,7 +134,7 @@
           <el-date-picker v-model="planForm.scheduledAt" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" format="YYYY-MM-DD HH:mm:ss" class="w-full" :disabled-date="disablePastDate" />
         </el-form-item>
 
-        <section class="create-section">
+        <section v-if="!draftIsAudio" class="create-section">
           <div class="section-heading-row">
             <div><strong>脚本内容 <span class="required">*</span></strong></div>
             <div class="script-actions">
@@ -150,7 +150,7 @@
           </div>
         </section>
 
-        <section class="create-section">
+        <section v-if="!draftIsAudio" class="create-section">
           <div class="section-heading-row">
             <div><strong>需要的增强能力</strong><p>只选择本计划需要的能力；具体样式在第一个执行项中配置。</p></div>
           </div>
@@ -160,6 +160,7 @@
             <el-checkbox label="banner_overlay" border>横幅</el-checkbox>
           </el-checkbox-group>
         </section>
+        <p v-if="draftIsAudio">创建空音频草稿后，在执行项配置区选择多个形象和一条共用完整音频，无需填写文案或选择声音。</p>
       </el-form>
       <template #footer>
         <el-button @click="createDialog.visible = false">取消</el-button>
@@ -180,7 +181,9 @@
         <div class="plan-summary">
           <div class="summary-card script-summary">
             <span class="summary-title">{{ detailIsAudio ? '音频驱动' : '脚本' }}</span>
-            <p>{{ detailIsAudio ? '使用完整音频，不需要配音声音或文案。执行项按快照展示，源音频删除后任务历史仍保留。' : detail.plan.script?.content }}</p>
+            <p v-if="detailIsAudio">使用完整音频，不需要配音声音或文案。执行项按快照展示，源音频删除后任务历史仍保留。</p>
+            <el-input v-else-if="detail.plan.statusKey === 'draft'" v-model="planForm.scriptContent" type="textarea" :rows="2" maxlength="2000" placeholder="输入本计划共用脚本" @input="markScriptManual" />
+            <p v-else>{{ detail.plan.script?.content }}</p>
           </div>
           <div class="summary-card plan-settings-summary">
             <div class="summary-setting-block">
@@ -190,11 +193,12 @@
                 <el-checkbox label="corner_mark" border>角标</el-checkbox>
                 <el-checkbox label="banner_overlay" border>横幅</el-checkbox>
               </el-checkbox-group>
+              <div v-else-if="detail.plan.statusKey === 'draft' && draftIsAudio" class="summary-tags"><em>无</em></div>
               <div v-else class="summary-tags"><el-tag v-for="type in detail.plan.processTypes" :key="type" size="small" effect="plain">{{ processTypeLabel(type) }}</el-tag><em v-if="!detail.plan.processTypes.length">无</em></div>
             </div>
             <div class="summary-setting-block">
               <span class="summary-title">执行方式</span>
-              <template v-if="detail.plan.statusKey === 'draft' && !detailIsAudio">
+              <template v-if="detail.plan.statusKey === 'draft'">
                 <el-radio-group v-model="planForm.scheduleMode" class="summary-schedule-mode">
                   <el-radio-button label="immediate">立即执行</el-radio-button>
                   <el-radio-button label="scheduled">指定时间</el-radio-button>
@@ -224,7 +228,7 @@
           </div>
         </div>
 
-        <template v-if="detail.plan.statusKey === 'draft' && !detailIsAudio">
+        <template v-if="detail.plan.statusKey === 'draft'">
           <div class="draft-workspace">
             <aside class="performer-sidebar">
               <div class="sidebar-heading">
@@ -252,8 +256,8 @@
 
             <main v-if="activePerformer" class="performer-editor">
               <div class="editor-heading">
-                <div><span class="step-badge">{{ activePerformerIndex + 1 }}</span><div><h3>配置执行项 {{ activePerformerIndex + 1 }}</h3><p>脚本已经自动带入，只需要选择人和声音并完成必要细调。</p></div></div>
-                <el-switch v-if="activePerformerIndex > 0" v-model="activePerformer.inheritFromFirst" active-text="沿用第1项设置" @change="handleInheritanceChange" />
+                <div><span class="step-badge">{{ activePerformerIndex + 1 }}</span><div><h3>配置执行项 {{ activePerformerIndex + 1 }}</h3><p>{{ draftIsAudio ? '多个形象共用一条完整音频，无需声音或脚本文案。' : '脚本已经自动带入，只需要选择人和声音并完成必要细调。' }}</p></div></div>
+                <el-switch v-if="activePerformerIndex > 0 && !draftIsAudio" v-model="activePerformer.inheritFromFirst" active-text="沿用第1项设置" @change="handleInheritanceChange" />
               </div>
 
               <div class="editor-layout">
@@ -261,15 +265,23 @@
                   <el-collapse v-model="activeConfigSections" class="config-collapse">
                     <el-collapse-item name="identity">
                       <template #title>
-                        <div class="collapse-title"><strong>数字人与声音 <span class="required">*</span></strong><span>与单条数字人生成一致</span></div>
+                        <div class="collapse-title"><strong>{{ draftIsAudio ? '数字人与共用音频' : '数字人与声音' }} <span class="required">*</span></strong><span>{{ draftIsAudio ? '完整音频，不裁剪' : '与单条数字人生成一致' }}</span></div>
                       </template>
                     <el-radio-group :model-value="activePerformer.selectionMode" class="performer-selection-modes" @update:model-value="handleSelectionModeChange">
                       <el-radio-button label="binding">选择绑定关系</el-radio-button>
                       <el-radio-button label="custom">单独选择形象和声音</el-radio-button>
                       <el-radio-button label="first_voice">多选叉乘</el-radio-button>
-                      <el-radio-button label="audio_batch">多选叉乘-音频驱动</el-radio-button>
+                      <el-radio-button label="audio">多选叉乘-音频驱动</el-radio-button>
                     </el-radio-group>
-                    <div v-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
+                    <div v-if="draftIsAudio" class="picker-row">
+                      <el-input :model-value="audioHumanLabel" readonly placeholder="点击多选数字人，最多50个" @click="openAssetPicker('human')">
+                        <template #prepend>选择形象</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('human')" /></template>
+                      </el-input>
+                      <el-input :model-value="sharedAudio[0]?.name || ''" readonly placeholder="上传入库 / 历史音频（单条共用）" @click="audioPickerVisible = true">
+                        <template #prepend>共用音频</template><template #append><el-button :icon="Search" @click.stop="audioPickerVisible = true" /></template>
+                      </el-input>
+                    </div>
+                    <div v-else-if="activePerformer.selectionMode === 'binding'" class="picker-row single-picker">
                       <el-input :model-value="selectedBinding(activePerformer)?.name || ''" readonly placeholder="点击选择绑定关系" @click="openAssetPicker('binding')">
                         <template #prepend>绑定关系</template><template #append><el-button :icon="Search" @click.stop="openAssetPicker('binding')" /></template>
                       </el-input>
@@ -302,7 +314,7 @@
                     </div>
                     </el-collapse-item>
 
-                    <el-collapse-item v-if="planForm.processTypes.length" name="enhancement">
+                    <el-collapse-item v-if="!draftIsAudio && planForm.processTypes.length" name="enhancement">
                       <template #title>
                         <div class="collapse-title"><strong>增强设置</strong><span>{{ activePerformerIndex === 0 ? '第1项必须完成，后续默认沿用' : '可取消沿用后微调' }}</span></div>
                       </template>
@@ -329,7 +341,7 @@
                     </div>
                     </el-collapse-item>
 
-                    <el-collapse-item name="script">
+                    <el-collapse-item v-if="!draftIsAudio" name="script">
                       <template #title>
                         <div class="collapse-title"><strong>本项脚本</strong><span>由父计划统一填入</span></div>
                       </template>
@@ -410,14 +422,10 @@
       <template #footer>
         <div v-if="detail.plan" class="detail-footer-actions">
           <el-button :loading="detail.loading" @click="refreshDetail"><el-icon><Refresh /></el-icon>刷新</el-button>
-          <template v-if="detail.plan.statusKey === 'draft' && detailIsAudio">
-            <el-button type="success" :loading="detail.starting" :disabled="audioStartUncertainIds.has(String(detail.plan.id))" @click="startAudioDraft">提交执行（{{ detail.children.length }} 项）</el-button>
+          <template v-if="detail.plan.statusKey === 'draft'">
+            <el-button :loading="detail.saving" :disabled="detail.starting || audioStartUncertainIds.has(String(detail.plan.id))" @click="saveDraftConfiguration(true)">保存草稿</el-button>
+            <el-button type="success" :loading="detail.starting" :disabled="detail.saving || audioStartUncertainIds.has(String(detail.plan.id))" @click="saveAndStartPlan">保存并提交执行</el-button>
             <span v-if="audioStartUncertainIds.has(String(detail.plan.id))">提交结果未确认，请刷新详情确认状态，勿重复提交。</span>
-            <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
-          </template>
-          <template v-else-if="detail.plan.statusKey === 'draft'">
-            <el-button :loading="detail.saving" @click="saveDraftConfiguration(true)">保存草稿</el-button>
-            <el-button type="success" :loading="detail.starting" @click="saveAndStartPlan">保存并提交执行</el-button>
             <el-button type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
           </template>
           <el-button v-else-if="canCancelPlan(detail.plan)" type="warning" plain @click="cancelPlan(detail.plan)">取消计划</el-button>
@@ -425,7 +433,10 @@
       </template>
     </el-drawer>
 
-    <AudioBatchDialog ref="audioBatchDialog" v-model="audioBatchVisible" @select-humans="openAudioHumanPicker" @created="audioBatchCreated" />
+    <el-dialog v-model="audioPickerVisible" title="选择共用完整音频" width="76%" append-to-body destroy-on-close>
+      <AudioAssetPicker :model-value="sharedAudio" single :active="audioPickerVisible && detail.visible && draftIsAudio" @update:model-value="setSharedAudio" />
+      <template #footer><el-button type="primary" @click="audioPickerVisible = false">完成选择</el-button></template>
+    </el-dialog>
 
     <el-dialog v-model="scriptSelector.visible" title="选择脚本" width="76%" append-to-body>
       <el-tabs v-model="scriptSelector.mode" @tab-change="handleScriptTabChange">
@@ -516,7 +527,9 @@ import { CircleCheck, Headset, Lock, Picture, Plus, Refresh, Search, Unlock } fr
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
 import SubtitlePreview from '/@/components/SubtitlePreview/index.vue'
 import VideoZipProgress from '/@/components/VideoZipProgress.vue'
-import AudioBatchDialog from '/@/components/AudioAssets/AudioBatchDialog.vue'
+import AudioAssetPicker from '/@/components/AudioAssets/AudioAssetPicker.vue'
+import { audioDraftPayload, restoreSharedAudio } from '/@/components/AudioAssets/audioDraft'
+import type { AudioAsset } from '/@/api/material/audioAssets'
 import AudioSnapshotPlayer from '/@/components/AudioAssets/AudioSnapshotPlayer.vue'
 import { directVideoUrl, downloadVideoDirect, type ZipProgress } from '/@/utils/download'
 import { downloadVideoZip } from '/@/utils/downloadInteraction'
@@ -550,7 +563,7 @@ type AssetPickerType = 'binding' | 'human' | 'voice'
 
 interface ScriptOption { id: string | number; title: string; content: string; tags: string[]; createTime?: string }
 interface AssetOption { id: string | number; name: string; coverUrl?: string; url?: string; videoUrl?: string; language?: string; gender?: string; tags?: string[] }
-type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice'
+type PerformerSelectionMode = 'binding' | 'custom' | 'first_voice' | 'audio'
 interface BindingOption { id: string | number; name: string; digitalHumanId?: string | number | null; voiceId?: string | number | null; digitalHumanName: string; voiceName: string; coverUrl?: string; voiceUrl?: string }
 interface PerformerConfig {
   key: string
@@ -558,6 +571,9 @@ interface PerformerConfig {
   bindingId: string | number | null
   digitalHumanId: string | number | null
   voiceId: string | number | null
+  audioAssetId: string | number | null
+  audioName: string
+  audioUrl: string
   inheritFromFirst: boolean
   videoOptions: { language: string; videoType: 0 | 1 }
   postProcessConfig: { processTypes: string[]; subtitleSelector: number; subtitleConfig: Record<string, any>; cornerMarkId: string | number | null; bannerOverlayId: string | number | null }
@@ -614,16 +630,18 @@ const canFilterTaskCreator = computed(() => Boolean(
 
 const planForm = reactive({
   id: null as string | number | null,
-  planName: '', scriptSource: 'manual' as ScriptSource, scriptId: null as string | number | null, historyId: null as string | number | null, scriptContent: '',
+  planName: '', scriptSource: 'manual' as ScriptSource | 'audio', scriptId: null as string | number | null, historyId: null as string | number | null, scriptContent: '',
   performerConfigs: [] as PerformerConfig[], scheduleMode: 'immediate' as ScheduleMode, scheduledAt: '', processTypes: [] as string[]
 })
 const createDialog = reactive({ visible: false, submitting: false })
-const audioBatchVisible = ref(false)
-const audioBatchDialog = ref<InstanceType<typeof AudioBatchDialog> | null>(null)
+const audioPickerVisible = ref(false)
+const sharedAudio = ref<AudioAsset[]>([])
+const draftIsAudio = computed(() => planForm.scriptSource === 'audio')
+const audioHumanLabel = computed(() => { const count = planForm.performerConfigs.filter(config => config.digitalHumanId != null).length; return count ? `已选择 ${count} 个数字人` : '' })
 const audioHumanPicker = ref(false)
 const detail = reactive({ visible: false, loading: false, saving: false, starting: false, retryingId: null as string | number | null, plan: null as BatchPlan | null, children: [] as BatchChild[] })
 function isAudioPlan(plan: BatchPlan) { return plan.script?.source === 'audio' || plan.children.some(child => child.selectionMode === 'audio') }
-const detailIsAudio = computed(() => Boolean(detail.plan && isAudioPlan(detail.plan)))
+const detailIsAudio = computed(() => detail.plan?.statusKey === 'draft' ? draftIsAudio.value : Boolean(detail.plan && isAudioPlan(detail.plan)))
 const audioStartUncertainIds = reactive(new Set<string>())
 const filteredChildren = computed(() => detail.children.filter(child => {
   const name = child.videoName || `${detail.plan?.name || '视频'}-${child.seqNo}`
@@ -671,7 +689,7 @@ const unregisterPlanListState = registerVersionRefreshState('batch-plan-list', (
   pageSize: planPageSize.value, keyword: searchKeyword.value,
   appliedKeyword: appliedPlanKeyword.value, creatorId: selectedCreatorUserId.value
 }))
-const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible || audioBatchVisible.value)
+const unregisterPlanEditBlocker = registerVersionRefreshBlocker(() => createDialog.visible || detail.visible || audioPickerVisible.value)
 const scriptSelector = reactive({ visible: false, mode: 'library' as 'library' | 'history', search: '' })
 const assetPicker = reactive({ visible: false, type: 'binding' as AssetPickerType, search: '', gender: '', multi: false })
 const selectedHumanIds = ref<string[]>([])
@@ -694,7 +712,7 @@ let tenantResourceGeneration = 0
 
 const createRules = {
   planName: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
-  scriptContent: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => value?.trim() ? callback() : callback(new Error('请输入脚本内容')), trigger: 'blur' }],
+  scriptContent: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => draftIsAudio.value || value?.trim() ? callback() : callback(new Error('请输入脚本内容')), trigger: 'blur' }],
   scheduleMode: [{ required: true, message: '请选择执行方式', trigger: 'change' }],
   scheduledAt: [{ validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
     if (planForm.scheduleMode !== 'scheduled') return callback()
@@ -783,7 +801,7 @@ function normalizeChild(item: any, index: number): BatchChild {
     id: item.id ?? index, seqNo: Number(item.seqNo ?? item.child_seq ?? index + 1), bindingId: item.bindingId ?? item.binding_id,
     selectionMode: item.selectionMode || snapshot.selectionMode || (item.bindingId ? 'binding' : 'custom'),
     digitalHumanId: snapshot.digitalHumanId ?? snapshot.human?.id ?? null, voiceId: snapshot.voiceId ?? snapshot.voice?.id ?? null,
-    audioAssetId: snapshot.audioAssetId, audioName: snapshot.audioName || '', audioUrl: snapshot.audioUrl || snapshot.audioA2eUrl || '',
+    audioAssetId: snapshot.audioAssetId ?? item.audioAssetId, audioName: snapshot.audioName || item.audioName || '', audioUrl: snapshot.audioUrl || snapshot.audioA2eUrl || item.audioUrl || '',
     bindingName: snapshot.title || `${snapshot.digitalHumanName || '数字人'} + ${snapshot.voiceName || '配音'}`,
     performerName: snapshot.digitalHumanName || '', digitalHumanName: snapshot.digitalHumanName || '', digitalHumanGender: item.digitalHumanGender || snapshot.digitalHumanGender || '',
     videoName: item.videoName || item.videoOptions?.filename || '', voiceName: snapshot.voiceName || '', statusKey: normalizeStatus(rawStatus),
@@ -818,6 +836,14 @@ function truncate(value: string, length: number) { const text = String(value || 
 function disablePastDate(date: Date) { return date.getTime() < Date.now() - 60000 }
 function canCancelPlan(plan: BatchPlan) { return ['draft', 'waiting', 'running'].includes(plan.statusKey) }
 function scheduledTimestamp(value: string) { return value ? new Date(value.includes('T') ? value : value.replace(' ', 'T')).getTime() : Number.NaN }
+function scheduledAtInput(value?: string) {
+  if (!value) return ''
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return value.replace('T', ' ').slice(0, 19)
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 function scheduledAtPayload() {
   if (planForm.scheduleMode !== 'scheduled' || !planForm.scheduledAt) return null
   const timestamp = scheduledTimestamp(planForm.scheduledAt)
@@ -834,7 +860,7 @@ function validateScheduleForSubmission() {
 function createPerformerConfig(inherit = false, selectionMode: PerformerSelectionMode = 'binding'): PerformerConfig {
   const first = planForm.performerConfigs[0]
   return {
-    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode, bindingId: null, digitalHumanId: null, voiceId: null, inheritFromFirst: inherit,
+    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, selectionMode, bindingId: null, digitalHumanId: null, voiceId: null, audioAssetId: null, audioName: '', audioUrl: '', inheritFromFirst: inherit,
     videoOptions: first && inherit ? deepClone(first.videoOptions) : { language: 'zh', videoType: 0 },
     postProcessConfig: first && inherit ? deepClone(first.postProcessConfig) : { processTypes: [...planForm.processTypes], subtitleSelector: planForm.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: deepClone(DEFAULT_SUBTITLE_CONFIG), cornerMarkId: null, bannerOverlayId: null }
   }
@@ -857,6 +883,7 @@ function selectedVoice(config: PerformerConfig) {
 function performerCover(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.coverUrl || '' : selectedHuman(config)?.coverUrl || '' }
 function performerVoiceUrl(config: PerformerConfig) { return config.selectionMode === 'binding' ? selectedBinding(config)?.voiceUrl || '' : selectedVoice(config)?.url || '' }
 function performerSummary(config: PerformerConfig) {
+  if (config.selectionMode === 'audio') return `${selectedHuman(config)?.name || '未选形象'} + ${sharedAudio.value[0]?.name || '未选共用音频'}`
   const binding = selectedBinding(config)
   if (config.selectionMode === 'binding') return binding ? `${binding.digitalHumanName} + ${binding.voiceName}` : '未选择绑定关系'
   const summary = `${selectedHuman(config)?.name || '未选形象'} + ${selectedVoice(config)?.name || '未选声音'}`
@@ -864,6 +891,7 @@ function performerSummary(config: PerformerConfig) {
   return config.selectionMode === 'first_voice' ? `${summary} · 首项声音` : summary
 }
 function performerReady(config: PerformerConfig) {
+  if (config.selectionMode === 'audio') return Boolean(config.digitalHumanId && sharedAudio.value.length === 1 && sharedAudio.value[0].id)
   if (config.selectionMode === 'binding') return Boolean(config.bindingId)
   if (config.selectionMode === 'first_voice' && config === planForm.performerConfigs[0]) return Boolean(config.digitalHumanId && config.voiceId)
   if (config.selectionMode === 'first_voice') return Boolean(config.digitalHumanId && firstPerformerVoice()?.id)
@@ -895,11 +923,12 @@ function assetSubtitle(item: any) {
 }
 
 function resetPlanForm() {
+  sharedAudio.value = []; audioPickerVisible.value = false
   Object.assign(planForm, { id: null, planName: '', scriptSource: 'manual', scriptId: null, historyId: null, scriptContent: '', performerConfigs: [], scheduleMode: 'immediate', scheduledAt: '', processTypes: [] })
   activePerformerIndex.value = 0
   createFormRef.value?.clearValidate?.()
 }
-function openCreateDialog() { resetPlanForm(); createDialog.visible = true }
+function openCreateDialog(mode: 'manual' | 'audio' = 'manual') { resetPlanForm(); planForm.scriptSource = mode; createDialog.visible = true }
 function markScriptManual() { planForm.scriptSource = 'manual'; planForm.scriptId = null; planForm.historyId = null }
 function openScriptSelector(mode: 'library' | 'history') { scriptSelector.mode = mode; scriptSelector.search = ''; scriptSelector.visible = true; mode === 'library' ? loadScripts() : loadHistory() }
 function handleScriptTabChange(name: string | number) { scriptSelector.mode = String(name) as 'library' | 'history'; scriptSelector.search = ''; scriptSelector.mode === 'library' ? loadScripts() : loadHistory() }
@@ -912,7 +941,7 @@ async function createDraftPlan() {
   try {
     const sourceId = planForm.scriptSource === 'library' ? planForm.scriptId : planForm.scriptSource === 'history' ? planForm.historyId : null
     const response = await createVideoBatchPlan({
-      planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: planForm.scriptContent.trim() }, performerConfigs: [],
+      planName: planForm.planName.trim(), script: { source: planForm.scriptSource, sourceId, title: '', content: draftIsAudio.value ? '' : planForm.scriptContent.trim() }, performerConfigs: [],
       scheduleMode: planForm.scheduleMode, scheduledAt: planForm.scheduleMode === 'scheduled' ? new Date(planForm.scheduledAt.replace(' ', 'T')).toISOString() : null,
       videoOptions: { language: 'zh', videoType: 0 },
       postProcessConfig: { processTypes: [...planForm.processTypes] }
@@ -927,11 +956,13 @@ async function createDraftPlan() {
 }
 
 function fillPlanForm(plan: BatchPlan) {
-  if (isAudioPlan(plan)) return // Never serialize audio snapshots as text/custom performers.
-  planForm.id = plan.id; planForm.planName = plan.name; planForm.scriptSource = (plan.script?.source as ScriptSource) || 'manual'; planForm.scriptId = plan.script?.source === 'library' ? plan.script.sourceId ?? null : null; planForm.historyId = plan.script?.source === 'history' ? plan.script.sourceId ?? null : null; planForm.scriptContent = plan.script?.content || ''
-  planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = plan.scheduledAt ? String(plan.scheduledAt).replace('T', ' ').slice(0, 19) : ''; planForm.processTypes = [...plan.processTypes]
+  const audio = isAudioPlan(plan)
+  sharedAudio.value = audio ? restoreSharedAudio(plan.children) : []
+  planForm.id = plan.id; planForm.planName = plan.name; planForm.scriptSource = audio ? 'audio' : (plan.script?.source as ScriptSource) || 'manual'; planForm.scriptId = plan.script?.source === 'library' ? plan.script.sourceId ?? null : null; planForm.historyId = plan.script?.source === 'history' ? plan.script.sourceId ?? null : null; planForm.scriptContent = audio ? '' : plan.script?.content || ''
+  planForm.scheduleMode = plan.scheduleMode; planForm.scheduledAt = scheduledAtInput(plan.scheduledAt); planForm.processTypes = audio ? [] : [...plan.processTypes]
   planForm.performerConfigs = plan.children.map((child) => ({
     key: String(child.id), selectionMode: child.selectionMode as PerformerSelectionMode || (child.bindingId ? 'binding' : 'custom'), bindingId: child.bindingId ?? null, digitalHumanId: child.digitalHumanId ?? null, voiceId: child.voiceId ?? null,
+    audioAssetId: child.audioAssetId ?? null, audioName: child.audioName || '', audioUrl: child.audioUrl || '',
     inheritFromFirst: false, videoOptions: { language: 'zh', videoType: Number(child.videoOptions?.video_type ?? child.videoOptions?.videoType ?? 0) === 1 ? 1 : 0 },
     postProcessConfig: { processTypes: [...plan.processTypes], subtitleSelector: plan.processTypes.includes('subtitle') ? 1 : 0, subtitleConfig: normalizeBatchSubtitleConfig(child.postProcessConfig?.subtitleConfig || child.postProcessConfig?.subtitle_config), cornerMarkId: child.postProcessConfig?.cornerMarkId ?? child.postProcessConfig?.corner_mark_id ?? null, bannerOverlayId: child.postProcessConfig?.bannerOverlayId ?? child.postProcessConfig?.banner_overlay_id ?? null }
   }))
@@ -942,10 +973,15 @@ function fillPlanForm(plan: BatchPlan) {
       && JSON.stringify(config.postProcessConfig) === JSON.stringify(first.postProcessConfig)
   })
   if (planForm.performerConfigs.slice(1).some(config => config.selectionMode === 'first_voice') && first) first.selectionMode = 'first_voice'
-  if (!planForm.performerConfigs.length) planForm.performerConfigs = [createPerformerConfig(false)]
+  if (audio) {
+    planForm.performerConfigs.forEach(config => { config.bindingId = null; config.voiceId = null; config.inheritFromFirst = false; config.postProcessConfig = { processTypes: [], subtitleSelector: 0, subtitleConfig: {}, cornerMarkId: null, bannerOverlayId: null } })
+    if (plan.children.length && !sharedAudio.value.length) ElMessage.warning('原执行项音频不一致或快照不完整，请重新选择一条共用音频后保存')
+  }
+  if (!planForm.performerConfigs.length) planForm.performerConfigs = [createPerformerConfig(false, audio ? 'audio' : 'binding')]
   activePerformerIndex.value = 0
 }
 function addPerformer() {
+  if (draftIsAudio.value) { openAssetPicker('human'); return }
   if (planForm.performerConfigs.length >= 50) return
   const followFirstVoice = planForm.performerConfigs[0]?.selectionMode === 'first_voice'
   planForm.performerConfigs.push(createPerformerConfig(followFirstVoice, followFirstVoice ? 'first_voice' : 'custom'))
@@ -953,18 +989,34 @@ function addPerformer() {
 }
 function removePerformer(index: number) { if (planForm.performerConfigs.length <= 1) return; planForm.performerConfigs.splice(index, 1); activePerformerIndex.value = Math.max(0, Math.min(index, planForm.performerConfigs.length - 1)) }
 function resetPerformerSelection(config: PerformerConfig) { config.bindingId = null; config.digitalHumanId = null; config.voiceId = null }
-function hasOpenTextDraft() {
-  return createDialog.visible || (detail.visible && detail.plan?.statusKey === 'draft' && !detailIsAudio.value)
+function setSharedAudio(audios: AudioAsset[]) {
+  sharedAudio.value = audios.slice(0, 1)
+  const audio = sharedAudio.value[0]
+  planForm.performerConfigs.forEach(config => { config.audioAssetId = audio?.id ?? null; config.audioName = audio?.name || ''; config.audioUrl = audio?.url || '' })
 }
-function openAudioBatch() {
-  if (hasOpenTextDraft()) ElMessage.info('音频驱动将新建独立计划，当前文案配置会保留；建议先保存文案草稿。')
-  audioBatchVisible.value = true
+async function confirmDraftReplacement(message: string) {
+  try { await ElMessageBox.confirm(message, '替换执行项配置', { type: 'warning', confirmButtonText: '确认替换', cancelButtonText: '保留原配置' }); return true }
+  catch { return false }
 }
-function handleSelectionModeChange(value: PerformerSelectionMode | 'audio_batch') {
-  // 动作入口不写入执行项，避免清空选择或将 UI 标签带进旧 payload。
-  if (value === 'audio_batch') { openAudioBatch(); return }
+async function handleSelectionModeChange(value: PerformerSelectionMode) {
   const config = activePerformer.value
   if (!config || config.selectionMode === value) return
+  if (value === 'audio' || draftIsAudio.value) {
+    const id = planForm.id
+    if (!await confirmDraftReplacement('切换文案/音频模式将替换本计划全部执行项，并清空脚本、声音及增强设置；计划名称、ID和排期保持不变。是否继续？')) return
+    if (id !== planForm.id || !detail.visible || activePerformer.value !== config) return
+    stopVoicePreview(); audioPickerVisible.value = false; sharedAudio.value = []
+    planForm.scriptSource = value === 'audio' ? 'audio' : 'manual'
+    planForm.scriptId = null; planForm.historyId = null; planForm.scriptContent = ''; planForm.processTypes = []
+    planForm.performerConfigs = [createPerformerConfig(false, value)]
+    activePerformerIndex.value = 0
+    refreshActivePreview()
+    return
+  }
+  if (activePerformerIndex.value === 0 && planForm.performerConfigs.length > 1 && (value === 'first_voice' || planForm.performerConfigs.some(item => item.selectionMode === 'first_voice'))) {
+    if (!await confirmDraftReplacement('切换首项模式会替换当前多选执行项队列，是否继续？')) return
+    if (activePerformer.value !== config || !detail.visible) return
+  }
   config.selectionMode = value
   resetPerformerSelection(config)
   if (activePerformerIndex.value === 0 && value === 'first_voice') {
@@ -978,6 +1030,7 @@ function handleSelectionModeChange(value: PerformerSelectionMode | 'audio_batch'
 function clearAllPerformers() {
   if (!planForm.performerConfigs.length) return
   planForm.performerConfigs.splice(0)
+  if (draftIsAudio.value) planForm.performerConfigs.push(createPerformerConfig(false, 'audio'))
   activePerformerIndex.value = 0
   activePreviewFrame.value = ''
   activeBannerBase64.value = ''
@@ -1002,13 +1055,19 @@ function updateActiveSubtitleConfig(value: any) {
 function validateDraftForSave() {
   if (planForm.scheduleMode === 'scheduled' && (!planForm.scheduledAt || !Number.isFinite(scheduledTimestamp(planForm.scheduledAt)))) { ElMessage.warning('请选择有效的计划执行时间'); return false }
   if (planForm.performerConfigs.length > 50) { ElMessage.warning('数字人执行项最多 50 个'); return false }
+  if (draftIsAudio.value) {
+    try { audioDraftPayload(audioConfigsForSave(), sharedAudio.value) } catch (error: any) { ElMessage.warning(error.message); return false }
+  } else if (planForm.performerConfigs.some(config => config.selectionMode === 'audio')) { ElMessage.warning('同一计划不能混合文案和音频执行项'); return false }
+  else if (!planForm.scriptContent.trim()) { ElMessage.warning('请输入本计划共用脚本'); return false }
+  else if (detail.plan && isAudioPlan(detail.plan) && planForm.performerConfigs.some(config => !performerReady(config))) { ElMessage.warning('从音频切回文案后，请选完人和声音再保存，避免混合两种执行项'); return false }
   return true
 }
 function validateDraftForSubmission() {
   if (!planForm.performerConfigs.length) { ElMessage.warning('请至少添加一个数字人执行项'); return false }
   if (!validateDraftForSave() || !validateScheduleForSubmission()) return false
   const missing = planForm.performerConfigs.findIndex(config => !performerReady(config))
-  if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和声音`); return false }
+  if (missing >= 0) { activePerformerIndex.value = missing; ElMessage.warning(`请完整选择执行项 ${missing + 1} 的数字人和${draftIsAudio.value ? '共用音频' : '声音'}`); return false }
+  if (draftIsAudio.value) return true
   const first = planForm.performerConfigs[0]
   if (planForm.processTypes.includes('subtitle') && !Object.keys(first.postProcessConfig.subtitleConfig || {}).length) { activePerformerIndex.value = 0; ElMessage.warning('请先完成第1项字幕设置'); return false }
   if (planForm.processTypes.includes('corner_mark') && !first.postProcessConfig.cornerMarkId) { activePerformerIndex.value = 0; ElMessage.warning('请先为第1项选择角标'); return false }
@@ -1017,7 +1076,12 @@ function validateDraftForSubmission() {
   if (planForm.processTypes.includes('banner_overlay') && !bannerOverlayOptions.value.find(item => String(item.id) === String(first.postProcessConfig.bannerOverlayId))?.url) { activePerformerIndex.value = 0; ElMessage.warning('所选横幅缺少图片地址，请重新生成横幅'); return false }
   return true
 }
+function audioConfigsForSave() {
+  // The sole empty editor is a UI placeholder, not an executable child.
+  return planForm.performerConfigs.length === 1 && !planForm.performerConfigs[0].digitalHumanId ? [] : planForm.performerConfigs
+}
 function buildDraftPayload() {
+  if (draftIsAudio.value) return { ...audioDraftPayload(audioConfigsForSave(), sharedAudio.value), scheduleMode: planForm.scheduleMode, scheduledAt: scheduledAtPayload() }
   const first = planForm.performerConfigs[0]
   const allPerformersReady = Boolean(first) && planForm.performerConfigs.every(performerReady)
   const configs = planForm.performerConfigs.map((config, index) => {
@@ -1030,35 +1094,40 @@ function buildDraftPayload() {
     return { selectionMode: 'custom', digitalHumanId: config.digitalHumanId, voiceId: config.voiceId, videoOptions: effectiveVideo, postProcessConfig: effectivePost }
   })
   const payload: Record<string, any> = {
+    script: { source: planForm.scriptSource, sourceId: planForm.scriptSource === 'library' ? planForm.scriptId : planForm.scriptSource === 'history' ? planForm.historyId : null, content: planForm.scriptContent.trim() },
     videoOptions: deepClone(first?.videoOptions || { language: 'zh', videoType: 0 }),
     postProcessConfig: { processTypes: [...planForm.processTypes] },
     scheduleMode: planForm.scheduleMode,
     scheduledAt: scheduledAtPayload()
   }
-  if (allPerformersReady) payload.performerConfigs = configs
+  if (allPerformersReady || !configs.length) payload.performerConfigs = configs
   return payload
 }
 async function saveDraftConfiguration(notify = true) {
-  if (detailIsAudio.value) return false
   if (!detail.plan || !validateDraftForSave()) return false
+  if (audioStartUncertainIds.has(String(detail.plan.id))) { ElMessage.warning('提交结果未确认，请先刷新详情，勿覆盖或重复提交'); return false }
   detail.saving = true
   try {
     const hasIncompletePerformer = planForm.performerConfigs.some(config => !performerReady(config))
     await updateVideoBatchPlan(detail.plan.id, buildDraftPayload())
-    if (notify) ElMessage.success(hasIncompletePerformer ? '计划设置已保存；执行项选完人和声音后再保存' : '草稿配置已保存')
+    if (notify) ElMessage.success(!draftIsAudio.value && hasIncompletePerformer ? '计划设置已保存；执行项选完人和声音后再保存' : '草稿配置已保存')
     await refreshDetail(); await loadPlanList(); return true
   } catch (error: any) { ElMessage.error(error?.message || '草稿保存失败'); return false } finally { detail.saving = false }
 }
 async function saveAndStartPlan() {
-  if (!detail.plan || !validateDraftForSubmission()) return
+  if (!detail.plan || detail.starting || audioStartUncertainIds.has(String(detail.plan.id)) || !validateDraftForSubmission()) return
+  const planId = detail.plan.id
+  let submitted = false
   detail.starting = true
   try {
     const saved = await saveDraftConfiguration(false)
     if (!saved) return
     await ElMessageBox.confirm(`将提交 ${planForm.performerConfigs.length} 个视频任务，是否继续？`, '提交执行', { type: 'warning', confirmButtonText: '提交', cancelButtonText: '返回配置' })
     if (!validateScheduleForSubmission()) return
-    await startVideoBatchPlan(detail.plan.id); ElMessage.success('计划已提交执行'); await refreshDetail(); await loadPlanList()
-  } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '提交执行失败') } finally { detail.starting = false }
+    if (!detail.visible || detail.plan?.id !== planId) return
+    submitted = true
+    await startVideoBatchPlan(planId); ElMessage.success('计划已提交执行'); await refreshDetail(); await loadPlanList()
+  } catch (error: any) { if (error !== 'cancel' && error !== 'close') { if (submitted) audioStartUncertainIds.add(String(planId)); ElMessage.error(error?.message || '提交结果未确认，请刷新详情') } } finally { detail.starting = false }
 }
 
 async function loadCreatorOptions() {
@@ -1107,32 +1176,23 @@ async function loadPlanList(options: { silent?: boolean } = {}) {
     }
   }
 }
-async function openDetail(row: BatchPlan) { if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() } detail.visible = true; detail.loading = true; detail.plan = null; try { const response = await getVideoBatchPlanDetail(row.id); const plan = normalizePlan(getResponseData(response)); detail.plan = plan; detail.children = plan.children; selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl)); if (plan.statusKey !== 'draft') audioStartUncertainIds.delete(String(plan.id)); if (plan.statusKey === 'draft' && !isAudioPlan(plan)) { await loadResources(true); fillPlanForm(plan); await nextTick(); refreshActivePreview() } } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') } finally { detail.loading = false } }
-async function audioBatchCreated(id: string | number) {
-  audioBatchVisible.value = false
-  if (hasOpenTextDraft()) {
-    // 不跳转/重新填充详情，否则原文案计划尚未保存的执行项配置会丢失。
-    ElMessage.success('音频计划已创建，可在列表中查看；当前文案草稿配置已保留。')
-  } else {
-    await openDetail({ id } as BatchPlan)
-  }
-  await loadPlanList()
-}
-async function startAudioDraft() {
-  const plan = detail.plan
-  if (!plan || !isAudioPlan(plan) || plan.statusKey !== 'draft' || detail.starting || audioStartUncertainIds.has(String(plan.id))) return
-  if (!plan.children.length || plan.children.length > 50) { ElMessage.warning('音频执行项必须为 1～50 项'); return }
-  detail.starting = true
-  let submitted = false
+async function openDetail(row: BatchPlan) {
+  if (String(detail.plan?.id || '') !== String(row.id)) { childNameQuery.value = ''; childGenderQuery.value = ''; selectedChildIds.value = []; applyChildFilters() }
+  detail.visible = true; detail.loading = true; detail.plan = null
   try {
-    await ElMessageBox.confirm(`将提交 ${plan.children.length} 个音频驱动视频任务，是否继续？无需配音或文案，不裁剪音频。`, '提交音频计划', { type: 'warning', confirmButtonText: '提交执行', cancelButtonText: '返回详情' })
-    if (detail.plan?.id !== plan.id || !detail.visible) return
-    submitted = true
-    await startVideoBatchPlan(plan.id)
-    ElMessage.success('音频计划已提交执行'); await refreshDetail(); await loadPlanList()
-  } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') { if (submitted) audioStartUncertainIds.add(String(plan.id)); ElMessage.error(error?.message || '提交结果未确认，请刷新详情') }
-  } finally { detail.starting = false }
+    const response = await getVideoBatchPlanDetail(row.id)
+    const plan = normalizePlan(getResponseData(response))
+    detail.plan = plan; detail.children = plan.children
+    selectedChildIds.value = selectedChildIds.value.filter(id => plan.children.some(child => String(child.id) === id && child.videoUrl))
+    if (plan.statusKey !== 'draft') audioStartUncertainIds.delete(String(plan.id))
+    if (plan.statusKey === 'draft') {
+      fillPlanForm(plan)
+      if (isAudioPlan(plan)) await loadHumans()
+      else await loadResources(true)
+      await nextTick(); refreshActivePreview()
+    }
+  } catch (error: any) { detail.visible = false; ElMessage.error(error?.message || '计划详情加载失败') }
+  finally { detail.loading = false }
 }
 async function refreshDetail() { if (detail.plan) await openDetail(detail.plan) }
 function stopVoicePreview() {
@@ -1142,7 +1202,7 @@ function stopVoicePreview() {
   audio.pause()
   audio.currentTime = 0
 }
-function closeDetail() { activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; stopVoicePreview() }
+function closeDetail() { audioPickerVisible.value = false; assetPicker.visible = false; activePreviewFrame.value = ''; activeBannerBase64.value = ''; previewLoadSequence += 1; stopVoicePreview() }
 async function cancelPlan(row: BatchPlan) { try { await ElMessageBox.confirm(row.statusKey === 'draft' ? '取消后，该草稿将不能继续配置或提交。' : '取消后，尚未投递的子任务不会再进入通道。', '取消计划', { type: 'warning' }); await cancelVideoBatchPlan(row.id); ElMessage.success('计划已取消'); await loadPlanList(); if (detail.visible) await refreshDetail() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '取消失败') } }
 async function deletePlan(row: BatchPlan) { try { await ElMessageBox.confirm('删除未提交计划后不可恢复。', '删除计划', { type: 'warning' }); await deleteVideoBatchPlan(row.id); ElMessage.success('计划已删除'); await loadPlanList() } catch (error: any) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '删除失败') } }
 async function retryChild(row: BatchChild) { try { await retryVideoBatchChild(row.id); ElMessage.success('失败任务已重新进入队列'); await refreshDetail() } catch (error: any) { ElMessage.error(error?.message || '重试失败') } }
@@ -1219,14 +1279,14 @@ async function loadBanners(force = false) {
 async function loadResources(refreshEnhancements = false) { await Promise.all([loadScripts(), loadHistory(), loadBindings(), loadHumans(), loadVoices(), loadCorners(refreshEnhancements), loadBanners(refreshEnhancements)]) }
 
 async function openAssetPicker(type: AssetPickerType) {
-  audioHumanPicker.value = false
+  audioHumanPicker.value = draftIsAudio.value && type === 'human'
   assetPicker.type = type
   assetPicker.search = ''
   assetPicker.gender = ''
-  assetPicker.multi = type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice'
+  assetPicker.multi = audioHumanPicker.value || (type === 'human' && activePerformerIndex.value === 0 && activePerformer.value?.selectionMode === 'first_voice')
   selectedHumanIds.value = assetPicker.multi
     ? planForm.performerConfigs
-      .filter((config, index) => index === 0 || config.selectionMode === 'first_voice')
+      .filter((config, index) => audioHumanPicker.value || index === 0 || config.selectionMode === 'first_voice')
       .map(config => String(config.digitalHumanId))
       .filter(id => id !== 'null')
     : []
@@ -1235,13 +1295,6 @@ async function openAssetPicker(type: AssetPickerType) {
   else if (type === 'human') {
     await loadHumans(true)
   } else await loadVoices()
-}
-async function openAudioHumanPicker(humans: { id: number | string }[]) {
-  audioHumanPicker.value = true
-  assetPicker.type = 'human'; assetPicker.search = ''; assetPicker.gender = ''; assetPicker.multi = true
-  selectedHumanIds.value = humans.map(item => String(item.id))
-  assetPicker.visible = true
-  try { await loadHumans(true) } catch (error: any) { ElMessage.error(error?.message || '数字人加载失败，请重新选择') }
 }
 function resetAssetPickerState() { audioHumanPicker.value = false; assetPicker.multi = false; selectedHumanIds.value = []; humanPickerPreferenceSaving.value = false; stopVoicePreview() }
 function resetTenantScopedResources() {
@@ -1295,15 +1348,34 @@ async function toggleHumanPickerScaleLock() {
   humanPickerScaleLocked.value = !humanPickerScaleLocked.value
   await saveHumanPickerPreference()
 }
-function confirmMultiHumanSelection() {
+async function confirmMultiHumanSelection() {
   if (!selectedHumanIds.value.length) { ElMessage.warning('请至少选择一个数字人'); return }
+  if (selectedHumanIds.value.length > 50) { ElMessage.warning('最多选择50个形象'); return }
   if (audioHumanPicker.value) {
-    if (selectedHumanIds.value.length > 50) { ElMessage.warning('最多选择50个形象'); return }
     const selected = selectedHumanIds.value.map(id => digitalHumanOptions.value.find(item => String(item.id) === id))
     if (selected.some(item => !item)) { ElMessage.warning('部分形象不可用，请重新选择'); return }
-    audioBatchDialog.value?.setHumans(selected.map(item => ({ id: item!.id, name: item!.name })))
+    const id = planForm.id
+    const previous = planForm.performerConfigs
+    const nextIds = new Set(selectedHumanIds.value)
+    const removesConfigured = previous.some(config => config.digitalHumanId != null && !nextIds.has(String(config.digitalHumanId)))
+    if (removesConfigured && !await confirmDraftReplacement('新的形象选择将移除未勾选的执行项，所有形象仍共用当前音频。是否继续？')) return
+    if (id !== planForm.id || !draftIsAudio.value || !assetPicker.visible) return
+    planForm.performerConfigs = selected.map(item => {
+      const existing = previous.find(config => String(config.digitalHumanId) === String(item!.id))
+      const config = existing || createPerformerConfig(false, 'audio')
+      config.digitalHumanId = item!.id
+      return config
+    })
+    setSharedAudio(sharedAudio.value)
+    activePerformerIndex.value = 0
     assetPicker.visible = false
+    refreshActivePreview()
     return
+  }
+  const previous = planForm.performerConfigs
+  if (previous.some(config => config.digitalHumanId || config.bindingId || config.voiceId)) {
+    if (!await confirmDraftReplacement('确认后将覆盖当前执行项队列，后续声音跟随第1项。是否继续？')) return
+    if (previous !== planForm.performerConfigs || !assetPicker.visible) return
   }
   const first = planForm.performerConfigs[0] || createPerformerConfig(false, 'first_voice')
   const nextConfigs: PerformerConfig[] = []
@@ -1326,7 +1398,7 @@ function confirmMultiHumanSelection() {
 function playVoice(url: string, name: string) { if (!url) return; stopVoicePreview(); voiceAudio = new Audio(url); voiceAudio.play().catch(() => ElMessage.info(`无法试听${name || '该声音'}`)) }
 async function blobToDataUrl(blob: Blob) { return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(blob) }) }
 async function loadImageBase64(url: string) { if (!url) return ''; const response = await downloadFileByProxy(url); const blob = response?.data instanceof Blob ? response.data : null; return blob ? await blobToDataUrl(blob) : '' }
-async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
+async function refreshActivePreview() { const sequence = ++previewLoadSequence; activePreviewFrame.value = ''; activeBannerBase64.value = ''; const config = activePerformer.value; if (!config || draftIsAudio.value) return; const cover = performerCover(config); const bannerUrl = bannerOverlayOptions.value.find(item => String(item.id) === String(activeEffectivePostProcessConfig.value.bannerOverlayId))?.url || ''; const [frame, banner] = await Promise.all([cover ? loadImageBase64(cover).catch(() => '') : Promise.resolve(''), bannerUrl ? loadImageBase64(bannerUrl).catch(() => '') : Promise.resolve('')]); if (sequence === previewLoadSequence) { activePreviewFrame.value = frame; activeBannerBase64.value = banner } }
 
 function openVideoPreview(child: BatchChild) { stopPreview(); try { preview.sourceUrl = directVideoUrl(child.videoUrl); preview.taskId = child.videoTaskId || child.id; preview.title = `${child.digitalHumanName || '数字人'} · 视频预览`; preview.visible = true; preview.url = preview.sourceUrl } catch (error: any) { ElMessage.error(error?.message || '视频预览失败') } }
 function handleVideoPreviewError() { if (!preview.visible || preview.fallbackUsed || !preview.sourceUrl) return; preview.fallbackUsed = true; preview.loading = false; ElMessage.error('视频直连预览失败，请检查 TOS 公网访问配置') }
@@ -1366,7 +1438,7 @@ watch(() => layoutStore.getUserInfo.tenantId, () => {
   resetTenantScopedResources()
   resetPlanForm()
   createDialog.visible = false
-  audioBatchVisible.value = false
+  audioPickerVisible.value = false
   detail.visible = false
   detail.plan = null
   detail.children = []

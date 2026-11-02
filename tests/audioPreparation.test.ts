@@ -13,10 +13,10 @@ const preparation: AudioPreparation = {
     originalUrl: '/original.mp3', referenceUrl: '/reference.mp3', processedUrl: '/processed.mp3', errorCode: ''
 }
 
-test.each([0, 1, '0', '1', 'waiting', 'processing'])('pending parent %s displays optimization without mutating it', status => {
+test.each([0, 1, '0', '1', 'waiting', 'processing'])('pending parent %s displays waiting without mutating it', status => {
     const value = { ...preparation }
     expect(isAudioOptimizing(value, status)).toBe(true)
-    expect(audioPreparationLabel(value)).toBe('音频优化处理中')
+    expect(audioPreparationLabel(value)).toBe('等待中')
     expect(value).toEqual(preparation)
 })
 test.each([2, 3, 4, -1, '2', '3', '4', '-1', 'success', 'failed', 'uncertain'])('terminal/uncertain parent %s is never overridden', status => {
@@ -106,7 +106,8 @@ test('actual training entries use detail-only players and scoped existing APIs',
 test.each([
     'src/components/AudioAssets/AudioAssetPicker.vue', 'src/components/AudioAssets/AudioAssetManager.vue',
     'src/components/AudioAssets/AudioBatchDialog.vue', 'src/components/AudioAssets/audioBatch.ts',
-    'src/api/material/audioAssets.ts', 'src/views/GenerateMaterials/GeneratePlan.vue',
+    // GeneratePlan intentionally uses the inline same-plan editor now; covered by audioDraftInline.test.ts.
+    'src/api/material/audioAssets.ts',
     'src/views/GenerateMaterials/GenerateVideo.vue', 'src/views/GenerateMaterials/GenerateVoice.vue'
 ])('8e165db batch/shared-single-audio/quota/hidden controls preserved byte-for-byte: %s', filename => {
     const baseline = execFileSync('git', ['show', `8e165db:${filename}`], { cwd: root, encoding: 'utf8' })
