@@ -1,4 +1,5 @@
 import request from '/@/utils/request'
+import type { AudioPreparation } from '/@/components/StandaloneAudioTools/audioPreparation'
 
 export type AudioTool = 'voice-training' | 'audio-dubbing'
 export type AudioTaskStatus = '0' | '1' | '2' | '-1' | 'uncertain'
@@ -19,6 +20,7 @@ export interface AudioTask {
     endTime: string
     canRetry: boolean
     attemptNo: number
+    audioPreparation?: AudioPreparation | null
 }
 export interface AudioQuery {
     page: number

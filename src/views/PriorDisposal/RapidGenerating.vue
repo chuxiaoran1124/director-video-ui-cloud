@@ -105,9 +105,9 @@
           </el-table-column>
           <el-table-column label="任务进度" min-width="125">
             <template #default="scope">
-              <div v-if="scope.row.taskStatus === 0 || scope.row.taskStatus === 1 || scope.row.taskStatus === 2" class="px-2">
+              <div v-if="scope.row.taskStatus === 0 || scope.row.taskStatus === 1 || scope.row.taskStatus === 2 || scope.row.taskStatus === 'processing'" class="px-2">
                 <div class="flex justify-between text-[10px] text-slate-400 mb-1 leading-none">
-                  <span>{{ getProgressText(scope.row.taskStatus) }}</span>
+                  <span>{{ isAudioOptimizing(scope.row.audioPreparation, scope.row.taskStatus) ? '音频优化处理中' : getProgressText(scope.row.taskStatus) }}</span>
                   <span>{{ scope.row.progress }}%</span>
                 </div>
                 <el-progress :percentage="scope.row.progress" :stroke-width="8" striped striped-flow :show-text="false" />
@@ -140,6 +140,7 @@
           <el-table-column label="操作" min-width="120" align="center">
             <template #default="scope">
               <div class="task-actions">
+                <el-button v-if="scope.row.audioPreparation" class="!mx-0 !px-1" size="small" plain @click="showTrainingDetail(scope.row)">详情</el-button>
                 <el-button v-if="scope.row.status === 'success'" class="!mx-0 !px-1" size="small" type="primary" plain @click="handleViewAsset(scope.row)">
                   <el-icon class="mr-1"><el-icon-view /></el-icon>查看资产
                 </el-button>
@@ -429,6 +430,14 @@
       </div>
     </div>
 
+    <el-dialog v-model="trainingDetailVisible" title="训练任务详情" width="min(620px, 94vw)">
+      <template v-if="trainingDetail">
+        <p>名称：{{ trainingDetail.name }}</p>
+        <p>状态：{{ getStatusLabel(trainingDetail) }}</p>
+        <AudioPreparationDetail v-if="trainingDetailVisible && trainingDetail.audioPreparation" :key="trainingDetail.id" :preparation="trainingDetail.audioPreparation" />
+      </template>
+    </el-dialog>
+
     <!-- 资产预览弹窗 -->
     <el-dialog
       v-model="previewVisible"
@@ -501,7 +510,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onDeactivated, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import JSZip from 'jszip'
 import { useLayoutStore } from '/@/store/modules/layout'
@@ -511,6 +521,8 @@ import { getUserList, IUserListItem } from '/@/api/user'
 import { fetchDirectBlob, fetchProxyBlob, normalizeAssetUrl, sanitizeFileName, triggerBlobDownload } from '/@/utils/download'
 import { beginCriticalOperation } from '/@/utils/criticalOperation'
 import { consumeVersionRefreshState, registerVersionRefreshBlocker, registerVersionRefreshState } from '/@/utils/versionRefresh'
+import AudioPreparationDetail from '/@/components/StandaloneAudioTools/AudioPreparationDetail.vue'
+import { isAudioOptimizing } from '/@/components/StandaloneAudioTools/audioPreparation'
 
 // --- 鐘舵€佹帶鍒?---
 const isCreating = ref(false)
@@ -534,6 +546,34 @@ const creatorUserId = ref<number | ''>('')
 const creatorOptions = ref<IUserListItem[]>([])
 const creatorOptionsLoading = ref(false)
 const currentTenantContextId = computed(() => Number(layoutStore.getCurrentTenant?.id || 0))
+const trainingDetailVisible = ref(false)
+const trainingDetail = ref<any>(null)
+const trainingDetailScope = computed(() => `${currentTenantContextId.value}:${layoutStore.getUserInfo.userId}`)
+let trainingDetailRequest = 0
+const closeTrainingDetail = () => {
+  trainingDetailRequest++
+  trainingDetailVisible.value = false
+  trainingDetail.value = null
+}
+const showTrainingDetail = async (row: any) => {
+  const ticket = ++trainingDetailRequest
+  const scope = trainingDetailScope.value
+  trainingDetail.value = row
+  trainingDetailVisible.value = true
+  try {
+    const res = await getFastTaskDetail(row.id, { hideLoading: true, silentError: true })
+    if (ticket !== trainingDetailRequest || !trainingDetailVisible.value || scope !== trainingDetailScope.value) return
+    if (res.data?.code !== 200 || !res.data?.data) throw new Error('detail unavailable')
+    const data = res.data.data
+    trainingDetail.value = { ...row, ...data, name: data.digitalHumanName || data.name || row.name }
+  } catch {
+    if (ticket === trainingDetailRequest && trainingDetailVisible.value && scope === trainingDetailScope.value) ElMessage.warning('详情刷新失败，已保留当前信息，请稍后重试')
+  }
+}
+watch(trainingDetailVisible, visible => { if (!visible) closeTrainingDetail() })
+watch(trainingDetailScope, closeTrainingDetail)
+onBeforeRouteLeave(closeTrainingDetail)
+onDeactivated(closeTrainingDetail)
 const previewVisible = ref(false)
 const currentAsset = ref<any>(null)
 const previewVideoRef = ref<HTMLVideoElement | null>(null)
@@ -748,7 +788,8 @@ const loadTaskList = async (silent = false) => {
       totalCount.value = responseData?.total || 0  // 淇濆瓨API杩斿洖鐨勬€绘暟
       
       taskList.value = taskListData.map((item: any) => {
-        const taskStatus = Number(item.taskStatus)
+        const numericStatus = Number(item.taskStatus)
+        const taskStatus = Number.isFinite(numericStatus) ? numericStatus : item.taskStatus
         let statusType = 'processing'
         let progress = 50
         
@@ -782,10 +823,13 @@ const loadTaskList = async (silent = false) => {
           endTime: item.endTime,
           videoUrl: item.videoUrl,
           voiceUrl: item.voiceUrl,
+          audioPreparation: item.audioPreparation,
           gender: item.gender === 'male' ? '男' : '女',
           errorMessage: item.errorMessage || item.error_message || ''  // 保存失败原因
         }
       })
+      const selected = taskList.value.find(item => item.id === trainingDetail.value?.id)
+      if (trainingDetailVisible.value && selected) trainingDetail.value = { ...trainingDetail.value, ...selected }
     }
   } catch (error) {
     if (!silent && requestId === activeFastListRequest) console.error('Failed to load fast tasks:', error)
@@ -831,6 +875,7 @@ const getStatusType = (status: string) => {
 
 const getStatusLabel = (row: any) => {
   const taskStatus = row.taskStatus ?? row.status
+  if (isAudioOptimizing(row.audioPreparation, taskStatus)) return '音频优化处理中'
   
   // 如果是数字状态码
   if (typeof taskStatus === 'number') {
@@ -839,8 +884,8 @@ const getStatusLabel = (row: any) => {
   }
   
   // 如果是字符串状态
-  const map: any = { success: '已完成', processing: '处理中', failed: '克隆失败' }
-  return map[taskStatus] || taskStatus
+  const map: any = { '0': '等待中', '1': '生成音频中', '2': '生成视频中', '3': '已完成', '4': '任务失败', '-1': '任务失败', waiting: '等待中', success: '已完成', processing: '处理中', failed: '克隆失败' }
+  return map[taskStatus] || '未知状态'
 }
 
 const isFailedTask = (row: any) => {
@@ -1208,7 +1253,6 @@ const exportAssetPackage = async () => {
 }
 
 const handleViewAsset = (row: any) => {
-  console.log('Viewing asset:', row)
   currentAsset.value = row
   previewVisible.value = true
 }
@@ -1625,6 +1669,7 @@ watch(
 )
 
 onUnmounted(() => { 
+  closeTrainingDetail()
   unregisterListState()
   unregisterTrainingEditBlocker()
   if (timer) clearInterval(timer)

@@ -25,7 +25,7 @@
                 <el-table-column label="性别" width="70"><template #default="{ row }">{{ genderLabel(row.gender) }}</template></el-table-column>
                 <el-table-column label="语言" width="70"><template #default="{ row }">{{ row.language === 'zh' ? '中文' : row.language === 'en' ? '英文' : '—' }}</template></el-table-column>
                 <el-table-column v-if="training" label="模型" width="80"><template #default="{ row }">{{ row.model === 'a2e' ? 'A2E' : row.model || '—' }}</template></el-table-column>
-                <el-table-column label="状态" width="125"><template #default="{ row }"><el-tag :type="statusType(row.taskStatus)">{{ statusLabels[row.taskStatus] || '状态待确认' }}</el-tag></template></el-table-column>
+                <el-table-column label="状态" :width="training ? 160 : 125"><template #default="{ row }"><el-tag :type="statusType(row.taskStatus)">{{ taskStatusLabel(row) }}</el-tag></template></el-table-column>
                 <el-table-column prop="attemptNo" label="尝试次数" width="90" />
                 <el-table-column label="创建时间" min-width="175"><template #default="{ row }">{{ formatTaskTime(row.createTime) }}</template></el-table-column>
                 <el-table-column label="更新时间" min-width="175"><template #default="{ row }">{{ formatTaskTime(row.updateTime) }}</template></el-table-column>
@@ -91,14 +91,15 @@
         </el-dialog>
         <el-dialog v-model="detailVisible" title="任务详情" width="min(620px, 94vw)">
             <template v-if="detail">
-                <p>名称：{{ detail.name }}</p><p>状态：{{ statusLabels[detail.taskStatus] }}</p>
+                <p>名称：{{ detail.name }}</p><p>状态：{{ taskStatusLabel(detail) }}</p>
                 <p>创建时间：{{ formatTaskTime(detail.createTime) }}</p><p>更新时间：{{ formatTaskTime(detail.updateTime) }}</p>
                 <p>开始时间：{{ formatTaskTime(detail.startTime) }}</p><p>结束时间：{{ formatTaskTime(detail.endTime) }}</p>
                 <p>尝试次数：{{ detail.attemptNo }}</p>
                 <p v-if="detail.taskStatus === 'uncertain'">任务结果待确认，请等待后台核实；仅在允许重试时操作，避免重复生成。</p>
-                <p v-if="detail.errorMessage || detail.statusHint || ['-1', 'uncertain'].includes(detail.taskStatus)" class="error">{{ taskExplanation(detail) }}</p>
+                <p v-if="showTaskExplanation(detail)" class="error">{{ taskExplanation(detail) }}</p>
                 <p v-if="detail.audioSourceDeleted">源音频已删除，任务历史保留，无法试听或下载。</p>
                 <p v-else-if="detail.taskStatus === '2' && !detail.outputUrl">任务已完成，暂未返回音频地址，请稍后刷新。</p>
+                <AudioPreparationDetail v-if="training && detailVisible && detail.audioPreparation" :key="detail.id" :preparation="detail.audioPreparation" />
             </template>
         </el-dialog>
     </section>
@@ -120,6 +121,8 @@ import { newIdempotencyKey, readSampleDuration, statusLabels } from './media'
 import { useAudioTasks } from './useAudioTasks'
 import VoicePicker from './VoicePicker.vue'
 import { formatTaskTime } from './time'
+import AudioPreparationDetail from './AudioPreparationDetail.vue'
+import { isAudioOptimizing } from './audioPreparation'
 
 const props = defineProps<{ tool: AudioTool }>()
 const training = props.tool === 'voice-training'
@@ -153,8 +156,9 @@ const previewUrl = ref('')
 const previewName = ref('')
 const player = ref<HTMLAudioElement>()
 const detailVisible = ref(false)
-const detail = computed(() => rows.value.find(row => row.id === detailId.value) || null)
+const detail = ref<AudioTask | null>(null)
 const detailId = ref<number | null>(null)
+let detailRequest = 0
 let fileVersion = 0
 let nameVersion = 0
 let cancelProbe: (() => void) | undefined
@@ -165,10 +169,16 @@ let unregisterState: (() => void) | undefined
 const unregisterBlocker = registerVersionRefreshBlocker(() => submitting.value || downloading.value || actionId.value !== null || (active.value && (creating.value || previewVisible.value)))
 
 function statusType(status: string) { return status === '2' ? 'success' : status === '-1' ? 'danger' : status === '0' ? 'info' : 'warning' }
+function taskStatusLabel(row: AudioTask) {
+    return training && isAudioOptimizing(row.audioPreparation, row.taskStatus) ? '音频优化处理中' : statusLabels[row.taskStatus] || '状态待确认'
+}
 function genderLabel(gender: string) { return gender === 'male' ? '男' : gender === 'female' ? '女' : '—' }
+function showTaskExplanation(row: AudioTask) {
+    return ['-1', 'uncertain'].includes(row.taskStatus) || (!training && !!(row.errorMessage || row.statusHint))
+}
 function taskExplanation(row: AudioTask) {
     if (layout.getUserInfo.isPlatformSuperAdmin) return row.errorMessage || row.statusHint || '请联系管理员确认任务状态'
-    return row.statusHint || (row.taskStatus === 'uncertain' ? '任务结果待确认，请等待后台核实' : '任务处理失败，请重试或联系管理员')
+    return (!training && row.statusHint) || (row.taskStatus === 'uncertain' ? '任务结果待确认，请等待后台核实' : '任务处理失败，请重试或联系管理员')
 }
 function hasOutput(row: AudioTask) { return !row.audioSourceDeleted && row.taskStatus === '2' && /^https?:\/\//i.test(row.outputUrl || '') }
 function selectionChanged(selection: AudioTask[]) { if (!restoringSelection) selectedIds.value = selection.map(row => row.id) }
@@ -178,6 +188,8 @@ function changePage(page: number) { query.page = page; clearSelection(); persist
 function changeSize(size: number) { query.pageSize = size; clearSelection(); search() }
 watch(() => JSON.stringify(query.search), persist)
 watch(rows, async () => {
+    const current = rows.value.find(row => row.id === detailId.value)
+    if (detailVisible.value && current) detail.value = { ...detail.value, ...current }
     const ids = selectedIds.value.filter(id => rows.value.some(row => row.id === id))
     restoringSelection = true
     await nextTick()
@@ -280,7 +292,21 @@ async function submit() {
         if (scopeKey.value === requestScope) ElMessage.error(`${(error as Error).message || '提交失败'}；若网络中断，保持内容不变重试可避免重复创建`)
     } finally { submitting.value = false; endCritical() }
 }
-function showDetail(row: AudioTask) { detailId.value = row.id; detailVisible.value = true }
+async function showDetail(row: AudioTask) {
+    detailId.value = row.id
+    detail.value = row
+    detailVisible.value = true
+    if (!training) return
+    const ticket = ++detailRequest
+    const requestScope = scopeKey.value
+    try {
+        const result = await api.detail(row.id)
+        if (ticket === detailRequest && detailVisible.value && active.value && requestScope === scopeKey.value && detailId.value === row.id) detail.value = result
+    } catch {
+        if (ticket === detailRequest && detailVisible.value && requestScope === scopeKey.value) ElMessage.warning('详情刷新失败，已保留当前信息，请稍后重试')
+    }
+}
+watch(detailVisible, visible => { if (!visible) { detailRequest++; detail.value = null; detailId.value = null } })
 function stopPlayback() {
     player.value?.pause()
     player.value?.removeAttribute('src')
