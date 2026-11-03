@@ -65,6 +65,17 @@ beforeEach(async () => {
 })
 afterEach(() => wrapper?.unmount())
 
+test('list header only exposes new-plan entry; audio mode remains inside the editor', async () => {
+  const hero = wrapper.find('.hero-actions')
+  expect(hero.text()).toContain('新建批量计划')
+  expect(hero.text()).not.toContain('多选叉乘-音频驱动')
+  expect(hero.element.children).toHaveLength(1)
+  await wrapper.find('.hero-actions > div').trigger('click'); await flush()
+  expect(vm.createDialog.visible).toBe(true)
+  expect(vm.planForm.scriptSource).toBe('manual')
+  expect(source).toContain('<el-radio-button label="audio">多选叉乘-音频驱动</el-radio-button>')
+})
+
 test('Vue script and template compile; legacy new-plan AudioBatchDialog is absent', () => {
   const { descriptor, errors } = parse(source)
   expect(errors).toEqual([])

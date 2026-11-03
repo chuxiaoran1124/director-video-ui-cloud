@@ -7,7 +7,6 @@
         <p>先创建计划，再进入详情逐个配置数字人执行项。</p>
       </div>
       <div class="hero-actions">
-        <el-button @click="openCreateDialog('audio')">多选叉乘-音频驱动</el-button>
         <el-button type="primary" @click="openCreateDialog()">
           <el-icon><Plus /></el-icon>
           新建批量计划
