@@ -539,16 +539,17 @@ export function deleteDigitalHumanTask(id: number | string) {
  * @param search 搜索条件对象
  * @returns 返回数字人列表及分页信息
  */
-export function getDigitalHumanPaginateList(page: number = 1, pageSize: number = 20, search?: any) {
+export function getDigitalHumanPaginateList(page: number = 1, pageSize: number = 20, search?: any, silentInvalidPage: boolean = false) {
     return request({
         url: '/api/material/digital-human/paginate/',
         method: 'post',
+        silentInvalidPage,
         data: {
             page,
             pageSize,
             ...(search && { search })
         }
-    })
+    } as any)
 }
 
 /**

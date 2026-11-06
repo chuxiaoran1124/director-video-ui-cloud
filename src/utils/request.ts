@@ -71,6 +71,8 @@ const refreshForRetry = async (config: any) => {
 const errorHandler = async(error: any) => {
     error?.config?._loadingInstance?.close?.()
     const status = error?.response?.status
+    const detail = error?.response?.data?.detail
+    const invalidPage = status === 404 && (detail === '无效页面。' || detail === 'Invalid page.')
     const rawMessage = error?.response?.data?.message || error?.message || '请求失败'
     const message = normalizeErrorMessage(rawMessage, error?.config)
 
@@ -89,7 +91,7 @@ const errorHandler = async(error: any) => {
     }
 
     // 网关超时仍交给调用方处理并保留日志，但不再为并行请求重复弹出全局通知。
-    if (!error?.config?.silentError && !SILENT_GATEWAY_STATUSES.has(status)) {
+    if (!error?.config?.silentError && !(error?.config?.silentInvalidPage && invalidPage) && !SILENT_GATEWAY_STATUSES.has(status)) {
         ElNotification({
             title: status ? `请求失败 ${status}` : '请求失败',
             message,
@@ -97,7 +99,7 @@ const errorHandler = async(error: any) => {
         })
     }
 
-    return Promise.reject(buildRejectedError(message, rawMessage, status))
+    return Promise.reject(Object.assign(buildRejectedError(message, rawMessage, status), { invalidPage }))
 }
 
 request.interceptors.request.use((config: any) => {

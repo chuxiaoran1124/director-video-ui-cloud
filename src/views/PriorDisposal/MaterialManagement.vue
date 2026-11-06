@@ -90,7 +90,7 @@
                 prefix-icon="ElIconSearch"
                 @change="fetchData"
               />
-              <el-select v-model="filterDHGender" placeholder="全部性别" clearable style="width: 120px" @change="fetchDigitalHumans">
+              <el-select v-model="filterDHGender" placeholder="全部性别" clearable style="width: 120px" @change="onDHGenderChange">
                 <el-option label="男" value="male" /><el-option label="女" value="female" />
               </el-select>
             </div>
@@ -1281,21 +1281,26 @@ export default defineComponent({
       })
     }
 
+    let bannerDHRequestVersion = 0
     const loadBannerDHOptions = async (reset = false) => {
-      if (bannerDHLoading.value) return
       if (reset) {
+        bannerDHRequestVersion++
+        bannerDHLoading.value = false
         bannerDHPage.page = 1
         bannerDHPage.hasMore = true
         bannerDHOptions.value = []
       }
-      if (!bannerDHPage.hasMore) return
+      if (bannerDHLoading.value || !bannerDHPage.hasMore) return
 
+      const requestVersion = bannerDHRequestVersion
+      const requestedPage = bannerDHPage.page
       bannerDHLoading.value = true
       try {
         const searchObj: any = {}
         const keyword = bannerDHSearchKeyword.value.trim()
         if (keyword) searchObj.digitalHumanName = keyword
-        const res = await getDigitalHumanPaginateList(bannerDHPage.page, bannerDHPage.pageSize, searchObj)
+        const res = await getDigitalHumanPaginateList(requestedPage, bannerDHPage.pageSize, searchObj, true)
+        if (requestVersion !== bannerDHRequestVersion) return
         if (res.data.code === 200 && res.data.data) {
           const list = res.data.data.data || []
           const merged = reset ? list : [...bannerDHOptions.value, ...list]
@@ -1303,17 +1308,23 @@ export default defineComponent({
           merged.forEach((item: any) => map.set(String(item.id), item))
           bannerDHOptions.value = Array.from(map.values())
           bannerDHPage.page += 1
-          if (list.length < bannerDHPage.pageSize) {
+          const total = Number(res.data.data.total)
+          const hasValidTotal = res.data.data.total !== undefined && res.data.data.total !== null && Number.isFinite(total) && total >= 0
+          if ((hasValidTotal && bannerDHOptions.value.length >= total) || (!hasValidTotal && list.length < bannerDHPage.pageSize)) {
             bannerDHPage.hasMore = false
           }
         } else {
           bannerDHPage.hasMore = false
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (requestVersion !== bannerDHRequestVersion) return
+        if (requestedPage > 1 && error?.invalidPage === true) {
+          bannerDHPage.hasMore = false
+          return
+        }
         console.error('加载横幅数字人失败:', error)
-        bannerDHPage.hasMore = false
       } finally {
-        bannerDHLoading.value = false
+        if (requestVersion === bannerDHRequestVersion) bannerDHLoading.value = false
       }
     }
 
@@ -2093,21 +2104,35 @@ export default defineComponent({
       }
     }
 
+    let digitalHumanRequestVersion = 0
     const fetchDigitalHumans = async () => {
+      const requestVersion = ++digitalHumanRequestVersion
+      const requestedPage = dhPage.currentPage
       try {
         const searchObj = {}
         // 浼犻€掓悳绱㈡潯浠跺埌API
         if (searchDH.value) Object.assign(searchObj, { digitalHumanName: searchDH.value })
         if (filterDHGender.value) Object.assign(searchObj, { gender: filterDHGender.value })
         
-        const res = await getDigitalHumanPaginateList(dhPage.currentPage, dhPage.pageSize, searchObj)
+        const res = await getDigitalHumanPaginateList(requestedPage, dhPage.pageSize, searchObj, true)
+        if (requestVersion !== digitalHumanRequestVersion) return
         if (res.data.code === 200 && res.data.data) {
           digitalHumans.value = res.data.data.data || []
           digitalHumansTotal.value = res.data.data.total || 0
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (requestVersion !== digitalHumanRequestVersion) return
+        if (requestedPage > 1 && error?.invalidPage === true) {
+          dhPage.currentPage = 1
+          return
+        }
         console.error('Failed to fetch digital humans:', error)
       }
+    }
+
+    const onDHGenderChange = () => {
+      if (dhPage.currentPage !== 1) dhPage.currentPage = 1
+      else fetchDigitalHumans()
     }
 
     const resetVoiceSearch = () => {
@@ -2630,6 +2655,7 @@ export default defineComponent({
       searchVoice,
       searchDH,
       filterDHGender,
+      onDHGenderChange,
       filterVoiceTag,
       searchRelVoice,
       searchRelDH,

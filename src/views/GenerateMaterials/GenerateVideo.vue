@@ -3188,7 +3188,10 @@ const batchDownloadAudios = async () => {
 }
 
 // --- 数字人选择器---
+let humanPickerRequestVersion = 0
 const openHumanSelector = async () => {
+  humanPickerRequestVersion++
+  humanSelectorDialog.loading = false
   humanSelectorDialog.visible = true
   // 重置分页
   humanSelectorDialog.allList = []
@@ -3204,6 +3207,9 @@ const openHumanSelector = async () => {
 }
 
 const loadMoreHumans = async () => {
+  if (humanSelectorDialog.loading || !humanSelectorDialog.hasMore) return
+  const requestVersion = humanPickerRequestVersion
+  const requestedPage = humanSelectorDialog.page
   humanSelectorDialog.loading = true
   try {
     // 从 API 加载下一页数字人数据，并传入视频方向参数
@@ -3213,7 +3219,8 @@ const loadMoreHumans = async () => {
     if (humanSelectorDialog.tag.trim()) searchParams.tag = humanSelectorDialog.tag.trim()
     searchParams.type = videoForm.videoType
     searchParams.language = videoForm.language
-    const response = await getDigitalHumanPaginateList(humanSelectorDialog.page, humanSelectorDialog.pageSize, searchParams)
+    const response = await getDigitalHumanPaginateList(requestedPage, humanSelectorDialog.pageSize, searchParams, true)
+    if (requestVersion !== humanPickerRequestVersion) return
     
     if (response.data && response.data.data) {
       const data = response.data.data
@@ -3243,15 +3250,22 @@ const loadMoreHumans = async () => {
       humanSelectorDialog.page++
       
       // 如果本页获取的数据少于pageSize，说明已经到底了
-      if (humanList.length < humanSelectorDialog.pageSize) {
+      const total = Number(data.total)
+      const hasValidTotal = data.total !== undefined && data.total !== null && Number.isFinite(total) && total >= 0
+      if ((hasValidTotal && humanSelectorDialog.allList.length >= total) || (!hasValidTotal && humanList.length < humanSelectorDialog.pageSize)) {
         humanSelectorDialog.hasMore = false
       }
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (requestVersion !== humanPickerRequestVersion) return
+    if (requestedPage > 1 && error?.invalidPage === true) {
+      humanSelectorDialog.hasMore = false
+      return
+    }
     console.error('加载数字人失败:', error)
     ElMessage.error('加载数字人失败')
   } finally {
-    humanSelectorDialog.loading = false
+    if (requestVersion === humanPickerRequestVersion) humanSelectorDialog.loading = false
   }
 }
 
@@ -3594,12 +3608,21 @@ const clearRelSelection = () => {
 // 监听搜索框变化
 watch(() => [humanSelectorDialog.search, humanSelectorDialog.gender, humanSelectorDialog.tag], () => {
   if (!humanSelectorDialog.visible) return
+  humanPickerRequestVersion++
+  humanSelectorDialog.loading = false
   // 重置分页，重新从API加载搜索结果
   humanSelectorDialog.allList = []
   humanSelectorDialog.displayList = []
   humanSelectorDialog.page = 1
   humanSelectorDialog.hasMore = true
   loadMoreHumans()
+})
+
+watch(() => humanSelectorDialog.visible, (visible) => {
+  if (!visible) {
+    humanPickerRequestVersion++
+    humanSelectorDialog.loading = false
+  }
 })
 
 watch(() => voiceSelectorDialog.search, (newVal) => {
